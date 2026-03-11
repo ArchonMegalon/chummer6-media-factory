@@ -2,7 +2,7 @@
 
 ## Mission
 
-`chummer-media-factory` owns render execution, render jobs, previews, manifests, asset lifecycle, provider adapters, and signed asset access for Chummer media workloads.
+`chummer6-media-factory` owns render execution, render jobs, previews, manifests, asset lifecycle, provider adapters, and signed asset access for Chummer media workloads.
 
 ## Owns
 
@@ -27,9 +27,9 @@
 ## Current focus
 
 * become a real source tree and package, not just a scaffold repo
-* extract media execution contracts out of `chummer.run-services`
+* extract media execution contracts out of `chummer6-hub`
 * land the shared job/asset kernel before domain-specific rendering features
-* onboard full mirror coverage from `chummer-design`
+* onboard full mirror coverage from `chummer6-design`
 
 ## Milestone spine
 
@@ -51,7 +51,7 @@ If it is about campaign meaning, approvals, delivery, or rules truth, it does no
 
 ## External media integrations scope
 
-`chummer-media-factory` is the only repo allowed to own media/render/archive adapters.
+`chummer6-media-factory` is the only repo allowed to own media/render/archive adapters.
 
 ### Owns
 
