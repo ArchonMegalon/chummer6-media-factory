@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chummer.Media.Contracts</PackageId>
+    <AssemblyName>Chummer.Media.Contracts</AssemblyName>
+    <RootNamespace>Chummer.Media.Contracts</RootNamespace>
+    <Description>Canonical render-only media job and asset lifecycle contracts for Chummer media-factory.</Description>
+    <PackageTags>chummer;media;contracts;render-only;dto</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
