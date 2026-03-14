@@ -43,6 +43,18 @@
 * M7 storage/DR/scale
 * M8 finished media plant
 
+## Milestone coverage truth (2026-03-14)
+
+* M0 contract canon. Status: completed. Completion: 100%. ETA target date: 2026-03-10 (met). ETA confidence: high. Blockers: none.
+* M1 asset/job kernel. Status: completed. Completion: 100%. ETA target date: 2026-03-10 (met). ETA confidence: high. Blockers: none.
+* M2 document rendering. Status: open. Completion: 0%. ETA target date: 2026-03-27. ETA confidence: low. Blockers: renderer move-in implementation backlog not started in this repo.
+* M3 portrait forge. Status: open. Completion: 0%. ETA target date: 2026-04-10. ETA confidence: low. Blockers: depends on M2 completion and shared renderer substrate hardening.
+* M4 bounded video. Status: open. Completion: 0%. ETA target date: 2026-04-24. ETA confidence: low. Blockers: depends on M3 completion and bounded video adapter readiness.
+* M5 template/style integration. Status: open. Completion: 0%. ETA target date: 2026-05-01. ETA confidence: low. Blockers: depends on stable M2/M3 outputs and upstream template authority inputs.
+* M6 run-services cutover. Status: completed. Completion: 100%. ETA target date: 2026-03-10 (met). ETA confidence: medium. Blockers: none.
+* M7 storage/DR/scale. Status: open. Completion: 0%. ETA target date: 2026-05-15. ETA confidence: low. Blockers: depends on post-renderer workload baselines and operational runbook scope.
+* M8 finished media plant. Status: open. Completion: 0%. ETA target date: 2026-05-29. ETA confidence: low. Blockers: depends on M2-M7 completion and release hardening handoff.
+
 ## Worker rule
 
 If the feature is about rendering, previews, manifests, or asset lifecycle, it belongs here.
@@ -92,4 +104,3 @@ If it is about campaign meaning, approvals, delivery, or rules truth, it does no
 * previews and thumbnails are linked assets
 * archive providers are never the hot path
 * provider choice is adapter-private and switchable
-

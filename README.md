@@ -20,4 +20,10 @@ This repo must not own:
 
 Current status: scaffold-stage bootstrap. `Chummer.Media.Contracts` is the canonical render-only contract plane for this repo, with package metadata and namespace policy checks in verification.
 
+Current maturity note:
+
+- the boundary is now documented honestly
+- the package plane is real
+- the service is still early until live render execution cutover and lifecycle proof stop living mostly in upstream repos and evidence docs
+
 The package does not define narrative briefs, canon decisions, routing policy, delivery policy, or campaign/session orchestration contracts. Those remain upstream in `chummer6-hub`.
