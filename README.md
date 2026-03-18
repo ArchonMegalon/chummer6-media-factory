@@ -26,4 +26,9 @@ Current maturity note:
 - the package plane is real
 - the service is still early until live render execution cutover and lifecycle proof stop living mostly in upstream repos and evidence docs
 
+Operator bridge:
+
+- `scripts/render_guide_asset.py` is the current operator-run bridge that lets upstream Chummer guide refreshes hand image execution to Media Factory instead of talking to provider adapters directly.
+- The bridge is intentionally narrow for now: it owns receipt emission and the render seam, while using EA's executable `1min` image tool under the hood until more adapters move fully into this repo.
+
 The package does not define narrative briefs, canon decisions, routing policy, delivery policy, or campaign/session orchestration contracts. Those remain upstream in `chummer6-hub`.

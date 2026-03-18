@@ -16,6 +16,10 @@ test -f src/Chummer.Media.Contracts/README.md
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/EXTRACT-008-DS-execution-evidence.md
 test -f scripts/ai/contract-boundary-tests.sh
+test -f scripts/render_guide_asset.py
+
+python3 -m py_compile scripts/render_guide_asset.py
+python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run >/dev/null
 
 bash scripts/ai/contract-boundary-tests.sh
 
