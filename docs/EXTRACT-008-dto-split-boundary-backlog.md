@@ -28,13 +28,13 @@ Convert the remaining generic uncovered-scope prompt about media DTO split into 
 5. DS-05 Queue/worklist and seam doc synchronization
 - Map this backlog into queue/worklist artifacts so generic auditor prompts are replaced with executable steps.
 - Cross-reference `docs/MF-005-service-seams-and-handoffs.md` and `docs/EXTRACT-006-run-services-seam-cutover-backlog.md` to keep ownership boundaries consistent.
-- Evidence: queue/worklist entries reference `EXTRACT-008` directly and mark generic DTO-split prompts as superseded.
+- Evidence: queue/worklist entries reference `EXTRACT-008` directly and map any active generic DTO-split queue prompt to DS-01..DS-05 as the runnable implementation path.
 
 ## Completion signal
 
 This slice is complete when:
 - `EXTRACT-008` is present in queue/worklist as the runnable mapping for DTO split uncovered-scope findings,
 - verification enforces render-only DTO boundaries,
-- and no generic DTO-split queue prompt remains as the active implementation task.
+- and no active generic DTO-split queue prompt is left unmapped to DS-01..DS-05 runnable units.
 
 Execution evidence: `docs/EXTRACT-008-DS-execution-evidence.md`.

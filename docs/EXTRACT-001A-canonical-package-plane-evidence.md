@@ -5,6 +5,13 @@ Candidates: `22418`, `22422`
 Owner: media-factory
 Scope: prove `Chummer.Media.Contracts` remains the canonical render-only package plane in this repo.
 
+## Milestone mapping
+
+- Milestone: `M0 contract canon`
+- Program mapping: `C1 media factory extraction`
+- Contract set: `media_execution_vnext`
+- Completion gate: `CP-01`..`CP-03` all pass with package-only render-only boundaries preserved
+
 ## Acceptance checks
 
 | Check | Source | Result | Evidence |
@@ -18,3 +25,7 @@ Scope: prove `Chummer.Media.Contracts` remains the canonical render-only package
 ## Conclusion
 
 `CP-01` acceptance evidence is complete for candidate prompts `22418` and `22422`. The canonical package plane is present, identity metadata is stable, boundary guardrails are wired, and verify enforces pack artifact production.
+
+## Queue slice resolution
+
+Current queue item `Add milestone mapping or executable queue work for The repo exists, but \`Chummer.Media.Contracts\` is not yet real as the canonical render-only package plane..` is satisfied by the milestone mapping above and existing `CP-01`..`CP-03` execution coverage, so no additional runnable backlog units are required in this repo for this slice.

@@ -232,4 +232,18 @@ Artifacts updated:
 - `docs/MF-005-service-seams-and-handoffs.md`
 - `docs/EXTRACT-006-run-services-seam-cutover-backlog.md`
 
-`EXTRACT-008` generic queue prompt is now superseded by this execution evidence and removed from active queue items.
+`EXTRACT-008` generic queue prompt is superseded by this execution evidence and mapped to DS-01..DS-05 when queue overlays prepend duplicate generic prompts.
+
+## Milestone mapping for DTO split queue slices
+
+Program mapping:
+- Milestone spine: `M8 finished media plant` (`.codex-design/repo/IMPLEMENTATION_SCOPE.md`)
+- Program milestone: `E4 media plane complete` (`.codex-design/product/PROGRAM_MILESTONES.yaml`)
+- Contract set: `media_execution_vnext` (`.codex-design/product/CONTRACT_SETS.yaml`)
+
+Execution-to-gate mapping:
+- `DS-01` + `DS-03` enforce render-only DTO ownership required for `M8` aggregate closure.
+- `DS-02` + `DS-04` provide executable guardrails/tests used as completion truth gates for boundary integrity.
+- `DS-05` maps active generic queue prompts to runnable units so milestone evidence remains explicit rather than implied.
+
+Current queue item `Add milestone mapping or executable queue work for Media DTOs ...` is therefore satisfied by the existing `DS-01`..`DS-05` execution lane with no additional runnable backlog units required.
