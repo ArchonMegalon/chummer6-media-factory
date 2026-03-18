@@ -28,9 +28,9 @@ This roadmap carries the program all the way to finished-state vision, not just 
 
 ### B1 — UI kit real
 
-`chummer6-ui-kit` becomes the actual shared design system package used by presentation and play.
+`chummer6-ui-kit` becomes the actual shared design system package used by UI and mobile.
 
-### B2 — Presentation purified
+### B2 — UI purified
 
 `chummer6-ui` becomes workbench/browser/desktop only, with no play-shell confusion.
 
@@ -44,7 +44,7 @@ This roadmap carries the program all the way to finished-state vision, not just 
 
 `chummer6-media-factory` takes ownership of render jobs, manifests, previews, and asset lifecycle.
 
-### C2 — Run-services shrink
+### C2 — Hub shrink
 
 `chummer6-hub` becomes a clean orchestration service rather than a hidden super-repo.
 
@@ -66,11 +66,11 @@ Runtime bundles, fingerprints, and replay-safe payloads stabilize across engine 
 
 ### E0 — Workbench complete
 
-Presentation ships robust builder, compare, explain, publish, review, and admin surfaces.
+UI ships robust builder, compare, explain, publish, review, and admin surfaces.
 
 ### E1 — Play complete
 
-Play ships installable PWA/mobile session OS for players and GMs.
+Mobile ships installable PWA/mobile session OS for players and GMs.
 
 ### E2 — Hub complete
 
@@ -92,7 +92,7 @@ Cross-head quality bar is real.
 
 ### F1 — Replay, observability, DR
 
-Core, run-services, registry, and media all have operational confidence.
+Core, hub, registry, and media all have operational confidence.
 
 ### F2 — Legacy migration and certification
 
@@ -101,6 +101,30 @@ Core, run-services, registry, and media all have operational confidence.
 ### F3 — Release complete
 
 The product vision is complete enough for release: split finished, boundaries clean, packages canonical, product surfaces coherent, and operational discipline in place.
+
+## Non-blocking Horizons canon lane
+
+This lane makes future-capability posture explicit without turning Horizons into a release gate for `vnext-foundation`.
+
+### H0 — Horizon canon established
+
+`chummer6-design` publishes a canonical Horizons layer and keeps it ahead of downstream public storytelling.
+
+### H1 — Public guide and horizon sync policy
+
+`Chummer6` is governed as a downstream guide that cannot outrun canonical horizon docs.
+
+### H2 — LTD capability map complete
+
+Owned external tools are mapped to promoted, bounded, parked, or non-product states with explicit owners and system-of-record limits.
+
+### H3 — First bounded horizon promoted to research-ready
+
+At least one horizon has enough owner, tool, and provenance detail to move from vague idea to bounded research lane.
+
+### H4 — Public signal loop defined
+
+Public proposals and advisory prioritization routes are collected through governed surfaces without turning votes into canonical truth.
 
 ## Repo milestone spine
 
@@ -130,7 +154,7 @@ H0 contract canon -> H1 artifact domain -> H2 publication drafts -> H3 install/c
 
 ### `chummer6-media-factory`
 
-M0 contract canon -> M1 asset/job kernel -> M2 document rendering -> M3 portrait forge -> M4 bounded video -> M5 template/style integration -> M6 run-services cutover -> M7 storage/DR/scale -> M8 finished media plant.
+M0 contract canon -> M1 asset/job kernel -> M2 document rendering -> M3 portrait forge -> M4 bounded video -> M5 template/style integration -> M6 hub cutover -> M7 storage/DR/scale -> M8 finished media plant.
 
 ### `chummer6-hub`
 
