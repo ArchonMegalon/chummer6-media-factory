@@ -114,7 +114,17 @@ def _download_asset(url: str, output_path: Path) -> None:
     output_path.write_bytes(data)
 
 
-def _write_receipt(*, render_id: str, prompt: str, output_path: Path, width: int, height: int, result) -> Path:
+def _write_receipt(
+    *,
+    render_id: str,
+    prompt: str,
+    output_path: Path,
+    width: int,
+    height: int,
+    backend_provider: str,
+    quality: str,
+    result,
+) -> Path:
     RECEIPTS_ROOT.mkdir(parents=True, exist_ok=True)
     receipt_path = RECEIPTS_ROOT / f"{render_id}.json"
     payload = {
@@ -125,9 +135,12 @@ def _write_receipt(*, render_id: str, prompt: str, output_path: Path, width: int
         "width": width,
         "height": height,
         "provider": "media_factory",
-        "backend_provider": "onemin",
+        "backend_provider": backend_provider,
         "backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND",
+        "backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION",
         "image_execution_enabled": _image_execution_enabled(),
+        "quality": quality,
+        "requested_model_candidates": _model_candidates(),
         "tool_name": result.tool_name,
         "action_kind": result.action_kind,
         "receipt_json": dict(result.receipt_json or {}),
@@ -214,6 +227,8 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
         output_path=output_path,
         width=width,
         height=height,
+        backend_provider=backend_provider,
+        quality=quality,
         result=result,
     )
     return {

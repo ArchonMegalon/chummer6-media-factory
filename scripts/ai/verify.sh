@@ -22,11 +22,16 @@ test -f scripts/ai/contract-boundary-tests.sh
 test -f scripts/render_guide_asset.py
 
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
-rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
+rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
 
 python3 -m py_compile scripts/render_guide_asset.py
-python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run >/dev/null
+python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND"|"backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION"|"backend_provider": "onemin"' >/dev/null
 CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION=0 python3 scripts/render_guide_asset.py --prompt "media factory disabled dry run" --output /tmp/chummer-media-factory-disabled-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"image_execution_enabled": false|"backend_provider": "disabled"' >/dev/null
+if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=bogus python3 scripts/render_guide_asset.py --prompt "media factory bogus backend" --output /tmp/chummer-media-factory-bogus-backend.png --width 1600 --height 900 >/tmp/chummer-media-factory-bogus.log 2>&1; then
+  echo "verify failed: unsupported backend should fail fast" >&2
+  exit 1
+fi
+rg -n 'media_factory:unsupported_backend:bogus' /tmp/chummer-media-factory-bogus.log >/dev/null
 
 bash scripts/ai/contract-boundary-tests.sh
 

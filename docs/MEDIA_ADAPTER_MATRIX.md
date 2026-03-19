@@ -27,6 +27,7 @@ This matrix inventories the live media adapter families and makes provider choic
 - Backend selection must stay inside media-factory-owned surfaces.
 - Media execution must fail closed when `CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION=0`.
 - Unsupported backend tokens must fail fast instead of silently falling back.
+- Receipts must record the actual selected backend plus the controlling env vars, not a hard-coded provider label.
 
 ## Current gap
 
