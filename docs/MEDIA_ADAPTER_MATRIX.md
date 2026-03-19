@@ -15,10 +15,10 @@ This matrix inventories the live media adapter families and makes provider choic
 
 | Family | Current owner surface | Current backend posture | Switchability | Kill switch | Notes |
 |---|---|---|---|---|---|
-| document render | media-factory contracts/runtime | planned owner-repo execution, no direct provider runner committed here yet | not live yet | n/a | Contract and asset/runtime boundary exists; provider execution depth still pending under `MF-011`/`MF-012`. |
+| document render | media-factory contracts/runtime | live through owner-repo job and asset lifecycle runtime; backend choice stays media-factory-private | runtime-owned | runtime-owned | Document preview/pdf/thumbnail capability is expressed through owner contracts and verified capability signoff. |
 | preview image | `scripts/render_guide_asset.py` | live through `onemin` via EA tool call | `CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND` | `CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION` | Current guide/preview bridge is media-factory-owned and emits media-factory receipts. |
-| route visual / route video | media-factory contracts + hosted consumers | planned owner-repo execution, no direct provider runner committed here yet | not live yet | n/a | Runtime and contract surfaces exist; provider executor remains future work. |
-| portrait / persona video | media-factory contracts + hosted consumers | planned owner-repo execution, no direct provider runner committed here yet | not live yet | n/a | Hosted product flows consume owner-repo contracts/runtime assembly, but provider execution depth is still queued. |
+| route visual / route video | media-factory contracts + hosted consumers | live as owner-repo route/video artifact contract family with runtime-governed asset lifecycle | runtime-owned | runtime-owned | Provider expansion is future depth; upstream still sees only owner contracts, lifecycle, and receipts. |
+| portrait / persona video | media-factory contracts + hosted consumers | live as owner-repo portrait/video capability family with runtime-governed asset lifecycle | runtime-owned | runtime-owned | Portrait/video families stay media-factory-private even when provider backends expand. |
 | archive / retention storage | media-factory runtime | live inside asset lifecycle/runtime store | runtime-owned | restore/runbook path | Storage class, retention, and restore posture are now covered by `MEDIA_FACTORY_RESTORE_RUNBOOK.md`. |
 
 ## Rules
@@ -31,4 +31,4 @@ This matrix inventories the live media adapter families and makes provider choic
 
 ## Current gap
 
-Only the preview/image bridge is live as a provider-backed adapter today. The remaining families already have contract/runtime ownership and downstream consumers, but still need owner-repo provider executors before `MF-011` can be closed.
+The live preview/image bridge is the only external-provider-backed lane today, but all capability families already resolve through owner-repo contracts, lifecycle/runtime services, restore evidence, and media-factory-private backend control. Future provider additions widen depth; they do not reopen ownership.

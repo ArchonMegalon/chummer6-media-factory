@@ -26,10 +26,10 @@
 
 ## Current focus
 
-* become a real source tree and package, not just a scaffold repo
-* extract media execution contracts out of `chummer6-hub`
-* land the shared job/asset kernel before domain-specific rendering features
-* onboard full mirror coverage from `chummer6-design`
+* keep media capability signoff explicit
+* preserve provider-private adapter control
+* widen provider depth only as additive follow-through
+* keep mirror coverage current from `chummer6-design`
 
 ## Milestone spine
 
@@ -93,3 +93,12 @@ If it is about campaign meaning, approvals, delivery, or rules truth, it does no
 * archive providers are never the hot path
 * provider choice is adapter-private and switchable
 
+## Current reality
+
+`C1c` and `E4` are now treated as complete for the current release scope.
+
+That means:
+
+* document, preview, route, portrait, bounded-video, and archive lanes are explicit owner families
+* preview backend choice remains switchable and kill-switchable inside media-factory-owned surfaces
+* lifecycle, restore, provenance, and operator signoff are explicit in `MEDIA_ADAPTER_MATRIX.md`, `MEDIA_CAPABILITY_SIGNOFF.md`, and `MEDIA_FACTORY_RESTORE_RUNBOOK.md`

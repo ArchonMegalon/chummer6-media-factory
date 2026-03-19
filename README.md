@@ -26,6 +26,7 @@ Current maturity note:
 - the package plane is real
 - render-job and asset-lifecycle execution now live in this repo and are verified through local build plus cross-repo clean-room checks
 - restore, retention, and replay-safe operator evidence are now exercised through `Chummer.Media.Factory.Runtime.Verify` and `docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md`
+- stable capability and adapter authority are now summarized in `docs/MEDIA_CAPABILITY_SIGNOFF.md`
 
 Operator bridge:
 

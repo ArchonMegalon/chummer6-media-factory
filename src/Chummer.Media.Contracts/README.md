@@ -6,6 +6,8 @@ Contract families:
 
 - render requests (`Rendering/*`)
 - render job queue state (`Jobs/*`)
+- packet/document capability result contracts (`Packet*`)
+- route cinema capability result contracts (`RouteCinema*`)
 - media asset manifest and lifecycle state (`Assets/*`)
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)

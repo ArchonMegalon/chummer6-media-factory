@@ -16,6 +16,7 @@ test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/MEDIA_ADAPTER_MATRIX.md
+test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
 test -f docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md
 test -f docs/EXTRACT-008-DS-execution-evidence.md
 test -f scripts/ai/contract-boundary-tests.sh
@@ -23,6 +24,7 @@ test -f scripts/render_guide_asset.py
 
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
 rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
+rg -n 'DocumentPdf|DocumentThumbnailImage|PortraitImageVariant|NarrativeBriefVideo|RouteCinemaResult|AssetLifecyclePolicy|CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION' docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 
 python3 -m py_compile scripts/render_guide_asset.py
 python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND"|"backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION"|"backend_provider": "onemin"' >/dev/null

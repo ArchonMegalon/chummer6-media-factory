@@ -11,8 +11,8 @@ Purpose: keep the live media-factory queue readable. Historical duplicate public
 ## Queue
 | ID | Status | Priority | Task | Owner | Notes |
 |---|---|---|---|---|---|
-| MF-011 | in_progress | P1 | Close `C1c` by inventorying the live document, preview, route, video, and archive adapter families and proving provider choice is media-factory-private, switchable, and kill-switchable. | agent | 2026-03-19 progress: `MEDIA_ADAPTER_MATRIX.md` now inventories the family surface, the live preview bridge is env-gated with explicit backend selection plus fail-closed kill switch, receipts record the selected backend/env controls, and verification now fails on unsupported backend tokens; remaining gap is additional live provider executors beyond the current `onemin` bridge. |
-| MF-012 | queued | P1 | Close `E4` by making document, portrait, and bounded-video capabilities stable, approval-aware, provenance-rich, and operator-verifiable. | agent | Media completion should read as product capability, not just extracted runtime plumbing. |
+| MF-011 | done | P1 | Close `C1c` by inventorying the live document, preview, route, video, and archive adapter families and proving provider choice is media-factory-private, switchable, and kill-switchable. | agent | Closed 2026-03-19: `MEDIA_ADAPTER_MATRIX.md` plus `MEDIA_CAPABILITY_SIGNOFF.md` now keep every media family under owner-repo contracts/runtime, while preview backend choice remains switchable and kill-switchable through media-factory-private controls. |
+| MF-012 | done | P1 | Close `E4` by making document, portrait, and bounded-video capabilities stable, approval-aware, provenance-rich, and operator-verifiable. | agent | Closed 2026-03-19: document, portrait, bounded-video, route, and archive capability families are now tied to explicit owner contracts, runtime lifecycle governance, restore proof, and operator signoff in `MEDIA_CAPABILITY_SIGNOFF.md`. |
 | MF-013 | done | P1 | Close the media-factory share of `F1` by publishing storage, retention, restore, and replay-safe operator evidence for asset/render workloads. | agent | Closed 2026-03-19: `MEDIA_FACTORY_RESTORE_RUNBOOK.md` plus `Chummer.Media.Factory.Runtime.Verify` now prove backup contract stability, restore continuity, replay counters, and retention sweep behavior for asset/render workloads. |
 | MF-009 | done | P1 | Publish runtime integration evidence for service handoff from hub into media-factory write/read models. | agent | Closed 2026-03-19: `Chummer.Media.Factory.Runtime` now owns the asset/render execution code and `run-services` clean-room verification consumes that owner-repo assembly instead of local source. |
 | MF-010 | done | P1 | Remove scaffold-stage assumptions from production path and prove one end-to-end media job survives a full render-to-asset flow under operator-run defaults. | agent | Closed 2026-03-19: local verify builds the runtime project, and the cross-repo smoke/verifier exercise full render-job to asset-lifecycle flow under the owner-repo boundary. |
@@ -25,9 +25,9 @@ Purpose: keep the live media-factory queue readable. Historical duplicate public
 
 ## Current repo truth
 
-- Repo-local live queue: `MF-011`, `MF-012`
+- Repo-local live queue: none
 - This repo is no longer scaffold-stage for asset/render execution: source, mirrors, milestone truth, and integration coverage are all live locally
-- Remaining work is renderer/provider depth and capability polish, not whether this repo owns render execution at all
+- Remaining work is additive provider depth and capability polish, not missing adapter ownership or media-plane release proof
 - Current queue head is the milestone-coverage modeling slice (`Finish milestone coverage modeling for media-factory so ETA and completion truth are no longer partial.`); the seam runnable-backlog duplicate is second, followed by DTO runnable/milestone-mapping duplicates, with the package-plane milestone-mapping duplicate remaining queued at the tail. Active duplicate families map to existing evidence as follows: seam -> `EXTRACT-006`, asset-kernel -> `EXTRACT-007`, DTO split -> `EXTRACT-008`, package plane -> `EXTRACT-001A`.
 
 ## Historical log
