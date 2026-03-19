@@ -26,6 +26,7 @@
 - verification script runs
 - render-only contract boundaries are documented
 - no implementation dependency leaks from engine, presentation, play, or run-services
+- restore, retention, and replay-safe media execution drills are runnable from this repo without hub-owned fallback sources
 
 ## Canonical contract plane
 

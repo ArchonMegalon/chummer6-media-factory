@@ -26,8 +26,6 @@ for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
 
 from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
 from app.domain.models import ToolDefinition, ToolInvocationRequest  # type: ignore  # noqa: E402
-from app.services.tool_execution_common import ToolExecutionError  # type: ignore  # noqa: E402
-from app.services.tool_execution_onemin_adapter import OneminToolAdapter  # type: ignore  # noqa: E402
 
 
 def _seed_runtime_env() -> None:
@@ -60,6 +58,22 @@ def _model_candidates() -> list[str]:
         if cleaned and cleaned not in values:
             values.append(cleaned)
     return values
+
+
+def _image_execution_enabled() -> bool:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION", "1")).strip().lower()
+    return raw not in {"0", "false", "no", "off", "disabled"}
+
+
+def _selected_backend() -> str:
+    backend = str(os.environ.get("CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND") or "onemin").strip().lower()
+    if backend in {"", "default"}:
+        return "onemin"
+    if backend in {"ea_onemin", "onemin"}:
+        return "onemin"
+    if backend in {"disabled", "off", "none"}:
+        return "disabled"
+    return backend
 
 
 def _size_candidates(model: str, *, width: int, height: int) -> list[str]:
@@ -112,6 +126,8 @@ def _write_receipt(*, render_id: str, prompt: str, output_path: Path, width: int
         "height": height,
         "provider": "media_factory",
         "backend_provider": "onemin",
+        "backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND",
+        "image_execution_enabled": _image_execution_enabled(),
         "tool_name": result.tool_name,
         "action_kind": result.action_kind,
         "receipt_json": dict(result.receipt_json or {}),
@@ -130,6 +146,8 @@ def _write_receipt(*, render_id: str, prompt: str, output_path: Path, width: int
 def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry_run: bool = False) -> dict[str, object]:
     _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
+    backend_provider = _selected_backend()
+    image_execution_enabled = _image_execution_enabled()
     quality = str(os.environ.get("CHUMMER6_ONEMIN_IMAGE_QUALITY") or "low").strip() or "low"
     payload = {
         "prompt": prompt,
@@ -143,10 +161,20 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             "render_id": render_id,
             "dry_run": True,
             "provider": "media_factory",
-            "backend_provider": "onemin",
+            "backend_provider": "disabled" if not image_execution_enabled else backend_provider,
+            "image_execution_enabled": image_execution_enabled,
+            "backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND",
+            "backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION",
             "output_path": str(output_path),
             "payload_json": payload,
         }
+    if not image_execution_enabled or backend_provider == "disabled":
+        raise RuntimeError("media_factory:rendering_disabled")
+    if backend_provider != "onemin":
+        raise RuntimeError(f"media_factory:unsupported_backend:{backend_provider}")
+    from app.services.tool_execution_common import ToolExecutionError  # type: ignore  # noqa: E402
+    from app.services.tool_execution_onemin_adapter import OneminToolAdapter  # type: ignore  # noqa: E402
+
     adapter = OneminToolAdapter()
     errors: list[str] = []
     result = None
@@ -191,7 +219,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
     return {
         "render_id": render_id,
         "provider": "media_factory",
-        "backend_provider": "onemin",
+        "backend_provider": backend_provider,
         "output_path": str(output_path),
         "receipt_path": str(receipt_path),
         "asset_url": asset_urls[0],

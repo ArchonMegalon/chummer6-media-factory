@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Chummer.Media.Contracts\Chummer.Media.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\..\chummercomplete\chummer.run-services\Chummer.Run.Contracts\Chummer.Run.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

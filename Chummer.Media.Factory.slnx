@@ -1,5 +1,9 @@
 <Solution>
+  <Folder Name="/verify/">
+    <Project Path="Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verify.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj" />
+    <Project Path="src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj" />
   </Folder>
 </Solution>

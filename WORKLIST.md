@@ -11,8 +11,11 @@ Purpose: keep the live media-factory queue readable. Historical duplicate public
 ## Queue
 | ID | Status | Priority | Task | Owner | Notes |
 |---|---|---|---|---|---|
-| MF-009 | queued | P1 | Publish runtime integration evidence for service handoff from hub into media-factory write/read models. | agent | Keep media service as render-only package plane by documenting explicit ownership for generation lifecycle, approvals, and lineage writes in runtime code/tests. |
-| MF-010 | queued | P1 | Remove scaffold-stage assumptions from production path and prove one end-to-end media job survives a full render-to-asset flow under operator-run defaults. | agent | Gate on deterministic manifest lineage, preview rendering, and retention checks so scaffold narrative can close into live status. |
+| MF-011 | in_progress | P1 | Close `C1c` by inventorying the live document, preview, route, video, and archive adapter families and proving provider choice is media-factory-private, switchable, and kill-switchable. | agent | 2026-03-19 progress: `MEDIA_ADAPTER_MATRIX.md` now inventories the family surface and the live preview bridge is env-gated with explicit backend selection plus fail-closed kill switch; remaining gap is additional live provider executors beyond the current `onemin` bridge. |
+| MF-012 | queued | P1 | Close `E4` by making document, portrait, and bounded-video capabilities stable, approval-aware, provenance-rich, and operator-verifiable. | agent | Media completion should read as product capability, not just extracted runtime plumbing. |
+| MF-013 | done | P1 | Close the media-factory share of `F1` by publishing storage, retention, restore, and replay-safe operator evidence for asset/render workloads. | agent | Closed 2026-03-19: `MEDIA_FACTORY_RESTORE_RUNBOOK.md` plus `Chummer.Media.Factory.Runtime.Verify` now prove backup contract stability, restore continuity, replay counters, and retention sweep behavior for asset/render workloads. |
+| MF-009 | done | P1 | Publish runtime integration evidence for service handoff from hub into media-factory write/read models. | agent | Closed 2026-03-19: `Chummer.Media.Factory.Runtime` now owns the asset/render execution code and `run-services` clean-room verification consumes that owner-repo assembly instead of local source. |
+| MF-010 | done | P1 | Remove scaffold-stage assumptions from production path and prove one end-to-end media job survives a full render-to-asset flow under operator-run defaults. | agent | Closed 2026-03-19: local verify builds the runtime project, and the cross-repo smoke/verifier exercise full render-job to asset-lifecycle flow under the owner-repo boundary. |
 | MF-006 | done | P1 | Materialize milestone coverage for the scaffold-stage extraction. | agent | Closed: milestone truth is explicit, and the repo no longer pretends “scaffold exists” means “boundary is complete.” |
 | EXTRACT-001A | done | P1 | Make `Chummer.Media.Contracts` a real canonical render-only package plane. | agent | Closed: package metadata, namespace policy, Release pack verification, and evidence are in place. |
 | EXTRACT-006 | done | P1 | Prove hub-to-media seam cutover expectations instead of hand-waving them. | agent | Closed: acceptance artifacts and verification now spell out the render-only handoff contract. |
@@ -22,9 +25,9 @@ Purpose: keep the live media-factory queue readable. Historical duplicate public
 
 ## Current repo truth
 
-- Repo-local live queue: non-empty (`mode: prepend`, queue includes `MF-009`, `MF-010`, plus remaining scaffold-to-run cutover preexisting items in `.codex-studio/published/QUEUE.generated.yaml`)
-- This repo is still early, but this is now honestly early: scaffold-stage execution proof exists, and remaining work is first-class runtime handoff depth, not undocumented confusion.
-- Remaining program blocker still lives in central design truth as `C1`
+- Repo-local live queue: `MF-011`, `MF-012`
+- This repo is no longer scaffold-stage for asset/render execution: source, mirrors, milestone truth, and integration coverage are all live locally
+- Remaining work is renderer/provider depth and capability polish, not whether this repo owns render execution at all
 - Current queue head is the milestone-coverage modeling slice (`Finish milestone coverage modeling for media-factory so ETA and completion truth are no longer partial.`); the seam runnable-backlog duplicate is second, followed by DTO runnable/milestone-mapping duplicates, with the package-plane milestone-mapping duplicate remaining queued at the tail. Active duplicate families map to existing evidence as follows: seam -> `EXTRACT-006`, asset-kernel -> `EXTRACT-007`, DTO split -> `EXTRACT-008`, package plane -> `EXTRACT-001A`.
 
 ## Historical log
