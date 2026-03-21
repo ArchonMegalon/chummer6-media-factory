@@ -155,7 +155,7 @@ public sealed record PacketFactoryRequest(
 
 public enum PacketAttachmentTargetKind
 {
-    Campaign,
+    RouteContext,
     Message,
     Export
 }
@@ -190,17 +190,17 @@ public sealed record PacketFactoryResult(
     IReadOnlyList<string>? Evidence = null);
 
 public sealed record RouteCinemaRequest(
-    string CampaignId,
+    string RouteContextId,
     string SourceNode,
     string TargetNode,
-    string SceneContext);
+    string SceneId);
 
 public sealed record RouteCinemaResult(
     string RouteCinemaId,
-    string CampaignId,
+    string RouteContextId,
     string SourceNode,
     string TargetNode,
-    string SceneContext,
+    string SceneId,
     IReadOnlyList<string> Waypoints,
     IReadOnlyList<string> WaypointScript,
     string TravelSummary,
