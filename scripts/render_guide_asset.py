@@ -51,6 +51,7 @@ def _model_candidates() -> list[str]:
     for candidate in (
         os.environ.get("CHUMMER6_ONEMIN_MODEL"),
         os.environ.get("EA_ONEMIN_TOOL_IMAGE_MODEL"),
+        "black-forest-labs/flux-schnell",
         "gpt-image-1-mini",
         "gpt-image-1",
         "dall-e-3",
@@ -59,6 +60,34 @@ def _model_candidates() -> list[str]:
         if cleaned and cleaned not in values:
             values.append(cleaned)
     return values
+
+
+def _normalized_onemin_model(model: str | None = None) -> str:
+    return str(model or "").strip().lower()
+
+
+def _is_flux_schnell_model(model: str | None = None) -> bool:
+    return _normalized_onemin_model(model) == "black-forest-labs/flux-schnell"
+
+
+def _configured_onemin_slots() -> list[dict[str, str]]:
+    fallback_env_names = sorted(
+        (
+            env_name
+            for env_name in os.environ
+            if env_name.startswith("ONEMIN_AI_API_KEY_FALLBACK_") and env_name.rsplit("_", 1)[-1].isdigit()
+        ),
+        key=lambda env_name: int(env_name.rsplit("_", 1)[-1]),
+    )
+    slots: list[dict[str, str]] = []
+    seen_env_names: set[str] = set()
+    for env_name in ("ONEMIN_AI_API_KEY", *fallback_env_names):
+        key = str(os.environ.get(env_name) or "").strip()
+        if not key or env_name in seen_env_names:
+            continue
+        seen_env_names.add(env_name)
+        slots.append({"env_name": env_name, "key": key})
+    return slots
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -129,7 +158,9 @@ def _size_candidates(model: str, *, width: int, height: int) -> list[str]:
     square = width == height
     if square:
         return ["1024x1024"]
-    normalized = str(model or "").strip().lower()
+    normalized = _normalized_onemin_model(model)
+    if _is_flux_schnell_model(model):
+        return [_aspect_ratio(width, height)]
     if normalized.startswith("gpt-image-") or normalized.startswith("dall-e-"):
         return ["1536x1024", "1024x1024"] if landscape else ["1024x1536", "1024x1024"]
     return [f"{max(1, width)}x{max(1, height)}"]
@@ -185,13 +216,16 @@ def _ea_local_json_post(path: str, *, principal_id: str, payload: dict[str, obje
     return _ea_local_json_request("POST", path, principal_id=principal_id, payload=payload)
 
 
-def _estimate_onemin_image_credits(*, width: int, height: int) -> int:
+def _estimate_onemin_image_credits(*, width: int, height: int, model: str | None = None) -> int:
     raw = str(os.environ.get("CHUMMER6_ONEMIN_ESTIMATED_IMAGE_CREDITS") or "").strip()
     if raw:
         try:
             return max(0, int(float(raw)))
         except Exception:
             pass
+    selected_model = _normalized_onemin_model(model or (_model_candidates()[0] if _model_candidates() else ""))
+    if selected_model == "black-forest-labs/flux-schnell":
+        return 9000
     megapixels = max(1.0, (max(1, int(width)) * max(1, int(height))) / 1000000.0)
     return int(round(1200.0 * megapixels))
 
@@ -227,6 +261,13 @@ def _reserve_onemin_image_slot_locally(
     allow_reserve: bool,
     request_id: str,
 ) -> tuple[dict[str, object], object] | tuple[None, None]:
+    def _candidate_has_known_budget(candidate: dict[str, object]) -> bool:
+        for key in ("billing_remaining_credits", "estimated_remaining_credits", "remaining_credits"):
+            value = candidate.get(key)
+            if value not in (None, ""):
+                return True
+        return False
+
     try:
         from app.repositories.onemin_manager import build_onemin_manager_service_repo
         from app.services import responses_upstream as upstream
@@ -259,6 +300,22 @@ def _reserve_onemin_image_slot_locally(
                 estimated_credits=estimated_credits,
                 allow_reserve=allow_reserve,
             )
+            if lease is None and not any(_candidate_has_known_budget(candidate) for candidate in candidate_pool):
+                # Freshly seeded local manager runs often see ready slots before
+                # any balance probe snapshots exist. In that state every
+                # candidate looks like zero-credit capacity, even when the pool
+                # is healthy. Retry with a zero estimated budget so unknown but
+                # ready slots remain usable; the upstream 1min call still
+                # enforces actual credit limits.
+                lease = manager.reserve_for_candidates(
+                    candidates=candidate_pool,
+                    lane="image",
+                    capability="image_generate",
+                    principal_id=principal_id,
+                    request_id=request_id,
+                    estimated_credits=0,
+                    allow_reserve=allow_reserve,
+                )
             if lease is not None:
                 break
     except Exception:
@@ -350,6 +407,20 @@ def _collect_asset_urls(value: object) -> list[str]:
 
 
 def _onemin_image_payload(*, prompt: str, model: str, size: str, aspect_ratio: str, quality: str) -> dict[str, object]:
+    if _is_flux_schnell_model(model):
+        prompt_object: dict[str, object] = {
+            "prompt": prompt,
+            "aspect_ratio": str(os.environ.get("CHUMMER6_ONEMIN_ASPECT_RATIO") or aspect_ratio or "1:1").strip() or "1:1",
+            "num_inference_steps": int(str(os.environ.get("CHUMMER6_ONEMIN_FLUX_SCHNELL_STEPS") or "4").strip() or "4"),
+            "go_fast": str(os.environ.get("CHUMMER6_ONEMIN_FLUX_SCHNELL_GO_FAST") or "1").strip().lower() not in {"0", "false", "no", "off"},
+            "megapixels": str(os.environ.get("CHUMMER6_ONEMIN_FLUX_SCHNELL_MEGAPIXELS") or "1").strip() or "1",
+            "output_quality": int(str(os.environ.get("CHUMMER6_ONEMIN_FLUX_SCHNELL_OUTPUT_QUALITY") or "80").strip() or "80"),
+        }
+        return {
+            "type": "IMAGE_GENERATOR",
+            "model": model,
+            "promptObject": prompt_object,
+        }
     prompt_object: dict[str, object] = {
         "prompt": prompt,
         "n": 1,
@@ -500,102 +571,158 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
         )
         raise RuntimeError(f"media_factory:reserved_slot_missing_local_key:{secret_env_name or 'unknown'}")
 
+    slot_candidates: list[dict[str, str]] = [
+        {
+            "env_name": secret_env_name,
+            "key": api_key,
+            "provider_account_name": reserved_account_id,
+            "provider_key_slot": reserved_slot_name,
+            "reserved": "1",
+        }
+    ]
+    for slot in _configured_onemin_slots():
+        env_name = str(slot.get("env_name") or "").strip()
+        key = str(slot.get("key") or "").strip()
+        if not env_name or not key:
+            continue
+        if env_name == secret_env_name or key == api_key:
+            continue
+        slot_candidates.append(
+            {
+                "env_name": env_name,
+                "key": key,
+                "provider_account_name": env_name,
+                "provider_key_slot": env_name,
+                "reserved": "",
+            }
+        )
+
     result_json: dict[str, object] | None = None
     try:
-        for model in _model_candidates():
-            for size in _size_candidates(model, width=width, height=height):
-                payload = _onemin_image_payload(
-                    prompt=submitted_prompt,
-                    model=model,
-                    size=size,
-                    aspect_ratio=_aspect_ratio(width, height),
-                    quality=quality,
-                )
-                request = urllib.request.Request(
-                    _onemin_endpoint(),
-                    headers={
-                        "API-KEY": api_key,
-                        "Content-Type": "application/json",
-                        "User-Agent": "Chummer-Media-Factory/1.0",
-                    },
-                    data=json.dumps(payload).encode("utf-8"),
-                    method="POST",
-                )
-                try:
-                    with urllib.request.urlopen(request, timeout=_onemin_timeout_seconds()) as response:
-                        data = response.read()
-                        content_type = str(response.headers.get("Content-Type") or "").lower()
-                except urllib.error.HTTPError as exc:
-                    body = exc.read().decode("utf-8", errors="replace").strip()
-                    errors.append(f"{model}:{size}:http_{exc.code}:{body[:180]}")
-                    continue
-                except urllib.error.URLError as exc:
-                    errors.append(f"{model}:{size}:urlerror:{exc.reason}")
-                    continue
-                except TimeoutError:
-                    errors.append(f"{model}:{size}:timeout")
-                    continue
-
-                asset_urls: list[str] = []
-                preview_text = ""
-                if data and content_type.startswith("image/"):
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(data)
-                    preview_text = str(output_path)
-                else:
-                    decoded = data.decode("utf-8", errors="replace").strip()
-                    preview_text = decoded[:280]
+        for slot_candidate in slot_candidates:
+            current_api_key = str(slot_candidate.get("key") or "").strip()
+            current_account_name = str(slot_candidate.get("provider_account_name") or "").strip() or reserved_account_id
+            current_slot_name = str(slot_candidate.get("provider_key_slot") or "").strip() or reserved_slot_name
+            current_is_reserved = str(slot_candidate.get("reserved") or "").strip() == "1"
+            for model in _model_candidates():
+                for size in _size_candidates(model, width=width, height=height):
+                    payload = _onemin_image_payload(
+                        prompt=submitted_prompt,
+                        model=model,
+                        size=size,
+                        aspect_ratio=_aspect_ratio(width, height),
+                        quality=quality,
+                    )
+                    request = urllib.request.Request(
+                        _onemin_endpoint(),
+                        headers={
+                            "API-KEY": current_api_key,
+                            "Content-Type": "application/json",
+                            "User-Agent": "Chummer-Media-Factory/1.0",
+                        },
+                        data=json.dumps(payload).encode("utf-8"),
+                        method="POST",
+                    )
                     try:
-                        body = json.loads(decoded)
-                    except Exception:
-                        errors.append(f"{model}:{size}:non_json_response:{decoded[:180]}")
+                        with urllib.request.urlopen(request, timeout=_onemin_timeout_seconds()) as response:
+                            data = response.read()
+                            content_type = str(response.headers.get("Content-Type") or "").lower()
+                    except urllib.error.HTTPError as exc:
+                        body = exc.read().decode("utf-8", errors="replace").strip()
+                        errors.append(f"{current_slot_name}:{model}:{size}:http_{exc.code}:{body[:180]}")
                         continue
-                    asset_urls = _collect_asset_urls(body)
-                    if not asset_urls:
-                        errors.append(f"{model}:{size}:no_asset_urls")
+                    except urllib.error.URLError as exc:
+                        errors.append(f"{current_slot_name}:{model}:{size}:urlerror:{exc.reason}")
                         continue
-                    _download_asset(asset_urls[0], output_path)
-                result_json = {
-                    "tool_name": "provider.onemin.image_generate",
-                    "action_kind": "image.generate",
-                    "receipt_json": {
-                        "handler_key": "provider.onemin.image_generate",
-                        "invocation_contract": "tool.v1",
-                        "provider_key": "onemin",
-                        "provider_backend": "1min",
-                        "provider_account_name": reserved_account_id,
-                        "provider_key_slot": reserved_slot_name,
-                        "model": model,
-                        "feature_type": "IMAGE_GENERATOR",
-                        "tool_version": "v1",
-                        "manager_lease_id": lease_id,
-                    },
-                    "output_json": {
-                        "asset_urls": asset_urls,
-                        "preview_text": preview_text,
-                        "provider_account_name": reserved_account_id,
-                        "provider_key_slot": reserved_slot_name,
-                        "model": model,
-                    },
-                }
-                break
+                    except TimeoutError:
+                        errors.append(f"{current_slot_name}:{model}:{size}:timeout")
+                        continue
+
+                    asset_urls: list[str] = []
+                    preview_text = ""
+                    if data and content_type.startswith("image/"):
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_bytes(data)
+                        preview_text = str(output_path)
+                    else:
+                        decoded = data.decode("utf-8", errors="replace").strip()
+                        preview_text = decoded[:280]
+                        try:
+                            body = json.loads(decoded)
+                        except Exception:
+                            errors.append(f"{current_slot_name}:{model}:{size}:non_json_response:{decoded[:180]}")
+                            continue
+                        asset_urls = _collect_asset_urls(body)
+                        if not asset_urls:
+                            errors.append(f"{current_slot_name}:{model}:{size}:no_asset_urls")
+                            continue
+                        _download_asset(asset_urls[0], output_path)
+                    result_json = {
+                        "tool_name": "provider.onemin.image_generate",
+                        "action_kind": "image.generate",
+                        "receipt_json": {
+                            "handler_key": "provider.onemin.image_generate",
+                            "invocation_contract": "tool.v1",
+                            "provider_key": "onemin",
+                            "provider_backend": "1min",
+                            "provider_account_name": current_account_name,
+                            "provider_key_slot": current_slot_name,
+                            "model": model,
+                            "feature_type": "IMAGE_GENERATOR",
+                            "tool_version": "v1",
+                            "manager_lease_id": lease_id if current_is_reserved else "",
+                        },
+                        "output_json": {
+                            "asset_urls": asset_urls,
+                            "preview_text": preview_text,
+                            "provider_account_name": current_account_name,
+                            "provider_key_slot": current_slot_name,
+                            "model": model,
+                        },
+                    }
+                    break
+                if result_json is not None:
+                    break
             if result_json is not None:
                 break
+            if current_is_reserved and lease_id:
+                _release_onemin_image_slot(
+                    lease_id=lease_id,
+                    principal_id=manager_principal_id,
+                    status="failed",
+                    error="reserved_slot_insufficient_or_failed",
+                )
+                _release_onemin_image_slot_locally(
+                    manager=local_manager,
+                    lease_id=lease_id,
+                    status="failed",
+                    error="reserved_slot_insufficient_or_failed",
+                )
+                lease_id = ""
         if result_json is None:
             raise RuntimeError("media_factory:" + " || ".join(errors[:6]))
-        _release_onemin_image_slot(
-            lease_id=lease_id,
-            principal_id=manager_principal_id,
-            status="released",
-            actual_credits_delta=_estimate_onemin_image_credits(width=width, height=height),
-        )
-        _release_onemin_image_slot_locally(
-            manager=local_manager,
-            lease_id=lease_id,
-            status="released",
-            actual_credits_delta=_estimate_onemin_image_credits(width=width, height=height),
-        )
-        lease_id = ""
+        if lease_id:
+            _release_onemin_image_slot(
+                lease_id=lease_id,
+                principal_id=manager_principal_id,
+                status="released",
+                actual_credits_delta=_estimate_onemin_image_credits(
+                    width=width,
+                    height=height,
+                    model=str((result_json.get("receipt_json") or {}).get("model") or ""),
+                ),
+            )
+            _release_onemin_image_slot_locally(
+                manager=local_manager,
+                lease_id=lease_id,
+                status="released",
+                actual_credits_delta=_estimate_onemin_image_credits(
+                    width=width,
+                    height=height,
+                    model=str((result_json.get("receipt_json") or {}).get("model") or ""),
+                ),
+            )
+            lease_id = ""
         receipt_path = _write_receipt(
             render_id=render_id,
             requested_prompt=str(prompt or ""),
