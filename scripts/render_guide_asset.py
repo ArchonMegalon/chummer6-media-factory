@@ -219,6 +219,55 @@ def _reserve_onemin_image_slot(
     return dict(payload)
 
 
+def _reserve_onemin_image_slot_locally(
+    *,
+    width: int,
+    height: int,
+    principal_id: str,
+    allow_reserve: bool,
+    request_id: str,
+) -> tuple[dict[str, object], object] | tuple[None, None]:
+    try:
+        from app.repositories.onemin_manager import build_onemin_manager_service_repo
+        from app.services import responses_upstream as upstream
+        from app.services.onemin_manager import OneminManagerService
+        from app.settings import get_settings, settings_with_storage_backend
+    except Exception:
+        return None, None
+    try:
+        settings = settings_with_storage_backend(get_settings(), "memory")
+        manager = OneminManagerService(repo=build_onemin_manager_service_repo(settings))
+        provider_health = upstream._provider_health_report()
+        estimated_credits = _estimate_onemin_image_credits(width=width, height=height)
+        candidates = manager._candidates_from_provider_health(provider_health=provider_health)  # type: ignore[attr-defined]
+        reserve_candidates = [
+            candidate
+            for candidate in candidates
+            if str(candidate.get("slot_role") or "").strip().lower() == "reserve"
+        ]
+        candidate_pools = [reserve_candidates, candidates] if allow_reserve and reserve_candidates else [candidates]
+        lease = None
+        for candidate_pool in candidate_pools:
+            if not candidate_pool:
+                continue
+            lease = manager.reserve_for_candidates(
+                candidates=candidate_pool,
+                lane="image",
+                capability="image_generate",
+                principal_id=principal_id,
+                request_id=request_id,
+                estimated_credits=estimated_credits,
+                allow_reserve=allow_reserve,
+            )
+            if lease is not None:
+                break
+    except Exception:
+        return None, None
+    if not isinstance(lease, dict) or not str(lease.get("lease_id") or "").strip():
+        return None, None
+    return dict(lease), manager
+
+
 def _release_onemin_image_slot(
     *,
     lease_id: str,
@@ -239,6 +288,25 @@ def _release_onemin_image_slot(
             "error": str(error or "").strip(),
         },
     )
+
+
+def _release_onemin_image_slot_locally(
+    *,
+    manager: object | None,
+    lease_id: str,
+    status: str,
+    actual_credits_delta: int | None = None,
+    error: str = "",
+) -> None:
+    normalized = str(lease_id or "").strip()
+    if not normalized or manager is None:
+        return
+    try:
+        if actual_credits_delta is not None:
+            manager.record_usage(lease_id=normalized, actual_credits_delta=actual_credits_delta, status=str(status or "released").strip() or "released")
+        manager.release_lease(lease_id=normalized, status=str(status or "released").strip() or "released", error=str(error or "").strip())
+    except Exception:
+        return
 
 
 def _onemin_endpoint() -> str:
@@ -396,12 +464,25 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
         raise RuntimeError("media_factory:rendering_disabled")
     if backend_provider != "onemin":
         raise RuntimeError(f"media_factory:unsupported_backend:{backend_provider}")
+    reservation_request_id = f"media-factory-image-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{width}x{height}"
     reservation = _reserve_onemin_image_slot(
         width=width,
         height=height,
         principal_id=manager_principal_id,
         allow_reserve=manager_allow_reserve,
     )
+    reservation_source = "ea_http"
+    local_manager = None
+    if reservation is None:
+        reservation, local_manager = _reserve_onemin_image_slot_locally(
+            width=width,
+            height=height,
+            principal_id=manager_principal_id,
+            allow_reserve=manager_allow_reserve,
+            request_id=reservation_request_id,
+        )
+        if reservation is not None:
+            reservation_source = "ea_local_manager"
     if reservation is None:
         raise RuntimeError("media_factory:onemin_manager_capacity_unavailable")
     lease_id = str(reservation.get("lease_id") or "").strip()
@@ -508,6 +589,12 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             status="released",
             actual_credits_delta=_estimate_onemin_image_credits(width=width, height=height),
         )
+        _release_onemin_image_slot_locally(
+            manager=local_manager,
+            lease_id=lease_id,
+            status="released",
+            actual_credits_delta=_estimate_onemin_image_credits(width=width, height=height),
+        )
         lease_id = ""
         receipt_path = _write_receipt(
             render_id=render_id,
@@ -529,6 +616,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             "backend_provider": backend_provider,
             "manager_principal_id": manager_principal_id,
             "manager_allow_reserve": manager_allow_reserve,
+            "manager_reservation_source": reservation_source,
             "provider_account_name": reserved_account_id,
             "provider_key_slot": reserved_slot_name,
             "output_path": str(output_path),
@@ -540,6 +628,12 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             _release_onemin_image_slot(
                 lease_id=lease_id,
                 principal_id=manager_principal_id,
+                status="failed",
+                error=" || ".join(errors[:3]) if errors else "render_failed",
+            )
+            _release_onemin_image_slot_locally(
+                manager=local_manager,
+                lease_id=lease_id,
                 status="failed",
                 error=" || ".join(errors[:3]) if errors else "render_failed",
             )
