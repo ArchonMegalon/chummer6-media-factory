@@ -1,4 +1,5 @@
 # Lead-dev feedback: media-factory onboarding
+Status: READ (2026-03-21)
 
 Public audit status: `red`
 

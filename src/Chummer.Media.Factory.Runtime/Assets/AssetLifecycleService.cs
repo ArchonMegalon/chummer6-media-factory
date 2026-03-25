@@ -90,7 +90,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
             var version = $"v1-{ComputeHash(content)[..12]}";
             var retentionState = DetermineRetentionState(
                 normalizedPolicy,
-                approvalState: normalizedPolicy.RequiresApproval ? AssetApprovalState.Draft : AssetApprovalState.Approved,
+                approvalState: normalizedPolicy.RequiresApproval ? AssetApprovalState.Pending : AssetApprovalState.Approved,
                 isPinned: false,
                 explicitPersist: false);
             var storageClass = DetermineStorageClass(normalizedPolicy, retentionState);
@@ -108,7 +108,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                 StorageKey = storageKey,
                 CacheKey = cacheKey,
                 StorageClass = storageClass,
-                ApprovalState = normalizedPolicy.RequiresApproval ? AssetApprovalState.Draft : AssetApprovalState.Approved,
+                ApprovalState = normalizedPolicy.RequiresApproval ? AssetApprovalState.Pending : AssetApprovalState.Approved,
                 RetentionState = retentionState,
                 IsPinned = false,
                 LastAccessedAtUtc = null,
@@ -199,7 +199,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                         assetState.IsPinned = false;
                         break;
                     default:
-                        assetState.ApprovalState = AssetApprovalState.Draft;
+                        assetState.ApprovalState = AssetApprovalState.Pending;
                         assetState.ApprovedAtUtc = null;
                         assetState.IsPinned = false;
                         break;
@@ -272,7 +272,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
             var active = _assets.Values.Count(state => state.RetentionState != AssetRetentionState.Expired);
             var approved = _assets.Values.Count(state => state.ApprovalState == AssetApprovalState.Approved);
             var rejected = _assets.Values.Count(state => state.ApprovalState == AssetApprovalState.Rejected);
-            var drafts = _assets.Values.Count(state => state.ApprovalState == AssetApprovalState.Draft);
+            var drafts = _assets.Values.Count(state => state.ApprovalState == AssetApprovalState.Pending);
             return new PipelineProjection(
                 Pipeline: "approval",
                 Observability: new PipelineObservabilityProjection(

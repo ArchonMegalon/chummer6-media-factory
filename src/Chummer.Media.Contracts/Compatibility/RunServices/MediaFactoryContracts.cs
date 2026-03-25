@@ -10,7 +10,7 @@ public enum AssetStorageClass
 
 public enum AssetApprovalState
 {
-    Draft,
+    Pending,
     Approved,
     Rejected
 }
@@ -45,7 +45,7 @@ public sealed record AssetCatalogItem(
     DateTimeOffset? ExpiresAtUtc,
     string? StorageKey = null,
     AssetStorageClass StorageClass = AssetStorageClass.ObjectStorage,
-    AssetApprovalState ApprovalState = AssetApprovalState.Draft,
+    AssetApprovalState ApprovalState = AssetApprovalState.Pending,
     AssetRetentionState RetentionState = AssetRetentionState.CacheOnly,
     bool IsPinned = false,
     int CacheHitCount = 0,
@@ -56,7 +56,7 @@ public sealed record AssetRenderResult(
     string AssetId,
     string Url,
     AssetLifecyclePolicy? Policy = null,
-    AssetApprovalState ApprovalState = AssetApprovalState.Draft,
+    AssetApprovalState ApprovalState = AssetApprovalState.Pending,
     AssetRetentionState RetentionState = AssetRetentionState.CacheOnly,
     string? StorageKey = null,
     AssetStorageClass StorageClass = AssetStorageClass.ObjectStorage,
@@ -149,13 +149,12 @@ public sealed record RouteCinemaArtifactHandle(
 public sealed record PacketFactoryRequest(
     string Title,
     string Subject,
-    string? SceneId = null,
     IReadOnlyList<string>? References = null,
     IReadOnlyList<PacketAttachmentRequest>? Attachments = null);
 
 public enum PacketAttachmentTargetKind
 {
-    RouteContext,
+    Route,
     Message,
     Export
 }
@@ -190,17 +189,13 @@ public sealed record PacketFactoryResult(
     IReadOnlyList<string>? Evidence = null);
 
 public sealed record RouteCinemaRequest(
-    string RouteContextId,
     string SourceNode,
-    string TargetNode,
-    string SceneId);
+    string TargetNode);
 
 public sealed record RouteCinemaResult(
     string RouteCinemaId,
-    string RouteContextId,
     string SourceNode,
     string TargetNode,
-    string SceneId,
     IReadOnlyList<string> Waypoints,
     IReadOnlyList<string> WaypointScript,
     string TravelSummary,
