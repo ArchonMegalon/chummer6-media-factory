@@ -1,8 +1,10 @@
 using Chummer.Media.Contracts;
 using Chummer.Run.AI.Services.Assets;
+using Chummer.Campaign.Contracts;
 
 var assets = new AssetLifecycleService();
 var jobs = new MediaRenderJobService(assets);
+var creatorPublications = new CreatorPublicationPlannerService();
 
 var approvalAsset = await assets.StoreAsync(
     category: "portrait/canon",
@@ -95,6 +97,49 @@ Assert(restoredJob!.State == MediaRenderJobState.Succeeded, "Succeeded render jo
 
 var restoredMediaProjection = restoredJobs.GetMediaPipelineProjection();
 Assert(restoredMediaProjection.Idempotency.ReplayCount >= 1, "Restore must preserve media dedupe replay counts.");
+
+var creatorPublicationPlan = creatorPublications.BuildPlan(
+    new CreatorPublicationProjection(
+        PublicationId: "publication-shadow-brief",
+        Title: "Shadow brief creator packet",
+        Kind: "campaign_packet",
+        Summary: "Recap-safe outputs should share one governed creator publication posture.",
+        CampaignId: "campaign-shadow",
+        DossierId: "dossier-kestrel",
+        ArtifactId: "artifact-shadow-brief",
+        ProvenanceSummary: "sr6.preview.v1 + recap-safe output shelf",
+        DiscoverySummary: "Group visibility with grounded provenance",
+        Visibility: "group",
+        PublicationStatus: "preview_ready",
+        UpdatedAtUtc: DateTimeOffset.UtcNow),
+    new BuildLabHandoffProjection(
+        HandoffId: "handoff-shadow-brief",
+        DossierId: "dossier-kestrel",
+        CampaignId: "campaign-shadow",
+        Title: "Shadow brief handoff",
+        Summary: "Chosen build lane is attached to dossier and creator-safe outputs.",
+        VariantLabel: "Ops-first dossier carry-forward",
+        ProgressionLabel: "25 / 50 / 100 Karma path stays attached",
+        ExplainEntryId: "buildlab.handoff.shadow-brief",
+        TradeoffLines:
+        [
+            "Role overlap stays explicit before the packet is published.",
+            "Campaign return remains the governing downstream truth."
+        ],
+        ProgressionOutcomes:
+        [
+            "Creator packet keeps dossier-safe and campaign-safe outputs aligned."
+        ],
+        Outputs:
+        [
+            new PublicationSafeProjection("projection-dossier", "dossier_card", "Living dossier", "Stable runner identity.", "artifact-dossier"),
+            new PublicationSafeProjection("projection-recap", "recap_brief", "Recap brief", "Campaign recap-safe packet.", "artifact-recap")
+        ],
+        UpdatedAtUtc: DateTimeOffset.UtcNow));
+Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief creator packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
+Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 3, "Creator publication planner should attach campaign, dossier, and output shelves.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
+Assert(string.Equals(creatorPublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready creator publications should route into review next.");
 
 await Task.Delay(120);
 var sweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow);

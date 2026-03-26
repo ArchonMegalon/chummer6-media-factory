@@ -14,6 +14,7 @@ test -f Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verif
 test -f src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj
 test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
+test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/MEDIA_ADAPTER_MATRIX.md
 test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
@@ -25,6 +26,14 @@ test -f scripts/render_guide_asset.py
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
 rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
 rg -n 'DocumentPdf|DocumentThumbnailImage|PortraitImageVariant|NarrativeBriefVideo|RouteCinemaResult|AssetLifecyclePolicy|CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION' docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null
+rg -n 'Chummer\.Campaign\.Contracts|CreatorPublicationPlannerService|CreatorPublicationPlan|queue_review' src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs >/dev/null
+rg -n 'ProjectReference Include="\$\(ChummerLocalCampaignContractsProject\)"|PackageReference Include="\$\(ChummerCampaignContractsPackageId\)" Version="\$\(ChummerCampaignContractsPackageVersion\)"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
+
+if rg -n 'namespace Chummer\.Campaign\.Contracts' src Chummer.Media.Factory.Runtime.Verify -g '*.cs' >/dev/null; then
+  echo "verify failed: media-factory must consume campaign contracts from the owner package/project, not redefine them"
+  exit 1
+fi
 
 python3 -m py_compile scripts/render_guide_asset.py
 python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND"|"backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION"|"backend_provider": "onemin"|"manager_allow_reserve": true|"manager_allow_reserve_env": "CHUMMER_MEDIA_FACTORY_ONEMIN_ALLOW_RESERVE"' >/dev/null
