@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -46,20 +47,47 @@ def _aspect_ratio(width: int, height: int) -> str:
     return f"{max(1, width // factor)}:{max(1, height // factor)}"
 
 
-def _model_candidates() -> list[str]:
+def _prompt_looks_flagship(prompt: str | None = None) -> bool:
+    lowered = str(prompt or "").strip().lower()
+    if not lowered:
+        return False
+    markers = (
+        "flagship",
+        "cover-grade",
+        "cover grade",
+        "cover-poster",
+        "promo-poster",
+        "public guide banner",
+        "poster energy",
+        "first-contact",
+        "first contact",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _model_candidates(prompt: str | None = None) -> list[str]:
     values: list[str] = []
     for candidate in (
         os.environ.get("CHUMMER6_ONEMIN_MODEL"),
+        os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_MODEL"),
         os.environ.get("EA_ONEMIN_TOOL_IMAGE_MODEL"),
-        "black-forest-labs/flux-schnell",
-        "gpt-image-1-mini",
         "gpt-image-1",
         "dall-e-3",
+        "gpt-image-1-mini",
+        "black-forest-labs/flux-schnell",
     ):
         cleaned = str(candidate or "").strip()
         if cleaned and cleaned not in values:
             values.append(cleaned)
-    return values
+    if not _prompt_looks_flagship(prompt):
+        return values
+    preferred = [
+        model
+        for model in ("gpt-image-1", "dall-e-3", "gpt-image-1-mini", "black-forest-labs/flux-schnell")
+        if model in values
+    ]
+    remainder = [model for model in values if model not in preferred]
+    return [*preferred, *remainder]
 
 
 def _normalized_onemin_model(model: str | None = None) -> str:
@@ -111,19 +139,105 @@ def _clip_prompt_text(value: object, *, limit: int) -> str:
     return clipped.rstrip(" ,;:-")
 
 
+def _split_prompt_sentences(prompt: str) -> list[str]:
+    cleaned = " ".join(str(prompt or "").split()).strip()
+    if not cleaned:
+        return []
+    raw_sentences = re.split(r"(?<=[.!?])\s+|(?<=:)\s+(?=[A-Z])", cleaned)
+    sentences: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_sentences:
+        sentence = " ".join(str(raw or "").split()).strip(" ,;")
+        if len(sentence) < 12:
+            continue
+        lowered = sentence.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        sentences.append(sentence)
+    return sentences
+
+
+def _sentence_priority(sentence: str) -> int:
+    lowered = sentence.lower()
+    score = 0
+    if any(token in lowered for token in ("wide", "ultra-wide", "establishing shot", "camera several meters back", "room", "environment", "apparatus", "frame")):
+        score += 6
+    if any(token in lowered for token in ("shadowrun", "runner-life", "cyberpunk-fantasy", "cover-grade", "poster", "flagship")):
+        score += 5
+    if any(token in lowered for token in ("one clear focal subject", "set the scene", "show this happening", "core visual metaphor", "keep the whole")):
+        score += 4
+    if any(token in lowered for token in ("no readable", "do not print text", "never render", "unreadable", "avoid")):
+        score += 3
+    if any(token in lowered for token in ("overlay", "diagnostic", "approval", "provenance", "rollback", "attribute rail")):
+        score += 2
+    return score
+
+
 def _onemin_prompt_char_limit() -> int:
-    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_PROMPT_CHAR_LIMIT") or "3800").strip()
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_PROMPT_CHAR_LIMIT") or "2200").strip()
     try:
         return max(512, min(3900, int(float(raw))))
     except Exception:
-        return 3800
+        return 2200
 
 
 def _prepare_onemin_prompt(prompt: str) -> str:
-    # 1min/OpenAI image routes hard-fail on overly long prompts. Normalize and
-    # cap the payload locally so the worker can hand rich prompts to the bridge
-    # without tripping the upstream 4000-character limit.
-    return _clip_prompt_text(prompt, limit=_onemin_prompt_char_limit())
+    # Keep the strongest scene instructions and drop repeated policy prose
+    # before we hit upstream prompt-length and comprehension ceilings.
+    limit = _onemin_prompt_char_limit()
+    cleaned = " ".join(str(prompt or "").split()).strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    sentences = _split_prompt_sentences(cleaned)
+    if not sentences:
+        return _clip_prompt_text(cleaned, limit=limit)
+    selected: list[str] = []
+    used: set[str] = set()
+
+    def _try_add(sentence: str) -> None:
+        normalized = sentence.strip()
+        lowered = normalized.lower()
+        if not normalized or lowered in used:
+            return
+        candidate = " ".join([*selected, normalized]).strip()
+        if len(candidate) > limit:
+            return
+        used.add(lowered)
+        selected.append(normalized)
+
+    _try_add(sentences[0])
+    ranked = sorted(
+        enumerate(sentences[1:], start=1),
+        key=lambda item: (-_sentence_priority(item[1]), item[0]),
+    )
+    for _, sentence in ranked:
+        _try_add(sentence)
+    condensed = " ".join(selected).strip()
+    if condensed:
+        return condensed
+    return _clip_prompt_text(cleaned, limit=limit)
+
+
+def _default_quality(*, prompt: str, model: str) -> str:
+    explicit_factory = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_IMAGE_QUALITY") or "").strip().lower()
+    if explicit_factory:
+        return explicit_factory
+    explicit_generic = str(os.environ.get("CHUMMER6_ONEMIN_IMAGE_QUALITY") or "").strip().lower()
+    normalized = _normalized_onemin_model(model)
+    if explicit_generic and not _prompt_looks_flagship(prompt):
+        return explicit_generic
+    if explicit_generic and explicit_generic not in {"low", "auto"}:
+        return explicit_generic
+    if _prompt_looks_flagship(prompt):
+        if normalized.startswith("gpt-image-") or normalized.startswith("dall-e-"):
+            return "high"
+        return "medium"
+    if normalized.startswith("gpt-image-1-mini"):
+        return "medium"
+    if normalized.startswith("gpt-image-") or normalized.startswith("dall-e-"):
+        return "high"
+    return "medium"
 
 
 def _image_execution_enabled() -> bool:
@@ -426,7 +540,10 @@ def _onemin_image_payload(*, prompt: str, model: str, size: str, aspect_ratio: s
         "n": 1,
         "quality": quality,
         "output_format": "png",
+        "background": "opaque",
     }
+    if _normalized_onemin_model(model).startswith("gpt-image-"):
+        prompt_object["style"] = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_IMAGE_STYLE") or "natural").strip() or "natural"
     if size:
         prompt_object["size"] = size
     elif aspect_ratio:
@@ -458,6 +575,7 @@ def _write_receipt(
     height: int,
     backend_provider: str,
     quality: str,
+    model_candidates: list[str],
     manager_principal_id: str,
     manager_allow_reserve: bool,
     result_json: dict[str, object],
@@ -485,7 +603,7 @@ def _write_receipt(
         "manager_allow_reserve_env": "CHUMMER_MEDIA_FACTORY_ONEMIN_ALLOW_RESERVE",
         "image_execution_enabled": _image_execution_enabled(),
         "quality": quality,
-        "requested_model_candidates": _model_candidates(),
+        "requested_model_candidates": list(model_candidates),
         "tool_name": str(result_json.get("tool_name") or "provider.onemin.image_generate"),
         "action_kind": str(result_json.get("action_kind") or "image.generate"),
         "receipt_json": dict(result_json.get("receipt_json") or {}),
@@ -502,13 +620,15 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
     image_execution_enabled = _image_execution_enabled()
     manager_principal_id = _manager_principal_id()
     manager_allow_reserve = _manager_allow_reserve()
-    quality = str(os.environ.get("CHUMMER6_ONEMIN_IMAGE_QUALITY") or "low").strip() or "low"
     submitted_prompt = _prepare_onemin_prompt(prompt)
+    model_candidates = _model_candidates(submitted_prompt)
+    selected_model = model_candidates[0] if model_candidates else ""
+    quality = _default_quality(prompt=submitted_prompt, model=selected_model)
     payload = {
         "prompt": submitted_prompt,
         "aspect_ratio": _aspect_ratio(width, height),
         "quality": quality,
-        "model": _model_candidates()[0],
+        "model": selected_model,
         "output_format": "png",
         "manager_allow_reserve": manager_allow_reserve,
         "requested_prompt_length": len(str(prompt or "")),
@@ -604,7 +724,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             current_account_name = str(slot_candidate.get("provider_account_name") or "").strip() or reserved_account_id
             current_slot_name = str(slot_candidate.get("provider_key_slot") or "").strip() or reserved_slot_name
             current_is_reserved = str(slot_candidate.get("reserved") or "").strip() == "1"
-            for model in _model_candidates():
+            for model in model_candidates:
                 for size in _size_candidates(model, width=width, height=height):
                     payload = _onemin_image_payload(
                         prompt=submitted_prompt,
@@ -732,6 +852,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             height=height,
             backend_provider=backend_provider,
             quality=quality,
+            model_candidates=model_candidates,
             manager_principal_id=manager_principal_id,
             manager_allow_reserve=manager_allow_reserve,
             result_json=result_json,
