@@ -197,22 +197,26 @@ def _prompt_looks_flagship(prompt: str | None = None) -> bool:
 
 def _model_candidates(prompt: str | None = None) -> list[str]:
     values: list[str] = []
-    for candidate in (
+    configured_candidates = [
         os.environ.get("CHUMMER6_ONEMIN_MODEL"),
         os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_MODEL"),
         os.environ.get("EA_ONEMIN_TOOL_IMAGE_MODEL"),
+    ]
+    for candidate in (
+        *configured_candidates,
         "gpt-image-1",
         "black-forest-labs/flux-schnell",
-        "gpt-image-1-mini",
     ):
         cleaned = str(candidate or "").strip()
+        if cleaned.lower() in {"gpt-image-1-mini", "dall-e-3"}:
+            continue
         if cleaned and cleaned not in values:
             values.append(cleaned)
     if not _prompt_looks_flagship(prompt):
         return values
     preferred = [
         model
-        for model in ("gpt-image-1", "black-forest-labs/flux-schnell", "gpt-image-1-mini")
+        for model in ("gpt-image-1", "black-forest-labs/flux-schnell")
         if model in values
     ]
     remainder = [model for model in values if model not in preferred]
