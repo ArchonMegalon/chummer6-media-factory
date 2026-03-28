@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from math import gcd
 from pathlib import Path
+from time import monotonic
 
 
 MEDIA_FACTORY_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +24,8 @@ EA_APP_ROOT = EA_ROOT / "ea"
 EA_SCRIPTS_ROOT = EA_ROOT / "scripts"
 STATE_ROOT = Path(os.environ.get("CHUMMER_MEDIA_FACTORY_STATE_DIR", "/docker/fleet/state/chummer6/media-factory"))
 RECEIPTS_ROOT = STATE_ROOT / "receipts"
+ATTEMPTS_ROOT = STATE_ROOT / "attempts"
+HEALTH_OUT = STATE_ROOT / "guide_provider_health.json"
 
 for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
     if str(root) not in sys.path:
@@ -45,6 +49,132 @@ def _aspect_ratio(width: int, height: int) -> str:
         return "16:9"
     factor = gcd(width, height) or 1
     return f"{max(1, width // factor)}:{max(1, height // factor)}"
+
+
+def _asset_family_for_output_path(output_path: Path) -> str:
+    normalized = str(output_path).replace("\\", "/")
+    marker = "/Chummer6/"
+    if marker in normalized:
+        normalized = normalized.split(marker, 1)[1]
+    if "/assets/hero/" in normalized or normalized.startswith("assets/hero/"):
+        return "hero"
+    if "/assets/pages/" in normalized or normalized.startswith("assets/pages/"):
+        return "page"
+    if "/assets/horizons/" in normalized or normalized.startswith("assets/horizons/"):
+        return "horizon"
+    if "/assets/parts/" in normalized or normalized.startswith("assets/parts/"):
+        return "part"
+    return "general"
+
+
+def _render_watchdog_seconds(backend: str) -> int:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_RENDER_WATCHDOG_SECONDS") or "").strip()
+    try:
+        if raw:
+            return max(30, min(900, int(float(raw))))
+    except Exception:
+        pass
+    normalized = str(backend or "").strip().lower()
+    if normalized == "openai_edits":
+        return 180
+    return 150
+
+
+def _load_health_registry() -> dict[str, object]:
+    try:
+        loaded = json.loads(HEALTH_OUT.read_text(encoding="utf-8")) if HEALTH_OUT.exists() else {}
+    except Exception:
+        loaded = {}
+    providers = loaded.get("providers")
+    if not isinstance(providers, dict):
+        loaded["providers"] = {}
+    return loaded
+
+
+def _health_outcome(detail: str, *, ok: bool) -> str:
+    cleaned = str(detail or "").strip().lower()
+    if ok:
+        return "success"
+    if "watchdog" in cleaned:
+        return "no_output_watchdog"
+    if "timeout" in cleaned:
+        return "timeout"
+    if "http_429" in cleaned or "retry_after" in cleaned:
+        return "rate_limit"
+    if "capacity_unavailable" in cleaned:
+        return "capacity_unavailable"
+    if "no_asset_urls" in cleaned or "empty_asset" in cleaned:
+        return "empty_output"
+    return "failure"
+
+
+def _record_health_attempt(*, backend: str, family: str, detail: str, ok: bool) -> None:
+    registry = _load_health_registry()
+    providers = registry.get("providers") if isinstance(registry.get("providers"), dict) else {}
+    backend_key = str(backend or "").strip().lower() or "unknown"
+    provider_entry = dict(providers.get(backend_key) or {})
+    families = provider_entry.get("families") if isinstance(provider_entry.get("families"), dict) else {}
+    family_entry = dict(families.get(family) or {})
+    attempts = family_entry.get("recent_attempts")
+    if not isinstance(attempts, list):
+        attempts = []
+    attempts.append(
+        {
+            "outcome": _health_outcome(detail, ok=ok),
+            "detail": str(detail or "").strip()[:240],
+            "ok": bool(ok),
+            "observed_at": _now_iso(),
+        }
+    )
+    family_entry["recent_attempts"] = [dict(entry) for entry in attempts if isinstance(entry, dict)][-16:]
+    family_entry["success_count"] = int(family_entry.get("success_count") or 0) + (1 if ok else 0)
+    family_entry["failure_count"] = int(family_entry.get("failure_count") or 0) + (0 if ok else 1)
+    family_entry["updated_at"] = _now_iso()
+    families[family] = family_entry
+    provider_entry["families"] = families
+    provider_entry["updated_at"] = _now_iso()
+    providers[backend_key] = provider_entry
+    registry["providers"] = providers
+    HEALTH_OUT.parent.mkdir(parents=True, exist_ok=True)
+    HEALTH_OUT.write_text(json.dumps(registry, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+
+def _write_attempt_status(
+    *,
+    render_id: str,
+    phase: str,
+    backend_provider: str,
+    output_path: Path,
+    family: str,
+    requested_prompt: str,
+    submitted_prompt: str,
+    width: int,
+    height: int,
+    model: str = "",
+    size: str = "",
+    detail: str = "",
+    reference_image: Path | None = None,
+) -> Path:
+    ATTEMPTS_ROOT.mkdir(parents=True, exist_ok=True)
+    attempt_path = ATTEMPTS_ROOT / f"{render_id}.json"
+    payload = {
+        "render_id": render_id,
+        "phase": str(phase or "").strip(),
+        "observed_at": _now_iso(),
+        "backend_provider": str(backend_provider or "").strip(),
+        "family": str(family or "").strip(),
+        "output_path": str(output_path),
+        "width": int(width),
+        "height": int(height),
+        "requested_prompt_length": len(str(requested_prompt or "")),
+        "submitted_prompt_length": len(str(submitted_prompt or "")),
+        "model": str(model or "").strip(),
+        "size": str(size or "").strip(),
+        "detail": str(detail or "").strip()[:400],
+        "reference_image_path": str(reference_image) if isinstance(reference_image, Path) else "",
+    }
+    attempt_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return attempt_path
 
 
 def _prompt_looks_flagship(prompt: str | None = None) -> bool:
@@ -259,9 +389,142 @@ def _selected_backend() -> str:
         return "onemin"
     if backend in {"ea_onemin", "onemin"}:
         return "onemin"
+    if backend in {"openai_edits", "openai_edit", "openai"}:
+        return "openai_edits"
     if backend in {"disabled", "off", "none"}:
         return "disabled"
     return backend
+
+
+def _openai_api_key() -> str:
+    return (
+        str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_API_KEY") or "").strip()
+        or str(os.environ.get("OPENAI_API_KEY") or "").strip()
+        or str(os.environ.get("EA_OPENAI_API_KEY") or "").strip()
+    )
+
+
+def _openai_timeout_seconds() -> int:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_TIMEOUT_SECONDS") or "180").strip()
+    try:
+        return max(30, min(600, int(float(raw))))
+    except Exception:
+        return 180
+
+
+def _multipart_formdata(
+    *,
+    fields: list[tuple[str, str]],
+    files: list[tuple[str, str, bytes, str]],
+) -> tuple[bytes, str]:
+    boundary = f"----ChummerMediaFactory{uuid.uuid4().hex}"
+    chunks: list[bytes] = []
+    for name, value in fields:
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"),
+                str(value).encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+    for name, filename, content, content_type in files:
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode("utf-8"),
+                f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
+                content,
+                b"\r\n",
+            ]
+        )
+    chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(chunks), boundary
+
+
+def _openai_size(width: int, height: int) -> str:
+    if width == height:
+        return "1024x1024"
+    return "1536x1024" if width >= height else "1024x1536"
+
+
+def _render_with_openai_edits(
+    *,
+    prompt: str,
+    output_path: Path,
+    width: int,
+    height: int,
+    reference_image: Path,
+) -> dict[str, object]:
+    api_key = _openai_api_key()
+    if not api_key:
+        raise RuntimeError("media_factory:openai_edits_not_configured")
+    if not reference_image.exists():
+        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
+    fields = [
+        ("model", str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_EDIT_MODEL") or "gpt-image-1").strip() or "gpt-image-1"),
+        ("prompt", str(prompt or "").strip()),
+        ("size", _openai_size(width, height)),
+        ("quality", str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_EDIT_QUALITY") or "high").strip() or "high"),
+        ("background", "opaque"),
+    ]
+    payload, boundary = _multipart_formdata(
+        fields=fields,
+        files=[("image[]", reference_image.name, reference_image.read_bytes(), "image/png")],
+    )
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/images/edits",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "User-Agent": "Chummer-Media-Factory/1.0",
+        },
+        data=payload,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_openai_timeout_seconds()) as response:
+            data = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"media_factory:openai_edits:http_{exc.code}:{body[:180]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"media_factory:openai_edits:urlerror:{exc.reason}") from exc
+    except TimeoutError as exc:
+        raise RuntimeError("media_factory:openai_edits:timeout") from exc
+    try:
+        body = json.loads(data)
+    except Exception as exc:
+        raise RuntimeError(f"media_factory:openai_edits:non_json_response:{data[:180]}") from exc
+    first = dict(((body.get("data") or [None])[0]) or {})
+    b64_json = str(first.get("b64_json") or "").strip()
+    if b64_json:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(base64.b64decode(b64_json))
+        return {
+            "tool_name": "provider.openai.image_edit",
+            "action_kind": "image.edit",
+            "receipt_json": {
+                "provider_key": "openai_edits",
+                "provider_backend": "openai",
+                "model": str(fields[0][1]),
+            },
+            "output_json": {"asset_urls": [], "preview_text": "b64_json"},
+        }
+    asset_urls = _collect_asset_urls(body)
+    if asset_urls:
+        _download_asset(asset_urls[0], output_path)
+        return {
+            "tool_name": "provider.openai.image_edit",
+            "action_kind": "image.edit",
+            "receipt_json": {
+                "provider_key": "openai_edits",
+                "provider_backend": "openai",
+                "model": str(fields[0][1]),
+            },
+            "output_json": {"asset_urls": asset_urls, "preview_text": asset_urls[0]},
+        }
+    raise RuntimeError("media_factory:openai_edits:no_asset_urls")
 
 
 def _size_candidates(model: str, *, width: int, height: int) -> list[str]:
@@ -613,13 +876,24 @@ def _write_receipt(
     return receipt_path
 
 
-def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry_run: bool = False) -> dict[str, object]:
+def render_asset(
+    *,
+    prompt: str,
+    output_path: Path,
+    width: int,
+    height: int,
+    dry_run: bool = False,
+    reference_image: Path | None = None,
+) -> dict[str, object]:
     _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
     backend_provider = _selected_backend()
     image_execution_enabled = _image_execution_enabled()
     manager_principal_id = _manager_principal_id()
     manager_allow_reserve = _manager_allow_reserve()
+    family = _asset_family_for_output_path(output_path)
+    watchdog_seconds = _render_watchdog_seconds(backend_provider)
+    started_at = monotonic()
     submitted_prompt = _prepare_onemin_prompt(prompt)
     model_candidates = _model_candidates(submitted_prompt)
     selected_model = model_candidates[0] if model_candidates else ""
@@ -634,6 +908,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
         "requested_prompt_length": len(str(prompt or "")),
         "submitted_prompt_length": len(submitted_prompt),
         "submitted_prompt_char_limit": _onemin_prompt_char_limit(),
+        "reference_image_path": str(reference_image) if isinstance(reference_image, Path) else "",
     }
     if dry_run:
         return {
@@ -649,12 +924,99 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             "manager_principal_env": "CHUMMER_MEDIA_FACTORY_EA_PRINCIPAL_ID",
             "manager_allow_reserve_env": "CHUMMER_MEDIA_FACTORY_ONEMIN_ALLOW_RESERVE",
             "output_path": str(output_path),
+            "reference_image_path": str(reference_image) if isinstance(reference_image, Path) else "",
             "payload_json": payload,
         }
     if not image_execution_enabled or backend_provider == "disabled":
         raise RuntimeError("media_factory:rendering_disabled")
+
+    _write_attempt_status(
+        render_id=render_id,
+        phase="starting",
+        backend_provider=backend_provider,
+        output_path=output_path,
+        family=family,
+        requested_prompt=str(prompt or ""),
+        submitted_prompt=submitted_prompt,
+        width=width,
+        height=height,
+        detail="render_started",
+        reference_image=reference_image,
+    )
+
+    if backend_provider == "openai_edits":
+        try:
+            result_json = _render_with_openai_edits(
+                prompt=submitted_prompt,
+                output_path=output_path,
+                width=width,
+                height=height,
+                reference_image=reference_image or Path(""),
+            )
+            receipt_path = _write_receipt(
+                render_id=render_id,
+                requested_prompt=str(prompt or ""),
+                submitted_prompt=submitted_prompt,
+                output_path=output_path,
+                width=width,
+                height=height,
+                backend_provider=backend_provider,
+                quality=quality,
+                model_candidates=model_candidates,
+                manager_principal_id=manager_principal_id,
+                manager_allow_reserve=manager_allow_reserve,
+                result_json=result_json,
+            )
+            _write_attempt_status(
+                render_id=render_id,
+                phase="completed",
+                backend_provider=backend_provider,
+                output_path=output_path,
+                family=family,
+                requested_prompt=str(prompt or ""),
+                submitted_prompt=submitted_prompt,
+                width=width,
+                height=height,
+                model=str((result_json.get("receipt_json") or {}).get("model") or ""),
+                detail="rendered",
+                reference_image=reference_image,
+            )
+            _record_health_attempt(backend=backend_provider, family=family, detail="rendered", ok=True)
+            asset_urls = list((result_json.get("output_json") or {}).get("asset_urls") or [])
+            return {
+                "render_id": render_id,
+                "provider": "media_factory",
+                "backend_provider": backend_provider,
+                "manager_principal_id": manager_principal_id,
+                "manager_allow_reserve": manager_allow_reserve,
+                "manager_reservation_source": "direct_openai",
+                "provider_account_name": "openai",
+                "provider_key_slot": "OPENAI_API_KEY",
+                "output_path": str(output_path),
+                "receipt_path": str(receipt_path),
+                "asset_url": asset_urls[0] if asset_urls else "",
+            }
+        except Exception as exc:
+            detail = str(exc)
+            _write_attempt_status(
+                render_id=render_id,
+                phase="failed",
+                backend_provider=backend_provider,
+                output_path=output_path,
+                family=family,
+                requested_prompt=str(prompt or ""),
+                submitted_prompt=submitted_prompt,
+                width=width,
+                height=height,
+                detail=detail,
+                reference_image=reference_image,
+            )
+            _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
+            raise
+
     if backend_provider != "onemin":
         raise RuntimeError(f"media_factory:unsupported_backend:{backend_provider}")
+
     reservation_request_id = f"media-factory-image-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{width}x{height}"
     reservation = _reserve_onemin_image_slot(
         width=width,
@@ -675,7 +1037,23 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
         if reservation is not None:
             reservation_source = "ea_local_manager"
     if reservation is None:
-        raise RuntimeError("media_factory:onemin_manager_capacity_unavailable")
+        detail = "media_factory:onemin_manager_capacity_unavailable"
+        _write_attempt_status(
+            render_id=render_id,
+            phase="failed",
+            backend_provider=backend_provider,
+            output_path=output_path,
+            family=family,
+            requested_prompt=str(prompt or ""),
+            submitted_prompt=submitted_prompt,
+            width=width,
+            height=height,
+            detail=detail,
+            reference_image=reference_image,
+        )
+        _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
+        raise RuntimeError(detail)
+
     lease_id = str(reservation.get("lease_id") or "").strip()
     secret_env_name = str(reservation.get("secret_env_name") or "").strip()
     reserved_account_id = str(reservation.get("account_id") or reservation.get("account_name") or "").strip() or "onemin_unknown"
@@ -683,13 +1061,28 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
     api_key = str(os.environ.get(secret_env_name) or "").strip()
     errors: list[str] = []
     if not api_key:
+        detail = f"media_factory:reserved_slot_missing_local_key:{secret_env_name or 'unknown'}"
         _release_onemin_image_slot(
             lease_id=lease_id,
             principal_id=manager_principal_id,
             status="failed",
             error=f"reserved_slot_missing_local_key:{secret_env_name or 'unknown'}",
         )
-        raise RuntimeError(f"media_factory:reserved_slot_missing_local_key:{secret_env_name or 'unknown'}")
+        _write_attempt_status(
+            render_id=render_id,
+            phase="failed",
+            backend_provider=backend_provider,
+            output_path=output_path,
+            family=family,
+            requested_prompt=str(prompt or ""),
+            submitted_prompt=submitted_prompt,
+            width=width,
+            height=height,
+            detail=detail,
+            reference_image=reference_image,
+        )
+        _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
+        raise RuntimeError(detail)
 
     slot_candidates: list[dict[str, str]] = [
         {
@@ -720,12 +1113,36 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
     result_json: dict[str, object] | None = None
     try:
         for slot_candidate in slot_candidates:
+            if monotonic() - started_at > float(watchdog_seconds):
+                errors.append(f"watchdog:{watchdog_seconds}s")
+                break
             current_api_key = str(slot_candidate.get("key") or "").strip()
             current_account_name = str(slot_candidate.get("provider_account_name") or "").strip() or reserved_account_id
             current_slot_name = str(slot_candidate.get("provider_key_slot") or "").strip() or reserved_slot_name
             current_is_reserved = str(slot_candidate.get("reserved") or "").strip() == "1"
             for model in model_candidates:
+                if monotonic() - started_at > float(watchdog_seconds):
+                    errors.append(f"watchdog:{watchdog_seconds}s")
+                    break
                 for size in _size_candidates(model, width=width, height=height):
+                    if monotonic() - started_at > float(watchdog_seconds):
+                        errors.append(f"watchdog:{watchdog_seconds}s")
+                        break
+                    _write_attempt_status(
+                        render_id=render_id,
+                        phase="requesting",
+                        backend_provider=backend_provider,
+                        output_path=output_path,
+                        family=family,
+                        requested_prompt=str(prompt or ""),
+                        submitted_prompt=submitted_prompt,
+                        width=width,
+                        height=height,
+                        model=model,
+                        size=size,
+                        detail=f"{current_slot_name}:requesting",
+                        reference_image=reference_image,
+                    )
                     payload = _onemin_image_payload(
                         prompt=submitted_prompt,
                         model=model,
@@ -819,8 +1236,25 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
                     error="reserved_slot_insufficient_or_failed",
                 )
                 lease_id = ""
+
         if result_json is None:
-            raise RuntimeError("media_factory:" + " || ".join(errors[:6]))
+            detail = "media_factory:" + " || ".join(errors[:6])
+            _write_attempt_status(
+                render_id=render_id,
+                phase="failed",
+                backend_provider=backend_provider,
+                output_path=output_path,
+                family=family,
+                requested_prompt=str(prompt or ""),
+                submitted_prompt=submitted_prompt,
+                width=width,
+                height=height,
+                detail=detail,
+                reference_image=reference_image,
+            )
+            _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
+            raise RuntimeError(detail)
+
         if lease_id:
             _release_onemin_image_slot(
                 lease_id=lease_id,
@@ -843,6 +1277,7 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
                 ),
             )
             lease_id = ""
+
         receipt_path = _write_receipt(
             render_id=render_id,
             requested_prompt=str(prompt or ""),
@@ -858,6 +1293,21 @@ def render_asset(*, prompt: str, output_path: Path, width: int, height: int, dry
             result_json=result_json,
         )
         asset_urls = list((result_json.get("output_json") or {}).get("asset_urls") or [])
+        _write_attempt_status(
+            render_id=render_id,
+            phase="completed",
+            backend_provider=backend_provider,
+            output_path=output_path,
+            family=family,
+            requested_prompt=str(prompt or ""),
+            submitted_prompt=submitted_prompt,
+            width=width,
+            height=height,
+            model=str((result_json.get("receipt_json") or {}).get("model") or ""),
+            detail="rendered",
+            reference_image=reference_image,
+        )
+        _record_health_attempt(backend=backend_provider, family=family, detail="rendered", ok=True)
         return {
             "render_id": render_id,
             "provider": "media_factory",
@@ -893,6 +1343,7 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--width", type=int, required=True)
     parser.add_argument("--height", type=int, required=True)
+    parser.add_argument("--reference-image")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -902,6 +1353,7 @@ def main() -> int:
         width=int(args.width),
         height=int(args.height),
         dry_run=bool(args.dry_run),
+        reference_image=Path(args.reference_image) if str(args.reference_image or "").strip() else None,
     )
     print(json.dumps(payload, ensure_ascii=True))
     return 0
