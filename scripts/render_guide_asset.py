@@ -202,9 +202,8 @@ def _model_candidates(prompt: str | None = None) -> list[str]:
         os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_MODEL"),
         os.environ.get("EA_ONEMIN_TOOL_IMAGE_MODEL"),
         "gpt-image-1",
-        "dall-e-3",
-        "gpt-image-1-mini",
         "black-forest-labs/flux-schnell",
+        "gpt-image-1-mini",
     ):
         cleaned = str(candidate or "").strip()
         if cleaned and cleaned not in values:
@@ -213,7 +212,7 @@ def _model_candidates(prompt: str | None = None) -> list[str]:
         return values
     preferred = [
         model
-        for model in ("gpt-image-1", "dall-e-3", "gpt-image-1-mini", "black-forest-labs/flux-schnell")
+        for model in ("gpt-image-1", "black-forest-labs/flux-schnell", "gpt-image-1-mini")
         if model in values
     ]
     remainder = [model for model in values if model not in preferred]
