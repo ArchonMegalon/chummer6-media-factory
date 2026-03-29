@@ -135,10 +135,18 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             new PublicationSafeProjection("projection-dossier", "dossier_card", "Living dossier", "Stable runner identity.", "artifact-dossier"),
             new PublicationSafeProjection("projection-recap", "recap_brief", "Recap brief", "Campaign recap-safe packet.", "artifact-recap")
         ],
-        UpdatedAtUtc: DateTimeOffset.UtcNow));
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        NextSafeAction: "Publish the recap-safe packet only after the dossier checkpoint is accepted.",
+        CampaignReturnSummary: "Resume the campaign from the same dossier-backed checkpoint after publication review.",
+        SupportClosureSummary: "Reuse the handoff receipt when support verifies the creator packet against the campaign spine."));
 Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief creator packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
 Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 3, "Creator publication planner should attach campaign, dossier, and output shelves.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
+Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
+Assert(creatorPublicationPlan.PacketRequest.References?.Contains("buildlab.handoff.shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the explain entry reference.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Next safe action:", StringComparison.Ordinal)), "Creator publication planner should surface the next safe action.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign return:", StringComparison.Ordinal)), "Creator publication planner should surface the campaign return summary.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Support closure:", StringComparison.Ordinal)), "Creator publication planner should surface the support closure summary.");
 Assert(string.Equals(creatorPublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready creator publications should route into review next.");
 
 await Task.Delay(120);

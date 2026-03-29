@@ -51,8 +51,24 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         if (handoff is not null)
         {
+            references.Add(handoff.HandoffId);
+            references.Add(handoff.ExplainEntryId);
             evidenceLines.AddRange(handoff.TradeoffLines.Take(2));
             evidenceLines.AddRange(handoff.ProgressionOutcomes.Take(2));
+            if (!string.IsNullOrWhiteSpace(handoff.NextSafeAction))
+            {
+                evidenceLines.Add($"Next safe action: {handoff.NextSafeAction}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.CampaignReturnSummary))
+            {
+                evidenceLines.Add($"Campaign return: {handoff.CampaignReturnSummary}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.SupportClosureSummary))
+            {
+                evidenceLines.Add($"Support closure: {handoff.SupportClosureSummary}");
+            }
 
             foreach (PublicationSafeProjection output in handoff.Outputs)
             {
