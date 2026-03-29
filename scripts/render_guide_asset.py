@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -232,6 +233,9 @@ def _is_flux_schnell_model(model: str | None = None) -> bool:
 
 
 def _configured_onemin_slots() -> list[dict[str, str]]:
+    slots: list[dict[str, str]] = []
+    seen_keys: set[str] = set()
+    seen_env_names: set[str] = set()
     fallback_env_names = sorted(
         (
             env_name
@@ -240,14 +244,30 @@ def _configured_onemin_slots() -> list[dict[str, str]]:
         ),
         key=lambda env_name: int(env_name.rsplit("_", 1)[-1]),
     )
-    slots: list[dict[str, str]] = []
-    seen_env_names: set[str] = set()
     for env_name in ("ONEMIN_AI_API_KEY", *fallback_env_names):
         key = str(os.environ.get(env_name) or "").strip()
-        if not key or env_name in seen_env_names:
+        if not key or env_name in seen_env_names or key in seen_keys:
             continue
         seen_env_names.add(env_name)
+        seen_keys.add(key)
         slots.append({"env_name": env_name, "key": key})
+    resolve_script = EA_ROOT / "scripts" / "resolve_onemin_ai_key.sh"
+    if resolve_script.exists():
+        try:
+            output = subprocess.check_output(
+                ["bash", str(resolve_script), "--all"],
+                text=True,
+            )
+        except Exception:
+            output = ""
+        synthetic_index = 0
+        for raw in output.splitlines():
+            key = str(raw or "").strip()
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            synthetic_index += 1
+            slots.append({"env_name": f"ONEMIN_RESOLVED_SLOT_{synthetic_index}", "key": key})
     return slots
 
 
@@ -542,7 +562,7 @@ def _size_candidates(model: str, *, width: int, height: int) -> list[str]:
     if _is_flux_schnell_model(model):
         return [_aspect_ratio(width, height)]
     if normalized.startswith("gpt-image-") or normalized.startswith("dall-e-"):
-        return ["1536x1024", "1024x1024"] if landscape else ["1024x1536", "1024x1024"]
+        return ["auto", "1536x1024", "1024x1024"] if landscape else ["auto", "1024x1536", "1024x1024"]
     return [f"{max(1, width)}x{max(1, height)}"]
 
 
