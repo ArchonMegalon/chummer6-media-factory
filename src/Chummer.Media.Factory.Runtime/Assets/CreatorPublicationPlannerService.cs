@@ -75,6 +75,16 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             references.Add(handoff.ExplainEntryId);
             evidenceLines.AddRange(handoff.TradeoffLines.Take(2));
             evidenceLines.AddRange(handoff.ProgressionOutcomes.Take(2));
+            if (!string.IsNullOrWhiteSpace(handoff.PlannerCoverageSummary))
+            {
+                evidenceLines.Add($"Planner coverage: {handoff.PlannerCoverageSummary}");
+            }
+
+            if (handoff.PlannerCoverageLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.PlannerCoverageLines.Take(2));
+            }
+
             if (!string.IsNullOrWhiteSpace(handoff.NextSafeAction))
             {
                 evidenceLines.Add($"Next safe action: {handoff.NextSafeAction}");

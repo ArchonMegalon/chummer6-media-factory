@@ -145,10 +145,20 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         UpdatedAtUtc: DateTimeOffset.UtcNow,
         NextSafeAction: "Publish the recap-safe packet only after the dossier checkpoint is accepted.",
         CampaignReturnSummary: "Resume the campaign from the same dossier-backed checkpoint after publication review.",
-        SupportClosureSummary: "Reuse the handoff receipt when support verifies the creator packet against the campaign spine."));
+        SupportClosureSummary: "Reuse the handoff receipt when support verifies the creator packet against the campaign spine.",
+        PlannerCoverageSummary: "4 of 4 build follow-through checkpoints are already grounded.",
+        PlannerCoverageLines:
+        [
+            "Campaign continuity: Shadow Circuit is already attached as the governed return lane for this handoff.",
+            "Outputs: 2 dossier or campaign-safe outputs are already attached to the handoff.",
+            "Restore posture: no restore conflicts are currently blocking replay-safe handoff follow-through.",
+            "Claimed install: 1 linked device is already attached for install-aware follow-through."
+        ]));
 Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief creator packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
 Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 3, "Creator publication planner should attach campaign, dossier, and output shelves.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("buildlab.handoff.shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the explain entry reference.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Next safe action:", StringComparison.Ordinal)), "Creator publication planner should surface the next safe action.");
