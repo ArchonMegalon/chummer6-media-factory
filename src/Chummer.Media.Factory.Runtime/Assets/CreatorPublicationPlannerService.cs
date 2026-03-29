@@ -32,6 +32,26 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             $"{publication.Visibility} visibility keeps creator publication subordinate to governed campaign truth."
         ];
 
+        if (!string.IsNullOrWhiteSpace(publication.NextSafeAction))
+        {
+            evidenceLines.Add($"Next safe action: {publication.NextSafeAction}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(publication.CampaignReturnSummary))
+        {
+            evidenceLines.Add($"Campaign return: {publication.CampaignReturnSummary}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(publication.SupportClosureSummary))
+        {
+            evidenceLines.Add($"Support closure: {publication.SupportClosureSummary}");
+        }
+
+        if (publication.Watchouts is { Count: > 0 })
+        {
+            evidenceLines.AddRange(publication.Watchouts.Take(2).Select(static item => $"Watchout: {item}"));
+        }
+
         List<string> references =
         [
             publication.CampaignId,

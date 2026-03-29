@@ -111,7 +111,14 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         DiscoverySummary: "Group visibility with grounded provenance",
         Visibility: "group",
         PublicationStatus: "preview_ready",
-        UpdatedAtUtc: DateTimeOffset.UtcNow),
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        NextSafeAction: "Review the creator packet before the same governed dossier handoff leaves the account surface.",
+        CampaignReturnSummary: "Return to the dossier-backed campaign checkpoint after creator review finishes.",
+        SupportClosureSummary: "Creator publication stays pinned to the same campaign-safe support answer.",
+        Watchouts:
+        [
+            "No local-only export notes should bypass the governed creator packet."
+        ]),
     new BuildLabHandoffProjection(
         HandoffId: "handoff-shadow-brief",
         DossierId: "dossier-kestrel",
@@ -148,6 +155,33 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ne
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign return:", StringComparison.Ordinal)), "Creator publication planner should surface the campaign return summary.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Support closure:", StringComparison.Ordinal)), "Creator publication planner should surface the support closure summary.");
 Assert(string.Equals(creatorPublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready creator publications should route into review next.");
+
+var creatorPublicationWithoutHandoff = creatorPublications.BuildPlan(
+    new CreatorPublicationProjection(
+        PublicationId: "publication-shadow-brief-no-handoff",
+        Title: "Shadow brief creator packet without attached handoff",
+        Kind: "campaign_packet",
+        Summary: "Creator publication should still preserve continuity even when the explicit handoff record is missing.",
+        CampaignId: "campaign-shadow",
+        DossierId: "dossier-kestrel",
+        ArtifactId: "artifact-shadow-brief-no-handoff",
+        ProvenanceSummary: "sr6.preview.v1 + recap-safe output shelf",
+        DiscoverySummary: "Group visibility with grounded provenance",
+        Visibility: "group",
+        PublicationStatus: "preview_ready",
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        NextSafeAction: "Review creator publication continuity before sending it into approval.",
+        CampaignReturnSummary: "Return through the same campaign checkpoint after creator review.",
+        SupportClosureSummary: "Reuse the creator publication packet when support validates the governed campaign output.",
+        Watchouts:
+        [
+            "Keep creator publication subordinate to the shared campaign workspace."
+        ]));
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Next safe action: Review creator publication continuity", StringComparison.Ordinal)), "Creator publication planner should preserve publication next-safe-action evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Campaign return: Return through the same campaign checkpoint", StringComparison.Ordinal)), "Creator publication planner should preserve publication campaign-return evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Support closure: Reuse the creator publication packet", StringComparison.Ordinal)), "Creator publication planner should preserve publication support-closure evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Watchout: Keep creator publication subordinate", StringComparison.Ordinal)), "Creator publication planner should preserve publication watchouts even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the governed campaign reference.");
 
 await Task.Delay(120);
 var sweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow);
