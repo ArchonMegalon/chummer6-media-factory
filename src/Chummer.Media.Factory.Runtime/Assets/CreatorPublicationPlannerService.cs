@@ -35,6 +35,11 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             $"State: {HumanizePublicationStatus(publication.PublicationStatus)}"
         ];
 
+        if (!string.IsNullOrWhiteSpace(publication.LineageSummary))
+        {
+            evidenceLines.Add($"Lineage: {publication.LineageSummary}");
+        }
+
         if (!string.IsNullOrWhiteSpace(publication.NextSafeAction))
         {
             evidenceLines.Add($"Next safe action: {publication.NextSafeAction}");

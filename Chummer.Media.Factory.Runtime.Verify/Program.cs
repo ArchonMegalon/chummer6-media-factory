@@ -114,6 +114,7 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         TrustBand: "review-pending",
         Discoverable: false,
         UpdatedAtUtc: DateTimeOffset.UtcNow,
+        LineageSummary: "Shadow brief handoff remains the current lineage anchor for artifact artifact-shadow-brief until a governed successor publication replaces it.",
         NextSafeAction: "Review the creator packet before the same governed dossier handoff leaves the account surface.",
         CampaignReturnSummary: "Return to the dossier-backed campaign checkpoint after creator review finishes.",
         SupportClosureSummary: "Creator publication stays pinned to the same campaign-safe support answer.",
@@ -165,6 +166,7 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Tr
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discoverable: No", StringComparison.Ordinal)), "Creator publication planner should label discoverability explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ownership:", StringComparison.Ordinal)), "Creator publication planner should label ownership posture explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("State: Preview Ready", StringComparison.Ordinal)), "Creator publication planner should label publication state explicitly.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Lineage: Shadow brief handoff remains the current lineage anchor", StringComparison.Ordinal)), "Creator publication planner should label lineage posture explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
@@ -190,6 +192,7 @@ var creatorPublicationWithoutHandoff = creatorPublications.BuildPlan(
         TrustBand: "review-pending",
         Discoverable: false,
         UpdatedAtUtc: DateTimeOffset.UtcNow,
+        LineageSummary: "Shadow Circuit keeps artifact artifact-shadow-brief-no-handoff as the current lineage anchor until a governed successor publication is promoted.",
         NextSafeAction: "Review creator publication continuity before sending it into approval.",
         CampaignReturnSummary: "Return through the same campaign checkpoint after creator review.",
         SupportClosureSummary: "Reuse the creator publication packet when support validates the governed campaign output.",
@@ -202,6 +205,7 @@ Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Co
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Support closure: Reuse the creator publication packet", StringComparison.Ordinal)), "Creator publication planner should preserve publication support-closure evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Trust band: Review Pending", StringComparison.Ordinal)), "Creator publication planner should preserve trust ranking evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Discoverable: No", StringComparison.Ordinal)), "Creator publication planner should preserve discoverability evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Lineage: Shadow Circuit keeps artifact artifact-shadow-brief-no-handoff", StringComparison.Ordinal)), "Creator publication planner should preserve lineage evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Watchout: Keep creator publication subordinate", StringComparison.Ordinal)), "Creator publication planner should preserve publication watchouts even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the governed campaign reference.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("publication-shadow-brief-no-handoff", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the creator publication id reference.");
