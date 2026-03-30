@@ -143,15 +143,35 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         ],
         Outputs:
         [
-            new PublicationSafeProjection("projection-dossier", "dossier_card", "Living dossier", "Stable runner identity.", "artifact-dossier"),
+            new PublicationSafeProjection(
+                "projection-dossier",
+                "dossier_card",
+                "Living dossier",
+                "Stable runner identity.",
+                "artifact-dossier",
+                OwnershipSummary: "Dossier truth stays on the same governed creator lane while publication review is still bounded."),
             new PublicationSafeProjection(
                 "projection-recap",
                 "recap_brief",
                 "Recap brief",
                 "Campaign recap-safe packet.",
                 "artifact-recap",
+                OwnershipSummary: "Recap-safe packet stays on the same governed creator lane until the review completes.",
+                PublicationSummary: "Preview-ready recap-safe packet is still bounded until creator publication review clears.",
+                NextSafeAction: "Review the recap-safe packet before widening the artifact audience.",
                 ProvenanceSummary: "sr6.preview.v1 + run scope + continuity keep the recap packet grounded on the same artifact.",
-                AuditSummary: "Generated 2026-03-30 12:00 UTC from the same governed recap receipt.")
+                AuditSummary: "Generated 2026-03-30 12:00 UTC from the same governed recap receipt."),
+            new PublicationSafeProjection(
+                "projection-replay",
+                "replay_timeline",
+                "Replay timeline",
+                "Contested-turn review stays attached to the governed replay artifact.",
+                "artifact-replay",
+                OwnershipSummary: "Replay timeline stays on the same governed creator lane until publication review deliberately widens the audience.",
+                PublicationSummary: "Preview-ready replay timeline is still bounded while contested-turn review stays on the creator lane.",
+                NextSafeAction: "Review the replay timeline before widening the replay artifact audience.",
+                ProvenanceSummary: "sr6.preview.v1 + contested turn receipts + continuity keep the replay timeline grounded on the same artifact.",
+                AuditSummary: "Generated 2026-03-30 12:05 UTC from the same governed replay receipt.")
         ],
         UpdatedAtUtc: DateTimeOffset.UtcNow,
         NextSafeAction: "Publish the recap-safe packet only after the dossier checkpoint is accepted.",
@@ -166,15 +186,22 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Claimed install: 1 linked device is already attached for install-aware follow-through."
         ]));
 Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief creator packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
-Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 4, "Creator publication planner should attach creator publication status, campaign, dossier, and output shelves.");
+Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 5, "Creator publication planner should attach creator publication status, campaign, dossier, recap, and replay output shelves.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("publication-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should keep the creator publication id as a first-class packet reference.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
+Assert(creatorPublicationPlan.PacketRequest.References?.Contains("artifact-replay", StringComparer.Ordinal) == true, "Creator publication planner should keep replay artifact ids as first-class packet references.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discovery:", StringComparison.Ordinal)), "Creator publication planner should label discovery posture explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Trust band: Review Pending", StringComparison.Ordinal)), "Creator publication planner should label trust ranking explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discoverable: No", StringComparison.Ordinal)), "Creator publication planner should label discoverability explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ownership:", StringComparison.Ordinal)), "Creator publication planner should label ownership posture explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("State: Preview Ready", StringComparison.Ordinal)), "Creator publication planner should label publication state explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Lineage: Shadow brief handoff remains the current lineage anchor", StringComparison.Ordinal)), "Creator publication planner should label lineage posture explicitly.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Replay timeline): Replay timeline stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve replay output kind posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output ownership (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay output ownership posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output publication (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay output publication posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output next safe action (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay output next-step posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output provenance (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay-output provenance through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay-output audit posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output provenance (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output provenance through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output audit posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");

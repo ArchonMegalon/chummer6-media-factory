@@ -117,6 +117,23 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
                     references.Add(output.ArtifactId);
                 }
 
+                evidenceLines.Add($"Output kind ({output.Label}): {DescribeOutputKind(output)}");
+
+                if (!string.IsNullOrWhiteSpace(output.OwnershipSummary))
+                {
+                    evidenceLines.Add($"Output ownership ({output.Label}): {output.OwnershipSummary}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(output.PublicationSummary))
+                {
+                    evidenceLines.Add($"Output publication ({output.Label}): {output.PublicationSummary}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(output.NextSafeAction))
+                {
+                    evidenceLines.Add($"Output next safe action ({output.Label}): {output.NextSafeAction}");
+                }
+
                 if (!string.IsNullOrWhiteSpace(output.ProvenanceSummary))
                 {
                     evidenceLines.Add($"Output provenance ({output.Label}): {output.ProvenanceSummary}");
@@ -190,5 +207,29 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
             value.Replace('_', ' ').Replace('-', ' '));
+    }
+
+    private static string DescribeOutputKind(PublicationSafeProjection output)
+    {
+        string normalizedKind = output.Kind.Trim().ToLowerInvariant();
+
+        if (normalizedKind.Contains("replay", StringComparison.Ordinal))
+        {
+            return "Replay timeline stays attached to the same governed creator packet for contested-turn review.";
+        }
+
+        if (normalizedKind.Contains("recap", StringComparison.Ordinal)
+            || normalizedKind.Contains("after", StringComparison.Ordinal)
+            || normalizedKind.Contains("downtime", StringComparison.Ordinal))
+        {
+            return "Recap-safe package stays attached to the same governed creator packet for return and publication follow-through.";
+        }
+
+        if (normalizedKind.Contains("dossier", StringComparison.Ordinal))
+        {
+            return "Living dossier handoff stays attached to the same governed creator packet.";
+        }
+
+        return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed creator packet.";
     }
 }
