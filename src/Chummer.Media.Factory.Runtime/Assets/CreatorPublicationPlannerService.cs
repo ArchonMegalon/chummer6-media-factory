@@ -27,9 +27,10 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         List<string> evidenceLines =
         [
-            publication.ProvenanceSummary,
-            publication.DiscoverySummary,
-            $"{publication.Visibility} visibility keeps creator publication subordinate to governed campaign truth."
+            $"Provenance: {publication.ProvenanceSummary}",
+            $"Discovery: {publication.DiscoverySummary}",
+            $"Ownership: {BuildOwnershipSummary(publication)}",
+            $"State: {HumanizePublicationStatus(publication.PublicationStatus)}"
         ];
 
         if (!string.IsNullOrWhiteSpace(publication.NextSafeAction))
@@ -54,12 +55,14 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         List<string> references =
         [
+            publication.PublicationId,
             publication.CampaignId,
             publication.ArtifactId
         ];
 
         List<PacketAttachmentRequest> attachments =
         [
+            new(PacketAttachmentTargetKind.Export, publication.PublicationId, "Creator publication status"),
             new(PacketAttachmentTargetKind.Export, publication.CampaignId, "Campaign publication shelf")
         ];
 
@@ -142,5 +145,22 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
                 .Where(static item => !string.IsNullOrWhiteSpace(item))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray());
+    }
+
+    private static string BuildOwnershipSummary(CreatorPublicationProjection publication)
+        => string.Equals(publication.Visibility, "private", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(publication.Visibility, "local_only", StringComparison.OrdinalIgnoreCase)
+            ? "Ownership stays on the originating creator lane until the creator deliberately widens visibility."
+            : $"{publication.Visibility} visibility keeps creator publication on one governed creator lane instead of forking a separate discovery record.";
+
+    private static string HumanizePublicationStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Published";
+        }
+
+        return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+            value.Replace('_', ' ').Replace('-', ' '));
     }
 }
