@@ -35,6 +35,16 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             $"State: {HumanizePublicationStatus(publication.PublicationStatus)}"
         ];
 
+        if (!string.IsNullOrWhiteSpace(publication.TrustSummary))
+        {
+            evidenceLines.Add($"Trust posture: {publication.TrustSummary}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(publication.ComparisonSummary))
+        {
+            evidenceLines.Add($"Compare by: {publication.ComparisonSummary}");
+        }
+
         if (!string.IsNullOrWhiteSpace(publication.LineageSummary))
         {
             evidenceLines.Add($"Lineage: {publication.LineageSummary}");
@@ -53,6 +63,11 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         if (!string.IsNullOrWhiteSpace(publication.SupportClosureSummary))
         {
             evidenceLines.Add($"Support closure: {publication.SupportClosureSummary}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(publication.ModerationSummary))
+        {
+            evidenceLines.Add($"Moderation: {publication.ModerationSummary}");
         }
 
         if (publication.Watchouts is { Count: > 0 })
