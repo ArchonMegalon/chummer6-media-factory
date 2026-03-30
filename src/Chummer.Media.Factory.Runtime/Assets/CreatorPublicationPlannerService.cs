@@ -28,7 +28,9 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         List<string> evidenceLines =
         [
             $"Provenance: {publication.ProvenanceSummary}",
+            $"Trust band: {HumanizeTrustBand(publication.TrustBand)}",
             $"Discovery: {publication.DiscoverySummary}",
+            $"Discoverable: {(publication.Discoverable ? "Yes" : "No")}",
             $"Ownership: {BuildOwnershipSummary(publication)}",
             $"State: {HumanizePublicationStatus(publication.PublicationStatus)}"
         ];
@@ -158,6 +160,17 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         if (string.IsNullOrWhiteSpace(value))
         {
             return "Published";
+        }
+
+        return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+            value.Replace('_', ' ').Replace('-', ' '));
+    }
+
+    private static string HumanizeTrustBand(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Draft";
         }
 
         return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
