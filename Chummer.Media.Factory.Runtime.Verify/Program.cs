@@ -5,6 +5,7 @@ using Chummer.Campaign.Contracts;
 var assets = new AssetLifecycleService();
 var jobs = new MediaRenderJobService(assets);
 var creatorPublications = new CreatorPublicationPlannerService();
+var prepPackets = new GovernedPrepPacketPlannerService();
 
 var approvalAsset = await assets.StoreAsync(
     category: "portrait/canon",
@@ -209,6 +210,85 @@ Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Co
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Watchout: Keep creator publication subordinate", StringComparison.Ordinal)), "Creator publication planner should preserve publication watchouts even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the governed campaign reference.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("publication-shadow-brief-no-handoff", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the creator publication id reference.");
+
+var governedPrepPacketPlan = prepPackets.BuildPlan(
+    new GovernedPrepPacketProjection(
+        WorkspaceId: "workspace-shadow-circuit",
+        CampaignId: "campaign-shadow",
+        PacketId: "opposition:workspace-shadow-circuit",
+        Kind: "opposition_packet",
+        Title: "Shadow Circuit opposition packet",
+        Summary: "Reusable opposition packet keeps the next run bind grounded on governed roster truth.",
+        BindingSummary: "Reusable across the campaign so the next scene can bind real opposition truth without local shadow packet models.",
+        Reusable: true,
+        SearchTerms:
+        [
+            "opposition",
+            "scene",
+            "security roster",
+            "checkpoint"
+        ],
+        EvidenceLines:
+        [
+            "Checkpoint opposition packet with lead pressure and matrix overwatch already wired.",
+            "Campaign return can reopen through the same governed packet."
+        ],
+        UpdatedAtUtc: DateTimeOffset.UtcNow),
+    new GovernedPrepLaunchProjection(
+        LaunchId: "prep-launch-shadow-circuit",
+        WorkspaceId: "workspace-shadow-circuit",
+        CampaignId: "campaign-shadow",
+        PacketId: "opposition:workspace-shadow-circuit",
+        PacketKind: "opposition_packet",
+        PacketTitle: "Shadow Circuit opposition packet",
+        TargetRunId: "run-shadow-circuit",
+        TargetRunTitle: "Shadow Circuit",
+        TargetSceneId: "scene-lab-breach",
+        TargetSceneTitle: "Lab breach",
+        InitiatedByUserId: "user-operator",
+        Summary: "Bound the governed opposition packet into the active Shadow Circuit run without local shadow prep notes.",
+        AuditLines:
+        [
+            "Launch receipt keeps the active bind auditable."
+        ],
+        LaunchedAtUtc: DateTimeOffset.UtcNow));
+Assert(string.Equals(governedPrepPacketPlan.PacketRequest.Title, "Shadow Circuit opposition packet", StringComparison.Ordinal), "Governed prep packet planner should reuse the governed packet title.");
+Assert(string.Equals(governedPrepPacketPlan.NextAction, "refresh_binding_posture", StringComparison.Ordinal), "Launched governed prep packets should route into binding-posture refresh next.");
+Assert(governedPrepPacketPlan.AttachmentBatch.Attachments.Count >= 5, "Governed prep packet planner should attach campaign, workspace, packet, run/scene, and launch receipt targets.");
+Assert(governedPrepPacketPlan.PacketRequest.References?.Contains("workspace-shadow-circuit", StringComparer.Ordinal) == true, "Governed prep packet planner should keep the workspace reference.");
+Assert(governedPrepPacketPlan.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Governed prep packet planner should keep the governed campaign reference.");
+Assert(governedPrepPacketPlan.PacketRequest.References?.Contains("prep-launch-shadow-circuit", StringComparer.Ordinal) == true, "Governed prep packet planner should keep the prep-launch receipt reference.");
+Assert(governedPrepPacketPlan.PacketRequest.References?.Contains("scene-lab-breach", StringComparer.Ordinal) == true, "Governed prep packet planner should keep the bound scene reference.");
+Assert(governedPrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Binding:", StringComparison.Ordinal)), "Governed prep packet planner should surface binding posture.");
+Assert(governedPrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Search terms: opposition, scene, security roster, checkpoint", StringComparison.Ordinal)), "Governed prep packet planner should preserve searchable prep semantics.");
+Assert(governedPrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Launch: Bound the governed opposition packet", StringComparison.Ordinal)), "Governed prep packet planner should preserve launch summary evidence.");
+Assert(governedPrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Audit: Launch receipt keeps the active bind auditable.", StringComparison.Ordinal)), "Governed prep packet planner should preserve launch audit evidence.");
+Assert(governedPrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Bound target: Shadow Circuit / Lab breach", StringComparison.Ordinal)), "Governed prep packet planner should keep the explicit campaign binding target.");
+
+var reusablePrepPacketPlan = prepPackets.BuildPlan(
+    new GovernedPrepPacketProjection(
+        WorkspaceId: "workspace-shadow-circuit",
+        CampaignId: "campaign-shadow",
+        PacketId: "scene:workspace-shadow-circuit",
+        Kind: "scene_packet",
+        Title: "Shadow Circuit scene packet",
+        Summary: "Reusable scene packet is searchable and ready for the next governed bind.",
+        BindingSummary: "Scene packet stays reusable until a governed launch receipt binds it to the next run lane.",
+        Reusable: true,
+        SearchTerms:
+        [
+            "scene",
+            "safehouse",
+            "opposition"
+        ],
+        EvidenceLines:
+        [
+            "Scene packet stays ready for the next governed bind."
+        ],
+        UpdatedAtUtc: DateTimeOffset.UtcNow));
+Assert(string.Equals(reusablePrepPacketPlan.NextAction, "launch_governed_packet", StringComparison.Ordinal), "Reusable prep packets without a launch should route into governed launch next.");
+Assert(reusablePrepPacketPlan.EvidenceLines.Any(static line => line.Contains("Launch posture: No governed launch receipt is attached yet", StringComparison.Ordinal)), "Reusable prep packets should keep no-launch posture explicit.");
+Assert(reusablePrepPacketPlan.AttachmentBatch.Attachments.Any(static attachment => attachment.TargetId == "scene:workspace-shadow-circuit"), "Reusable prep packets should still attach the governed packet identity.");
 
 await Task.Delay(120);
 var sweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow);
