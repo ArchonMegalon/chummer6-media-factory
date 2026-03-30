@@ -144,7 +144,14 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         Outputs:
         [
             new PublicationSafeProjection("projection-dossier", "dossier_card", "Living dossier", "Stable runner identity.", "artifact-dossier"),
-            new PublicationSafeProjection("projection-recap", "recap_brief", "Recap brief", "Campaign recap-safe packet.", "artifact-recap")
+            new PublicationSafeProjection(
+                "projection-recap",
+                "recap_brief",
+                "Recap brief",
+                "Campaign recap-safe packet.",
+                "artifact-recap",
+                ProvenanceSummary: "sr6.preview.v1 + run scope + continuity keep the recap packet grounded on the same artifact.",
+                AuditSummary: "Generated 2026-03-30 12:00 UTC from the same governed recap receipt.")
         ],
         UpdatedAtUtc: DateTimeOffset.UtcNow,
         NextSafeAction: "Publish the recap-safe packet only after the dossier checkpoint is accepted.",
@@ -168,6 +175,8 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Di
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ownership:", StringComparison.Ordinal)), "Creator publication planner should label ownership posture explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("State: Preview Ready", StringComparison.Ordinal)), "Creator publication planner should label publication state explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Lineage: Shadow brief handoff remains the current lineage anchor", StringComparison.Ordinal)), "Creator publication planner should label lineage posture explicitly.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output provenance (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output provenance through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output audit posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");

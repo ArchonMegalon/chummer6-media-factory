@@ -117,6 +117,16 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
                     references.Add(output.ArtifactId);
                 }
 
+                if (!string.IsNullOrWhiteSpace(output.ProvenanceSummary))
+                {
+                    evidenceLines.Add($"Output provenance ({output.Label}): {output.ProvenanceSummary}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(output.AuditSummary))
+                {
+                    evidenceLines.Add($"Output audit ({output.Label}): {output.AuditSummary}");
+                }
+
                 attachments.Add(new PacketAttachmentRequest(
                     PacketAttachmentTargetKind.Export,
                     output.ProjectionId,
