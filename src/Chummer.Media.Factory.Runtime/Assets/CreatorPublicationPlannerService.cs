@@ -93,7 +93,7 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         if (IsPublicCreatorPacket(publication))
         {
-            evidenceLines.Add($"Public route: /artifacts/creator/{publication.PublicationId}");
+            evidenceLines.Add($"Public route: /artifacts/publications/{publication.PublicationId}");
         }
 
         if (!string.IsNullOrWhiteSpace(publication.DossierId))

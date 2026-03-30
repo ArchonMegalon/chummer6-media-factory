@@ -283,7 +283,7 @@ var publishedCreatorPublicationPlan = creatorPublications.BuildPlan(
         CampaignReturnSummary: "Return through the same published creator packet whenever the campaign checkpoint needs to be re-opened.",
         SupportClosureSummary: "Reuse the public creator packet when support validates the published governed output."));
 Assert(publishedCreatorPublicationPlan.AttachmentBatch.Attachments.Any(static item => string.Equals(item.TargetLabel, "Public creator packet", StringComparison.Ordinal)), "Published creator publication planner should rename the lead attachment to the public creator packet once discovery is live.");
-Assert(publishedCreatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Public route: /artifacts/creator/publication-shadow-brief-public", StringComparison.Ordinal)), "Published creator publication planner should preserve the public creator packet route.");
+Assert(publishedCreatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Public route: /artifacts/publications/publication-shadow-brief-public", StringComparison.Ordinal)), "Published creator publication planner should preserve the shared public publication route.");
 Assert(string.Equals(publishedCreatorPublicationPlan.NextAction, "share_public_creator_packet", StringComparison.Ordinal), "Published discoverable creator publications should route into public packet sharing next.");
 
 var governedPrepPacketPlan = prepPackets.BuildPlan(
