@@ -84,9 +84,17 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         List<PacketAttachmentRequest> attachments =
         [
-            new(PacketAttachmentTargetKind.Export, publication.PublicationId, "Creator publication status"),
+            new(
+                PacketAttachmentTargetKind.Export,
+                publication.PublicationId,
+                IsPublicCreatorPacket(publication) ? "Public creator packet" : "Creator publication status"),
             new(PacketAttachmentTargetKind.Export, publication.CampaignId, "Campaign publication shelf")
         ];
+
+        if (IsPublicCreatorPacket(publication))
+        {
+            evidenceLines.Add($"Public route: /artifacts/creator/{publication.PublicationId}");
+        }
 
         if (!string.IsNullOrWhiteSpace(publication.DossierId))
         {
@@ -179,7 +187,9 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         string nextAction = string.Equals(publication.PublicationStatus, "preview_ready", StringComparison.OrdinalIgnoreCase)
             ? "queue_review"
-            : "refresh_publication_posture";
+            : IsPublicCreatorPacket(publication)
+                ? "share_public_creator_packet"
+                : "refresh_publication_posture";
 
         return new CreatorPublicationPlan(
             PublicationId: publication.PublicationId,
@@ -201,6 +211,10 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             || string.Equals(publication.Visibility, "local_only", StringComparison.OrdinalIgnoreCase)
             ? "Ownership stays on the originating creator lane until the creator deliberately widens visibility."
             : $"{publication.Visibility} visibility keeps creator publication on one governed creator lane instead of forking a separate discovery record.";
+
+    private static bool IsPublicCreatorPacket(CreatorPublicationProjection publication)
+        => publication.Discoverable
+            && string.Equals(publication.PublicationStatus, "published", StringComparison.OrdinalIgnoreCase);
 
     private static string HumanizePublicationStatus(string? value)
     {

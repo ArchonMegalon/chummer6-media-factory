@@ -259,6 +259,33 @@ Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Co
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the governed campaign reference.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("publication-shadow-brief-no-handoff", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the creator publication id reference.");
 
+var publishedCreatorPublicationPlan = creatorPublications.BuildPlan(
+    new CreatorPublicationProjection(
+        PublicationId: "publication-shadow-brief-public",
+        Title: "Shadow brief creator packet on public discovery",
+        Kind: "campaign_packet",
+        Summary: "Published creator packet is now live on governed public discovery.",
+        CampaignId: "campaign-shadow",
+        DossierId: "dossier-kestrel",
+        ArtifactId: "artifact-shadow-brief-public",
+        ProvenanceSummary: "sr6.preview.v1 + recap-safe output shelf + published creator packet",
+        DiscoverySummary: "Eligible for governed discovery, creator comparison, and shelf projection.",
+        Visibility: "shared",
+        PublicationStatus: "published",
+        TrustBand: "curated-live",
+        Discoverable: true,
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        LineageSummary: "Shadow brief public packet remains the live lineage anchor until a governed successor replaces it.",
+        TrustSummary: "Trust ranking is live on governed discovery and stays anchored to provenance, lineage, and campaign continuity instead of popularity fog.",
+        ComparisonSummary: "Compare by provenance, trust ranking, lineage, and campaign-return fit instead of popularity or install counts.",
+        ModerationSummary: "Moderation watch is active but clear, so the packet can stay on discoverable creator shelves until a later note changes its posture.",
+        NextSafeAction: "Keep the governed packet live on creator discovery, lineage, and shelf surfaces while provenance and support posture stay current.",
+        CampaignReturnSummary: "Return through the same published creator packet whenever the campaign checkpoint needs to be re-opened.",
+        SupportClosureSummary: "Reuse the public creator packet when support validates the published governed output."));
+Assert(publishedCreatorPublicationPlan.AttachmentBatch.Attachments.Any(static item => string.Equals(item.TargetLabel, "Public creator packet", StringComparison.Ordinal)), "Published creator publication planner should rename the lead attachment to the public creator packet once discovery is live.");
+Assert(publishedCreatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Public route: /artifacts/creator/publication-shadow-brief-public", StringComparison.Ordinal)), "Published creator publication planner should preserve the public creator packet route.");
+Assert(string.Equals(publishedCreatorPublicationPlan.NextAction, "share_public_creator_packet", StringComparison.Ordinal), "Published discoverable creator publications should route into public packet sharing next.");
+
 var governedPrepPacketPlan = prepPackets.BuildPlan(
     new GovernedPrepPacketProjection(
         WorkspaceId: "workspace-shadow-circuit",
