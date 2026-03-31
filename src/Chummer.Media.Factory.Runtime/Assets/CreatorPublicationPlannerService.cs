@@ -263,6 +263,13 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             return "Living dossier handoff stays attached to the same governed publication lane.";
         }
 
+        if (normalizedKind.Contains("primer", StringComparison.Ordinal)
+            || normalizedKind.Contains("handbook", StringComparison.Ordinal)
+            || normalizedKind.Contains("guide", StringComparison.Ordinal))
+        {
+            return "Campaign primer stays attached to the same governed publication lane for onboarding and table-start follow-through.";
+        }
+
         return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed publication lane.";
     }
 }

@@ -165,6 +165,13 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
                 ProvenanceSummary: "sr6.preview.v1 + run scope + continuity keep the recap packet grounded on the same artifact.",
                 AuditSummary: "Generated 2026-03-30 12:00 UTC from the same governed recap receipt."),
             new PublicationSafeProjection(
+                "projection-primer",
+                "player_primer",
+                "Campaign primer",
+                "Session-zero onboarding packet.",
+                "artifact-primer",
+                OwnershipSummary: "Primer handoff stays on the same governed publication lane while onboarding copy is reviewed."),
+            new PublicationSafeProjection(
                 "projection-replay",
                 "replay_timeline",
                 "Replay timeline",
@@ -210,6 +217,7 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ou
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Replay timeline):", StringComparison.Ordinal)), "Creator publication planner should preserve replay-output audit posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output provenance (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output provenance through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output audit posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Campaign primer): Campaign primer stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve primer output kind posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
@@ -286,6 +294,32 @@ var publishedCreatorPublicationPlan = creatorPublications.BuildPlan(
 Assert(publishedCreatorPublicationPlan.AttachmentBatch.Attachments.Any(static item => string.Equals(item.TargetLabel, "Public publication", StringComparison.Ordinal)), "Published creator publication planner should rename the lead attachment to the public publication once discovery is live.");
 Assert(publishedCreatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Public route: /artifacts/publications/publication-shadow-brief-public", StringComparison.Ordinal)), "Published creator publication planner should preserve the shared public publication route.");
 Assert(string.Equals(publishedCreatorPublicationPlan.NextAction, "share_public_publication", StringComparison.Ordinal), "Published discoverable creator publications should route into public publication sharing next.");
+
+var primerPublicationPlan = creatorPublications.BuildPlan(
+    new CreatorPublicationProjection(
+        PublicationId: "publication-shadow-primer",
+        Title: "Shadow Circuit campaign primer",
+        Kind: "primer",
+        Summary: "Primer-safe onboarding package stays on the same governed publication lane.",
+        CampaignId: "campaign-shadow",
+        DossierId: "dossier-kestrel",
+        ArtifactId: "artifact-shadow-primer",
+        ProvenanceSummary: "sr6.preview.v1 + primer-safe output shelf",
+        DiscoverySummary: "Primers stay bounded until the same governed publication review clears.",
+        Visibility: "group",
+        PublicationStatus: "preview_ready",
+        TrustBand: "review-pending",
+        Discoverable: false,
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        TrustSummary: "Trust ranking stays anchored to governed provenance and onboarding fit until approval clears.",
+        ComparisonSummary: "Compare by provenance, onboarding fit, trust ranking, and campaign-return posture instead of popularity fog.",
+        ModerationSummary: "Moderation keeps primer distribution bounded until approval review clears.",
+        NextSafeAction: "Review the campaign primer on the governed publication lane before widening distribution.",
+        CampaignReturnSummary: "Return to the same campaign checkpoint after the primer review finishes.",
+        SupportClosureSummary: "Reuse the governed primer packet when support validates onboarding follow-through."));
+Assert(primerPublicationPlan.EvidenceLines.Any(static line => line.Contains("Publication kind: Primer", StringComparison.Ordinal)), "Creator publication planner should surface primer publication kind explicitly.");
+Assert(primerPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discovery: Primers stay bounded", StringComparison.Ordinal)), "Creator publication planner should preserve primer discovery posture.");
+Assert(string.Equals(primerPublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready primer publications should still route into review next.");
 
 var governedPrepPacketPlan = prepPackets.BuildPlan(
     new GovernedPrepPacketProjection(
