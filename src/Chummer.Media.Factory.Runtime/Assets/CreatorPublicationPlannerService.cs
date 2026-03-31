@@ -27,6 +27,7 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         List<string> evidenceLines =
         [
+            $"Publication kind: {HumanizePublicationKind(publication.Kind)}",
             $"Provenance: {publication.ProvenanceSummary}",
             $"Trust band: {HumanizeTrustBand(publication.TrustBand)}",
             $"Discovery: {publication.DiscoverySummary}",
@@ -87,7 +88,7 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             new(
                 PacketAttachmentTargetKind.Export,
                 publication.PublicationId,
-                IsPublicCreatorPacket(publication) ? "Public creator packet" : "Creator publication status"),
+                IsPublicCreatorPacket(publication) ? "Public publication" : "Publication status"),
             new(PacketAttachmentTargetKind.Export, publication.CampaignId, "Campaign publication shelf")
         ];
 
@@ -188,7 +189,7 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         string nextAction = string.Equals(publication.PublicationStatus, "preview_ready", StringComparison.OrdinalIgnoreCase)
             ? "queue_review"
             : IsPublicCreatorPacket(publication)
-                ? "share_public_creator_packet"
+                ? "share_public_publication"
                 : "refresh_publication_posture";
 
         return new CreatorPublicationPlan(
@@ -209,8 +210,8 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
     private static string BuildOwnershipSummary(CreatorPublicationProjection publication)
         => string.Equals(publication.Visibility, "private", StringComparison.OrdinalIgnoreCase)
             || string.Equals(publication.Visibility, "local_only", StringComparison.OrdinalIgnoreCase)
-            ? "Ownership stays on the originating creator lane until the creator deliberately widens visibility."
-            : $"{publication.Visibility} visibility keeps creator publication on one governed creator lane instead of forking a separate discovery record.";
+            ? "Ownership stays on the originating publication lane until the owner deliberately widens visibility."
+            : $"{publication.Visibility} visibility keeps this publication on one governed shared-publication lane instead of forking a separate discovery record.";
 
     private static bool IsPublicCreatorPacket(CreatorPublicationProjection publication)
         => publication.Discoverable
@@ -226,6 +227,9 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
             value.Replace('_', ' ').Replace('-', ' '));
     }
+
+    private static string HumanizePublicationKind(string? value)
+        => HumanizePublicationStatus(value ?? "publication");
 
     private static string HumanizeTrustBand(string? value)
     {
@@ -244,21 +248,21 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
         if (normalizedKind.Contains("replay", StringComparison.Ordinal))
         {
-            return "Replay timeline stays attached to the same governed creator packet for contested-turn review.";
+            return "Replay timeline stays attached to the same governed publication lane for contested-turn review.";
         }
 
         if (normalizedKind.Contains("recap", StringComparison.Ordinal)
             || normalizedKind.Contains("after", StringComparison.Ordinal)
             || normalizedKind.Contains("downtime", StringComparison.Ordinal))
         {
-            return "Recap-safe package stays attached to the same governed creator packet for return and publication follow-through.";
+            return "Recap-safe package stays attached to the same governed publication lane for return and publication follow-through.";
         }
 
         if (normalizedKind.Contains("dossier", StringComparison.Ordinal))
         {
-            return "Living dossier handoff stays attached to the same governed creator packet.";
+            return "Living dossier handoff stays attached to the same governed publication lane.";
         }
 
-        return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed creator packet.";
+        return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed publication lane.";
     }
 }

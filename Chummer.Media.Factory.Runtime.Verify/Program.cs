@@ -102,9 +102,9 @@ Assert(restoredMediaProjection.Idempotency.ReplayCount >= 1, "Restore must prese
 var creatorPublicationPlan = creatorPublications.BuildPlan(
     new CreatorPublicationProjection(
         PublicationId: "publication-shadow-brief",
-        Title: "Shadow brief creator packet",
+        Title: "Shadow brief campaign packet",
         Kind: "campaign_packet",
-        Summary: "Recap-safe outputs should share one governed creator publication posture.",
+        Summary: "Recap-safe outputs should share one governed publication posture.",
         CampaignId: "campaign-shadow",
         DossierId: "dossier-kestrel",
         ArtifactId: "artifact-shadow-brief",
@@ -118,20 +118,20 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         LineageSummary: "Shadow brief handoff remains the current lineage anchor for artifact artifact-shadow-brief until a governed successor publication replaces it.",
         TrustSummary: "Trust ranking is review-pending and stays anchored to governed provenance, rule fingerprint, and campaign continuity until approval clears.",
         ComparisonSummary: "Compare by provenance, visibility, trust ranking, lineage, Shadow brief handoff receipts, and campaign-return fit instead of popularity, install counts, or shelf age.",
-        ModerationSummary: "Moderation is still waiting on approval review, so discovery stays bounded to creator, campaign, and operator surfaces.",
-        NextSafeAction: "Review the creator packet before the same governed dossier handoff leaves the account surface.",
+        ModerationSummary: "Moderation is still waiting on approval review, so discovery stays bounded to publication, campaign, and operator surfaces.",
+        NextSafeAction: "Review the publication lane before the same governed dossier handoff leaves the account surface.",
         CampaignReturnSummary: "Return to the dossier-backed campaign checkpoint after creator review finishes.",
-        SupportClosureSummary: "Creator publication stays pinned to the same campaign-safe support answer.",
+        SupportClosureSummary: "Publication stays pinned to the same campaign-safe support answer.",
         Watchouts:
         [
-            "No local-only export notes should bypass the governed creator packet."
+            "No local-only export notes should bypass the governed publication lane."
         ]),
     new BuildLabHandoffProjection(
         HandoffId: "handoff-shadow-brief",
         DossierId: "dossier-kestrel",
         CampaignId: "campaign-shadow",
         Title: "Shadow brief handoff",
-        Summary: "Chosen build lane is attached to dossier and creator-safe outputs.",
+        Summary: "Chosen build lane is attached to dossier and publication-safe outputs.",
         VariantLabel: "Ops-first dossier carry-forward",
         ProgressionLabel: "25 / 50 / 100 Karma path stays attached",
         ExplainEntryId: "buildlab.handoff.shadow-brief",
@@ -142,7 +142,7 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         ],
         ProgressionOutcomes:
         [
-            "Creator packet keeps dossier-safe and campaign-safe outputs aligned."
+            "Publication lane keeps dossier-safe and campaign-safe outputs aligned."
         ],
         Outputs:
         [
@@ -152,15 +152,15 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
                 "Living dossier",
                 "Stable runner identity.",
                 "artifact-dossier",
-                OwnershipSummary: "Dossier truth stays on the same governed creator lane while publication review is still bounded."),
+                OwnershipSummary: "Dossier truth stays on the same governed publication lane while publication review is still bounded."),
             new PublicationSafeProjection(
                 "projection-recap",
                 "recap_brief",
                 "Recap brief",
                 "Campaign recap-safe packet.",
                 "artifact-recap",
-                OwnershipSummary: "Recap-safe packet stays on the same governed creator lane until the review completes.",
-                PublicationSummary: "Preview-ready recap-safe packet is still bounded until creator publication review clears.",
+                OwnershipSummary: "Recap-safe packet stays on the same governed publication lane until the review completes.",
+                PublicationSummary: "Preview-ready recap-safe packet is still bounded until publication review clears.",
                 NextSafeAction: "Review the recap-safe packet before widening the artifact audience.",
                 ProvenanceSummary: "sr6.preview.v1 + run scope + continuity keep the recap packet grounded on the same artifact.",
                 AuditSummary: "Generated 2026-03-30 12:00 UTC from the same governed recap receipt."),
@@ -170,8 +170,8 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
                 "Replay timeline",
                 "Contested-turn review stays attached to the governed replay artifact.",
                 "artifact-replay",
-                OwnershipSummary: "Replay timeline stays on the same governed creator lane until publication review deliberately widens the audience.",
-                PublicationSummary: "Preview-ready replay timeline is still bounded while contested-turn review stays on the creator lane.",
+                OwnershipSummary: "Replay timeline stays on the same governed publication lane until publication review deliberately widens the audience.",
+                PublicationSummary: "Preview-ready replay timeline is still bounded while contested-turn review stays on the publication lane.",
                 NextSafeAction: "Review the replay timeline before widening the replay artifact audience.",
                 ProvenanceSummary: "sr6.preview.v1 + contested turn receipts + continuity keep the replay timeline grounded on the same artifact.",
                 AuditSummary: "Generated 2026-03-30 12:05 UTC from the same governed replay receipt.")
@@ -179,7 +179,7 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
         UpdatedAtUtc: DateTimeOffset.UtcNow,
         NextSafeAction: "Publish the recap-safe packet only after the dossier checkpoint is accepted.",
         CampaignReturnSummary: "Resume the campaign from the same dossier-backed checkpoint after publication review.",
-        SupportClosureSummary: "Reuse the handoff receipt when support verifies the creator packet against the campaign spine.",
+        SupportClosureSummary: "Reuse the handoff receipt when support verifies the publication lane against the campaign spine.",
         PlannerCoverageSummary: "4 of 4 build follow-through checkpoints are already grounded.",
         PlannerCoverageLines:
         [
@@ -188,9 +188,10 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Restore posture: no restore conflicts are currently blocking replay-safe handoff follow-through.",
             "Claimed install: 1 linked device is already attached for install-aware follow-through."
         ]));
-Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief creator packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
-Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 5, "Creator publication planner should attach creator publication status, campaign, dossier, recap, and replay output shelves.");
+Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief campaign packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
+Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 5, "Creator publication planner should attach publication status, campaign, dossier, recap, and replay output shelves.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("publication-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should keep the creator publication id as a first-class packet reference.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Publication kind: Campaign Packet", StringComparison.Ordinal)), "Creator publication planner should surface publication kind explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("artifact-replay", StringComparer.Ordinal) == true, "Creator publication planner should keep replay artifact ids as first-class packet references.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discovery:", StringComparison.Ordinal)), "Creator publication planner should label discovery posture explicitly.");
@@ -222,9 +223,9 @@ Assert(string.Equals(creatorPublicationPlan.NextAction, "queue_review", StringCo
 var creatorPublicationWithoutHandoff = creatorPublications.BuildPlan(
     new CreatorPublicationProjection(
         PublicationId: "publication-shadow-brief-no-handoff",
-        Title: "Shadow brief creator packet without attached handoff",
+        Title: "Shadow brief campaign packet without attached handoff",
         Kind: "campaign_packet",
-        Summary: "Creator publication should still preserve continuity even when the explicit handoff record is missing.",
+        Summary: "Publication should still preserve continuity even when the explicit handoff record is missing.",
         CampaignId: "campaign-shadow",
         DossierId: "dossier-kestrel",
         ArtifactId: "artifact-shadow-brief-no-handoff",
@@ -238,37 +239,37 @@ var creatorPublicationWithoutHandoff = creatorPublications.BuildPlan(
         LineageSummary: "Shadow Circuit keeps artifact artifact-shadow-brief-no-handoff as the current lineage anchor until a governed successor publication is promoted.",
         TrustSummary: "Trust ranking is review-pending and stays anchored to governed provenance, rule fingerprint, and campaign continuity until approval clears.",
         ComparisonSummary: "Compare by provenance, visibility, trust ranking, lineage, and campaign-return fit instead of popularity, install counts, or shelf age.",
-        ModerationSummary: "Moderation is still waiting on approval review, so discovery stays bounded to creator, campaign, and operator surfaces.",
-        NextSafeAction: "Review creator publication continuity before sending it into approval.",
+        ModerationSummary: "Moderation is still waiting on approval review, so discovery stays bounded to publication, campaign, and operator surfaces.",
+        NextSafeAction: "Review publication continuity before sending it into approval.",
         CampaignReturnSummary: "Return through the same campaign checkpoint after creator review.",
-        SupportClosureSummary: "Reuse the creator publication packet when support validates the governed campaign output.",
+        SupportClosureSummary: "Reuse the publication packet when support validates the governed campaign output.",
         Watchouts:
         [
-            "Keep creator publication subordinate to the shared campaign workspace."
+            "Keep publication subordinate to the shared campaign workspace."
         ]));
-Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Next safe action: Review creator publication continuity", StringComparison.Ordinal)), "Creator publication planner should preserve publication next-safe-action evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Next safe action: Review publication continuity", StringComparison.Ordinal)), "Creator publication planner should preserve publication next-safe-action evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Campaign return: Return through the same campaign checkpoint", StringComparison.Ordinal)), "Creator publication planner should preserve publication campaign-return evidence even without an explicit handoff.");
-Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Support closure: Reuse the creator publication packet", StringComparison.Ordinal)), "Creator publication planner should preserve publication support-closure evidence even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Support closure: Reuse the publication packet", StringComparison.Ordinal)), "Creator publication planner should preserve publication support-closure evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Trust band: Review Pending", StringComparison.Ordinal)), "Creator publication planner should preserve trust ranking evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Trust posture:", StringComparison.Ordinal)), "Creator publication planner should preserve trust posture evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Compare by:", StringComparison.Ordinal)), "Creator publication planner should preserve comparison evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Discoverable: No", StringComparison.Ordinal)), "Creator publication planner should preserve discoverability evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Lineage: Shadow Circuit keeps artifact artifact-shadow-brief-no-handoff", StringComparison.Ordinal)), "Creator publication planner should preserve lineage evidence even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Moderation:", StringComparison.Ordinal)), "Creator publication planner should preserve moderation evidence even without an explicit handoff.");
-Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Watchout: Keep creator publication subordinate", StringComparison.Ordinal)), "Creator publication planner should preserve publication watchouts even without an explicit handoff.");
+Assert(creatorPublicationWithoutHandoff.EvidenceLines.Any(static line => line.Contains("Watchout: Keep publication subordinate", StringComparison.Ordinal)), "Creator publication planner should preserve publication watchouts even without an explicit handoff.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("campaign-shadow", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the governed campaign reference.");
 Assert(creatorPublicationWithoutHandoff.PacketRequest.References?.Contains("publication-shadow-brief-no-handoff", StringComparer.Ordinal) == true, "Creator publication planner without a handoff should still keep the creator publication id reference.");
 
 var publishedCreatorPublicationPlan = creatorPublications.BuildPlan(
     new CreatorPublicationProjection(
         PublicationId: "publication-shadow-brief-public",
-        Title: "Shadow brief creator packet on public discovery",
+        Title: "Shadow brief campaign packet on public discovery",
         Kind: "campaign_packet",
-        Summary: "Published creator packet is now live on governed public discovery.",
+        Summary: "Published shared publication is now live on governed public discovery.",
         CampaignId: "campaign-shadow",
         DossierId: "dossier-kestrel",
         ArtifactId: "artifact-shadow-brief-public",
-        ProvenanceSummary: "sr6.preview.v1 + recap-safe output shelf + published creator packet",
+        ProvenanceSummary: "sr6.preview.v1 + recap-safe output shelf + published shared publication",
         DiscoverySummary: "Eligible for governed discovery, creator comparison, and shelf projection.",
         Visibility: "shared",
         PublicationStatus: "published",
@@ -278,13 +279,13 @@ var publishedCreatorPublicationPlan = creatorPublications.BuildPlan(
         LineageSummary: "Shadow brief public packet remains the live lineage anchor until a governed successor replaces it.",
         TrustSummary: "Trust ranking is live on governed discovery and stays anchored to provenance, lineage, and campaign continuity instead of popularity fog.",
         ComparisonSummary: "Compare by provenance, trust ranking, lineage, and campaign-return fit instead of popularity or install counts.",
-        ModerationSummary: "Moderation watch is active but clear, so the packet can stay on discoverable creator shelves until a later note changes its posture.",
-        NextSafeAction: "Keep the governed packet live on creator discovery, lineage, and shelf surfaces while provenance and support posture stay current.",
-        CampaignReturnSummary: "Return through the same published creator packet whenever the campaign checkpoint needs to be re-opened.",
-        SupportClosureSummary: "Reuse the public creator packet when support validates the published governed output."));
-Assert(publishedCreatorPublicationPlan.AttachmentBatch.Attachments.Any(static item => string.Equals(item.TargetLabel, "Public creator packet", StringComparison.Ordinal)), "Published creator publication planner should rename the lead attachment to the public creator packet once discovery is live.");
+        ModerationSummary: "Moderation watch is active but clear, so the publication can stay on discoverable public shelves until a later note changes its posture.",
+        NextSafeAction: "Keep the governed publication live on public discovery, lineage, and shelf surfaces while provenance and support posture stay current.",
+        CampaignReturnSummary: "Return through the same published publication whenever the campaign checkpoint needs to be re-opened.",
+        SupportClosureSummary: "Reuse the public publication when support validates the published governed output."));
+Assert(publishedCreatorPublicationPlan.AttachmentBatch.Attachments.Any(static item => string.Equals(item.TargetLabel, "Public publication", StringComparison.Ordinal)), "Published creator publication planner should rename the lead attachment to the public publication once discovery is live.");
 Assert(publishedCreatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Public route: /artifacts/publications/publication-shadow-brief-public", StringComparison.Ordinal)), "Published creator publication planner should preserve the shared public publication route.");
-Assert(string.Equals(publishedCreatorPublicationPlan.NextAction, "share_public_creator_packet", StringComparison.Ordinal), "Published discoverable creator publications should route into public packet sharing next.");
+Assert(string.Equals(publishedCreatorPublicationPlan.NextAction, "share_public_publication", StringComparison.Ordinal), "Published discoverable creator publications should route into public publication sharing next.");
 
 var governedPrepPacketPlan = prepPackets.BuildPlan(
     new GovernedPrepPacketProjection(
