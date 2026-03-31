@@ -270,6 +270,12 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             return "Campaign primer stays attached to the same governed publication lane for onboarding and table-start follow-through.";
         }
 
+        if (normalizedKind.Contains("runboard", StringComparison.Ordinal)
+            || normalizedKind.Contains("module", StringComparison.Ordinal))
+        {
+            return "Run module packet stays attached to the same governed publication lane for GM-ready reuse and table-start follow-through.";
+        }
+
         return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed publication lane.";
     }
 }

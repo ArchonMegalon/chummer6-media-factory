@@ -172,6 +172,17 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
                 "artifact-primer",
                 OwnershipSummary: "Primer handoff stays on the same governed publication lane while onboarding copy is reviewed."),
             new PublicationSafeProjection(
+                "projection-run-module",
+                "runboard_packet",
+                "Run module packet",
+                "GM-ready module packet stays attached to the same governed publication lane.",
+                "artifact-run-module",
+                OwnershipSummary: "Run module packet stays on the same governed publication lane while module review is still bounded.",
+                PublicationSummary: "Preview-ready run module packet is still bounded until publication review clears.",
+                NextSafeAction: "Review the run module packet before widening the GM-ready artifact audience.",
+                ProvenanceSummary: "sr6.preview.v1 + runboard continuity + campaign truth keep the run module packet grounded on the same artifact.",
+                AuditSummary: "Generated 2026-03-30 12:03 UTC from the same governed runboard receipt."),
+            new PublicationSafeProjection(
                 "projection-replay",
                 "replay_timeline",
                 "Replay timeline",
@@ -196,7 +207,7 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Claimed install: 1 linked device is already attached for install-aware follow-through."
         ]));
 Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief campaign packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
-Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 5, "Creator publication planner should attach publication status, campaign, dossier, recap, and replay output shelves.");
+Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 6, "Creator publication planner should attach publication status, campaign, dossier, primer, run-module, recap, and replay output shelves.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("publication-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should keep the creator publication id as a first-class packet reference.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Publication kind: Campaign Packet", StringComparison.Ordinal)), "Creator publication planner should surface publication kind explicitly.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("recap-safe", StringComparison.OrdinalIgnoreCase)), "Creator publication planner should retain recap-safe provenance evidence.");
@@ -218,6 +229,7 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ou
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output provenance (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output provenance through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output audit (Recap brief):", StringComparison.Ordinal)), "Creator publication planner should preserve recap-output audit posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Campaign primer): Campaign primer stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve primer output kind posture through packet formatting.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Run module packet): Run module packet stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve run-module output kind posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
@@ -320,6 +332,32 @@ var primerPublicationPlan = creatorPublications.BuildPlan(
 Assert(primerPublicationPlan.EvidenceLines.Any(static line => line.Contains("Publication kind: Primer", StringComparison.Ordinal)), "Creator publication planner should surface primer publication kind explicitly.");
 Assert(primerPublicationPlan.EvidenceLines.Any(static line => line.Contains("Discovery: Primers stay bounded", StringComparison.Ordinal)), "Creator publication planner should preserve primer discovery posture.");
 Assert(string.Equals(primerPublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready primer publications should still route into review next.");
+
+var runModulePublicationPlan = creatorPublications.BuildPlan(
+    new CreatorPublicationProjection(
+        PublicationId: "publication-shadow-run-module",
+        Title: "Shadow Circuit run module packet",
+        Kind: "run_module",
+        Summary: "Run-module-safe GM packet stays on the same governed publication lane.",
+        CampaignId: "campaign-shadow",
+        DossierId: "dossier-kestrel",
+        ArtifactId: "artifact-shadow-run-module",
+        ProvenanceSummary: "sr6.preview.v1 + runboard continuity + module-safe output shelf",
+        DiscoverySummary: "Run modules stay bounded until the same governed publication review clears.",
+        Visibility: "group",
+        PublicationStatus: "preview_ready",
+        TrustBand: "review-pending",
+        Discoverable: false,
+        UpdatedAtUtc: DateTimeOffset.UtcNow,
+        TrustSummary: "Trust ranking stays anchored to governed provenance, runboard continuity, and GM-ready reuse fit until approval clears.",
+        ComparisonSummary: "Compare by provenance, GM-ready reuse fit, trust ranking, and campaign-return posture instead of popularity fog.",
+        ModerationSummary: "Moderation keeps run-module distribution bounded until approval review clears.",
+        NextSafeAction: "Review the run module packet on the governed publication lane before widening distribution.",
+        CampaignReturnSummary: "Return to the same campaign checkpoint after the run-module review finishes.",
+        SupportClosureSummary: "Reuse the governed run module packet when support validates table-start follow-through."));
+Assert(runModulePublicationPlan.EvidenceLines.Any(static line => line.Contains("Publication kind: Run Module", StringComparison.Ordinal)), "Creator publication planner should surface run-module publication kind explicitly.");
+Assert(runModulePublicationPlan.EvidenceLines.Any(static line => line.Contains("Discovery: Run modules stay bounded", StringComparison.Ordinal)), "Creator publication planner should preserve run-module discovery posture.");
+Assert(string.Equals(runModulePublicationPlan.NextAction, "queue_review", StringComparison.Ordinal), "Preview-ready run-module publications should still route into review next.");
 
 var governedPrepPacketPlan = prepPackets.BuildPlan(
     new GovernedPrepPacketProjection(
