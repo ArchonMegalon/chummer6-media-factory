@@ -48,22 +48,6 @@
 If the feature is about rendering, previews, manifests, or asset lifecycle, it belongs here.
 If it is about campaign meaning, approvals, delivery, or rules truth, it does not.
 
-## Milestone coverage model (`M0`..`M8`)
-
-Snapshot date: 2026-03-31
-
-| Milestone | Program mapping | Contract set | Coverage sources | Completion gates | ETA/completion basis | Status |
-| --- | --- | --- | --- | --- | --- | --- |
-| `M0 contract canon` | `C1 media factory extraction` | `media_execution_vnext` | `docs/EXTRACT-001A-canonical-package-plane-evidence.md` | `CP-01`..`CP-03` pass | canonical `Chummer.Media.Contracts` package identity, packability, and render-only contract boundary checks in verify path | completed (100%, ETA 2026-03-10 met) |
-| `M1 asset/job kernel` | `C1 media factory extraction` | `media_execution_vnext` | `docs/EXTRACT-007-AK-execution-evidence.md`, `docs/EXTRACT-007-asset-kernel-implementation-backlog.md` | `AK-01`..`AK-06` pass | manifests, binary storage, job substrate transitions, preview linkage, retention sweeps, and lineage contracts are implemented and verified | completed (100%, ETA 2026-03-10 met) |
-| `M2 document rendering` | `E4 media plane complete` | `media_execution_vnext` | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | document lane signoff and adapter-family ownership coverage present | document/packet capability family is explicit behind media-factory-owned contracts/runtime with provider-private control | completed (100%, ETA 2026-03-19 met) |
-| `M3 portrait forge` | `E4 media plane complete` | `media_execution_vnext` | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | portrait lane signoff and adapter-family ownership coverage present | portrait capability family is explicit behind media-factory-owned contracts/runtime with provider-private control | completed (100%, ETA 2026-03-19 met) |
-| `M4 bounded video` | `E4 media plane complete` | `media_execution_vnext` | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | bounded video lane signoff and adapter-family ownership coverage present | bounded video capability family is explicit behind media-factory-owned contracts/runtime with provider-private control | completed (100%, ETA 2026-03-19 met) |
-| `M5 template/style integration` | `E4 media plane complete` | `media_execution_vnext` | `docs/MEDIA_CAPABILITY_SIGNOFF.md` | governed packet-planning seams compile in media-factory-owned capability families | template/style-dependent packet artifacts are integrated as render outputs without importing campaign/session truth | completed (100%, ETA 2026-03-19 met) |
-| `M6 run-services cutover` | `C1 media factory extraction` | `media_execution_vnext` | `docs/EXTRACT-006-SEAM-execution-evidence.md`, `docs/EXTRACT-006-run-services-seam-cutover-backlog.md` | `SEAM-01`..`SEAM-04` pass | seam acceptance, handoff conformance, cutover rehearsal, and non-regression gate all pass with media-factory as effective seam owner | completed (100%, ETA 2026-03-10 met) |
-| `M7 storage/DR/scale` | `F1 observability, DR, replay safety` | `media_execution_vnext` | `docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md` | restore drill acceptance criteria pass in `Chummer.Media.Factory.Runtime.Verify` | backup contract continuity, replay-safe counters, retention sweep continuity, and pinned-asset restore proof are all executable | completed (100%, ETA 2026-03-19 met) |
-| `M8 finished media plant` | `E4 media plane complete` | `media_execution_vnext` | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/EXTRACT-008-DS-execution-evidence.md`, `docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md` | capability signoff + DTO render-only boundary checks + restore/lifecycle coverage all pass | media lanes (documents/portraits/bounded video/route/archive) are stable and render-only with approval/persist/reject lifecycle semantics and operator verification | completed (100%, ETA 2026-03-19 met) |
-
 
 ## External media integrations scope
 
