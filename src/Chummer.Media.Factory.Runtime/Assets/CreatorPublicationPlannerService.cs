@@ -168,7 +168,17 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
             if (handoff.ExchangeParityLines is { Count: > 0 })
             {
-                evidenceLines.AddRange(handoff.ExchangeParityLines.Take(2));
+                List<string> selectedParityLines = handoff.ExchangeParityLines.Take(2).ToList();
+                string? templateParityLine = handoff.ExchangeParityLines
+                    .FirstOrDefault(static line => line.StartsWith("Character template export:", StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrWhiteSpace(templateParityLine)
+                    && !selectedParityLines.Contains(templateParityLine, StringComparer.Ordinal))
+                {
+                    selectedParityLines.Add(templateParityLine);
+                }
+
+                evidenceLines.AddRange(selectedParityLines);
             }
 
             if (!string.IsNullOrWhiteSpace(handoff.PortabilityPillarSummary))
@@ -178,7 +188,17 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
 
             if (handoff.PortabilityPillarLines is { Count: > 0 })
             {
-                evidenceLines.AddRange(handoff.PortabilityPillarLines.Take(3));
+                List<string> selectedPortabilityLines = handoff.PortabilityPillarLines.Take(3).ToList();
+                string? replayPortabilityLine = handoff.PortabilityPillarLines
+                    .FirstOrDefault(static line => line.StartsWith("Replay timeline:", StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrWhiteSpace(replayPortabilityLine)
+                    && !selectedPortabilityLines.Contains(replayPortabilityLine, StringComparer.Ordinal))
+                {
+                    selectedPortabilityLines.Add(replayPortabilityLine);
+                }
+
+                evidenceLines.AddRange(selectedPortabilityLines);
             }
 
             if (!string.IsNullOrWhiteSpace(handoff.NextSafeAction))

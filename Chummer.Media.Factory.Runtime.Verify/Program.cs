@@ -233,17 +233,19 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Creation lane: grounded on the same dossier identity lane.",
             "Crew-fit lane: grounded on the same campaign role matrix lane."
         ],
-        ExchangeParitySummary: "4 of 4 sheet/print/export/viewer lanes stay explicit and release-ready.",
+        ExchangeParitySummary: "5 of 5 sheet/print/export/viewer and adjacent exchange parity lanes stay explicit and release-ready.",
         ExchangeParityLines:
         [
             "JSON exchange: ready - Governed JSON exchange artifact remains explicit on the same handoff lane.",
             "Foundry exchange: ready - Governed Foundry exchange artifact remains explicit on the same handoff lane.",
             "Sheet viewer: ready - Governed sheet-viewer artifact remains explicit on the same handoff lane.",
-            "Print PDF: ready - Governed print-ready PDF artifact remains explicit on the same handoff lane."
+            "Print PDF: ready - Governed print-ready PDF artifact remains explicit on the same handoff lane.",
+            "Character template export: ready - Governed character-template export artifact remains explicit on the same handoff lane."
         ],
-        PortabilityPillarSummary: "5 of 5 exchange/replay/recap/module portability lanes are release-ready.",
+        PortabilityPillarSummary: "6 of 6 dossier/exchange/replay/recap/module portability lanes are release-ready.",
         PortabilityPillarLines:
         [
+            "Dossier exchange: ready - Governed character-template dossier exchange artifact is attached.",
             "JSON exchange: ready - Governed JSON exchange artifact is attached.",
             "Foundry exchange: ready - Governed foundry exchange artifact is attached.",
             "Replay timeline: ready - Governed replay timeline artifact is attached.",
@@ -285,6 +287,8 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ru
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Build surface:", StringComparison.Ordinal)), "Creator publication planner should preserve build-surface summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Exchange parity:", StringComparison.Ordinal)), "Creator publication planner should preserve exchange-parity summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Portability pillar:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Dossier exchange:", StringComparison.Ordinal)), "Creator publication planner should preserve dossier exchange lane evidence from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Character template export:", StringComparison.Ordinal)), "Creator publication planner should preserve character-template exchange parity evidence from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Replay timeline:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar lane evidence from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("buildlab.handoff.shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the explain entry reference.");
