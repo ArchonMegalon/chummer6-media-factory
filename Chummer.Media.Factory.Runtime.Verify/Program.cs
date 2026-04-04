@@ -205,6 +205,15 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Outputs: 2 dossier or campaign-safe outputs are already attached to the handoff.",
             "Restore posture: no restore conflicts are currently blocking replay-safe handoff follow-through.",
             "Claimed install: 1 linked device is already attached for install-aware follow-through."
+        ],
+        PortabilityPillarSummary: "5 of 5 exchange/replay/recap/module portability lanes are release-ready.",
+        PortabilityPillarLines:
+        [
+            "JSON exchange: ready - Governed JSON exchange artifact is attached.",
+            "Foundry exchange: ready - Governed foundry exchange artifact is attached.",
+            "Replay timeline: ready - Governed replay timeline artifact is attached.",
+            "Session recap: ready - Governed session recap artifact is attached.",
+            "Run module: ready - Governed run module artifact is attached."
         ]));
 Assert(string.Equals(creatorPublicationPlan.PacketRequest.Title, "Shadow brief campaign packet", StringComparison.Ordinal), "Creator publication planner should reuse the governed publication title.");
 Assert(creatorPublicationPlan.AttachmentBatch.Attachments.Count >= 6, "Creator publication planner should attach publication status, campaign, dossier, primer, run-module, recap, and replay output shelves.");
@@ -232,6 +241,8 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ou
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Run module packet): Run module packet stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve run-module output kind posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Portability pillar:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Replay timeline:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar lane evidence from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("buildlab.handoff.shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the explain entry reference.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Next safe action:", StringComparison.Ordinal)), "Creator publication planner should surface the next safe action.");

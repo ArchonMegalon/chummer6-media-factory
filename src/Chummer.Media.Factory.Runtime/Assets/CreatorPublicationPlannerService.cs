@@ -119,6 +119,16 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
                 evidenceLines.AddRange(handoff.PlannerCoverageLines.Take(2));
             }
 
+            if (!string.IsNullOrWhiteSpace(handoff.PortabilityPillarSummary))
+            {
+                evidenceLines.Add($"Portability pillar: {handoff.PortabilityPillarSummary}");
+            }
+
+            if (handoff.PortabilityPillarLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.PortabilityPillarLines.Take(3));
+            }
+
             if (!string.IsNullOrWhiteSpace(handoff.NextSafeAction))
             {
                 evidenceLines.Add($"Next safe action: {handoff.NextSafeAction}");
