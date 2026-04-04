@@ -206,6 +206,41 @@ var creatorPublicationPlan = creatorPublications.BuildPlan(
             "Restore posture: no restore conflicts are currently blocking replay-safe handoff follow-through.",
             "Claimed install: 1 linked device is already attached for install-aware follow-through."
         ],
+        CrewFitSummary: "Crew-fit remains grounded on one campaign-ready lane with no unassigned role gaps.",
+        ConditionalStateSummary: "2 of 2 conditional lanes are explicitly accounted for on this handoff.",
+        ConditionalStateLines:
+        [
+            "Conditional lane: sustained effects are grounded in the active rule environment before publication follow-through.",
+            "Conditional lane: acquisition and legality posture is grounded in campaign constraints before publication follow-through."
+        ],
+        SourceHintSummary: "1 source-pack and 1 house-rule overlay hint remain attached for publication review.",
+        SourceHintLines:
+        [
+            "Source-linked hint: source packs -> Street Wyrd.",
+            "Source-linked hint: house-rule overlays -> Home crew balance pack."
+        ],
+        RuleEnvironmentDiff: new BuildLabRuleEnvironmentDiffProjection(
+            Status: "changed",
+            Summary: "Rule environment shifted from baseline roster-safe scope to campaign-approved follow-through scope for publication.",
+            BeforeFingerprint: "sr6.preview.v1",
+            AfterFingerprint: "sr6.preview.v1+crew-balance",
+            BeforeScope: "SR6 preview baseline",
+            AfterScope: "SR6 campaign-approved + crew-balance overlay",
+            Changed: true),
+        BuildSurfaceSummary: "4 of 4 creation/compare/advancement/crew-fit surfaces remain grounded on one handoff lane.",
+        BuildSurfaceLines:
+        [
+            "Creation lane: grounded on the same dossier identity lane.",
+            "Crew-fit lane: grounded on the same campaign role matrix lane."
+        ],
+        ExchangeParitySummary: "4 of 4 sheet/print/export/viewer lanes stay explicit and release-ready.",
+        ExchangeParityLines:
+        [
+            "JSON exchange: ready - Governed JSON exchange artifact remains explicit on the same handoff lane.",
+            "Foundry exchange: ready - Governed Foundry exchange artifact remains explicit on the same handoff lane.",
+            "Sheet viewer: ready - Governed sheet-viewer artifact remains explicit on the same handoff lane.",
+            "Print PDF: ready - Governed print-ready PDF artifact remains explicit on the same handoff lane."
+        ],
         PortabilityPillarSummary: "5 of 5 exchange/replay/recap/module portability lanes are release-ready.",
         PortabilityPillarLines:
         [
@@ -241,6 +276,14 @@ Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Ou
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Output kind (Run module packet): Run module packet stays attached", StringComparison.Ordinal)), "Creator publication planner should preserve run-module output kind posture through packet formatting.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Planner coverage:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Campaign continuity:", StringComparison.Ordinal)), "Creator publication planner should preserve planner-coverage evidence lines from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Crew-fit:", StringComparison.Ordinal)), "Creator publication planner should preserve crew-fit summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Conditional state:", StringComparison.Ordinal)), "Creator publication planner should preserve conditional-state summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Source-linked hints:", StringComparison.Ordinal)), "Creator publication planner should preserve source-linked hint summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Rule-environment diff:", StringComparison.Ordinal)), "Creator publication planner should preserve rule-environment diff summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Rule-environment before:", StringComparison.Ordinal)), "Creator publication planner should preserve rule-environment before scope from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Rule-environment after:", StringComparison.Ordinal)), "Creator publication planner should preserve rule-environment after scope from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Build surface:", StringComparison.Ordinal)), "Creator publication planner should preserve build-surface summary from the governed build handoff.");
+Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Exchange parity:", StringComparison.Ordinal)), "Creator publication planner should preserve exchange-parity summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Portability pillar:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar summary from the governed build handoff.");
 Assert(creatorPublicationPlan.EvidenceLines.Any(static line => line.Contains("Replay timeline:", StringComparison.Ordinal)), "Creator publication planner should preserve portability-pillar lane evidence from the governed build handoff.");
 Assert(creatorPublicationPlan.PacketRequest.References?.Contains("handoff-shadow-brief", StringComparer.Ordinal) == true, "Creator publication planner should include the governed handoff reference.");

@@ -119,6 +119,58 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
                 evidenceLines.AddRange(handoff.PlannerCoverageLines.Take(2));
             }
 
+            if (!string.IsNullOrWhiteSpace(handoff.CrewFitSummary))
+            {
+                evidenceLines.Add($"Crew-fit: {handoff.CrewFitSummary}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.ConditionalStateSummary))
+            {
+                evidenceLines.Add($"Conditional state: {handoff.ConditionalStateSummary}");
+            }
+
+            if (handoff.ConditionalStateLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.ConditionalStateLines.Take(2));
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.SourceHintSummary))
+            {
+                evidenceLines.Add($"Source-linked hints: {handoff.SourceHintSummary}");
+            }
+
+            if (handoff.SourceHintLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.SourceHintLines.Take(2));
+            }
+
+            if (handoff.RuleEnvironmentDiff is not null)
+            {
+                evidenceLines.Add($"Rule-environment diff: {handoff.RuleEnvironmentDiff.Summary}");
+                evidenceLines.Add($"Rule-environment before: {handoff.RuleEnvironmentDiff.BeforeScope} ({handoff.RuleEnvironmentDiff.BeforeFingerprint})");
+                evidenceLines.Add($"Rule-environment after: {handoff.RuleEnvironmentDiff.AfterScope} ({handoff.RuleEnvironmentDiff.AfterFingerprint})");
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.BuildSurfaceSummary))
+            {
+                evidenceLines.Add($"Build surface: {handoff.BuildSurfaceSummary}");
+            }
+
+            if (handoff.BuildSurfaceLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.BuildSurfaceLines.Take(2));
+            }
+
+            if (!string.IsNullOrWhiteSpace(handoff.ExchangeParitySummary))
+            {
+                evidenceLines.Add($"Exchange parity: {handoff.ExchangeParitySummary}");
+            }
+
+            if (handoff.ExchangeParityLines is { Count: > 0 })
+            {
+                evidenceLines.AddRange(handoff.ExchangeParityLines.Take(2));
+            }
+
             if (!string.IsNullOrWhiteSpace(handoff.PortabilityPillarSummary))
             {
                 evidenceLines.Add($"Portability pillar: {handoff.PortabilityPillarSummary}");
