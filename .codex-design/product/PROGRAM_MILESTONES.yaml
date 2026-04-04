@@ -1,5 +1,5 @@
 product: chummer
-last_reviewed: 2026-03-24
+last_reviewed: 2026-03-28
 release_track: vnext-foundation
 repo_boundary_purity:
 - repo: chummer6-design
@@ -34,6 +34,10 @@ repo_boundary_purity:
   status: healthy
   score: 0.84
   reason: The render-only contract plane and runtime execution now both live here, with clean-room integration proof from the hosted repo.
+- repo: fleet
+  status: healthy
+  score: 0.86
+  reason: Compile, runtime healing, publish readiness, and journey-gate truth now live together as one governed control-plane seam instead of a loose operator toolbox.
 program_phases:
 - id: A
   title: Design and contract canon
@@ -161,7 +165,7 @@ program_phases:
     - Post-session coaching outputs remain distinct from session truth, moderation truth, and player scoring.
 - id: I
   title: Participation and bootstrap evolution
-  status: in_progress
+  status: complete
   release_blocking: false
   goal: Make the bounded participation lane and package bootstrap policy first-class and boring across design, Hub, Fleet, guide, and legacy consumers.
   milestones:
@@ -184,7 +188,7 @@ program_phases:
     - chummer6-hub
     - Chummer6
     - executive-assistant
-    status: in_progress
+    status: complete
     exit:
     - Fleet and guide verification consume design-owned participation canon directly.
     - User-facing participate copy is downstream of design rather than helper-script invention.
@@ -197,7 +201,7 @@ program_phases:
     - chummer6-ui-kit
     - chummer6-ui
     - fleet
-    status: in_progress
+    status: complete
     exit:
     - "`Chummer.Engine.Contracts` and `Chummer.Ui.Kit` restore deterministically through package feeds or explicit compatibility trees."
     - Missing feed versus missing compatibility-tree failures are explicit.
@@ -632,6 +636,7 @@ program_phases:
     status: complete
     exit:
     - Accessibility and localization are first-class.
+    - Shipping locale scope, fallback behavior, and release gates are canonized in `LOCALIZATION_AND_LANGUAGE_SYSTEM.md` and `LOCALIZATION_PARITY_MATRIX.yaml`.
     - Performance targets are documented and met.
   - id: F1
     title: Observability, DR, replay safety
@@ -718,6 +723,11 @@ executable_queue:
   status: done
   backlog: WORKLIST.md
   notes: "Closed 2026-03-19 after moving Fleet guide generation and verification onto design-owned canon directly and regenerating `Chummer6` from that path."
+- id: WL-D047
+  milestone: I2
+  status: done
+  backlog: WORKLIST.md
+  notes: "Closed 2026-03-28: `chummer6-core`, `chummer6-ui-kit`, `chummer6-ui`, Fleet bootstrap/package-plane guardrails, and the mounted legacy-shaped presentation consumer now verify deterministic package-feed or explicit compatibility-tree restores; missing-feed versus compatibility-tree posture stays explicit in canon instead of ambient sibling-project defaults."
 - id: WL-D017
   milestone: F3
   status: done

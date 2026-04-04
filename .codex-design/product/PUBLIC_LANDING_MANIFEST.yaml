@@ -3,12 +3,12 @@ surface: chummer.run
 version: 1
 headline: Shadowrun rules truth, with receipts.
 subhead: Build characters, inspect rulings, and keep sessions moving with explainable math, durable state, and clear proof of what works today.
-proof_line: Preview product. Honest status. No mystery roadmap.
+proof_line: Public preview, honest status, and clear proof of what works today.
 no_provider_names: true
 no_ltd_names: true
 hero_ctas:
-  - label: Get preview build
-    href: /downloads
+  - label: Create account to get preview
+    href: /signup?next=/downloads
     emphasis: primary
   - label: See what works today
     href: /now
@@ -66,6 +66,15 @@ public_routes:
     must_exist: true
     placeholder_allowed: false
     placeholder_requirements: proof shelf honesty only
+  - path: /status
+    title: Status
+    audience: public
+    purpose: status_surface
+    requires_auth: false
+    guest_fallback: /status
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: weekly pulse, release posture, and current caution only
   - path: /horizons
     title: Roadmap
     audience: public
@@ -129,15 +138,6 @@ public_routes:
     must_exist: true
     placeholder_allowed: false
     placeholder_requirements: current public support/contact path only
-  - path: /progress
-    title: Progress report
-    audience: public
-    purpose: program_progress
-    requires_auth: false
-    guest_fallback: /progress
-    must_exist: true
-    placeholder_allowed: false
-    placeholder_requirements: generated public progress report only
   - path: /participate
     title: Participate
     audience: public
@@ -365,6 +365,33 @@ registered_routes:
     must_exist: true
     placeholder_allowed: true
     placeholder_requirements: signed-in dashboard with honest empty states
+  - path: /home/access
+    title: Home access
+    audience: registered
+    purpose: signed_in_dashboard
+    requires_auth: true
+    guest_fallback: /login?next=/home/access
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: signed-in access focus
+  - path: /home/work
+    title: Home work
+    audience: registered
+    purpose: signed_in_dashboard
+    requires_auth: true
+    guest_fallback: /login?next=/home/work
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: signed-in work focus
+  - path: /home/setup
+    title: Home setup
+    audience: registered
+    purpose: signed_in_dashboard
+    requires_auth: true
+    guest_fallback: /login?next=/home/setup
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: signed-in setup focus
   - path: /account
     title: Account
     audience: registered
@@ -374,6 +401,60 @@ registered_routes:
     must_exist: true
     placeholder_allowed: true
     placeholder_requirements: profile and linked-identity shell
+  - path: /account/support
+    title: Account support
+    audience: registered
+    purpose: profile_and_preferences
+    requires_auth: true
+    guest_fallback: /login?next=/account/support
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: tracked support route
+  - path: /account/access
+    title: Account access
+    audience: registered
+    purpose: profile_and_preferences
+    requires_auth: true
+    guest_fallback: /login?next=/account/access
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: devices and access route
+  - path: /account/work
+    title: Account workspaces
+    audience: registered
+    purpose: profile_and_preferences
+    requires_auth: true
+    guest_fallback: /login?next=/account/work
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: campaign and operator route
+  - path: /account/settings
+    title: Account settings
+    audience: registered
+    purpose: profile_and_preferences
+    requires_auth: true
+    guest_fallback: /login?next=/account/settings
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: secondary preferences route
+  - path: /account/advanced
+    title: Account advanced
+    audience: registered
+    purpose: profile_and_preferences
+    requires_auth: true
+    guest_fallback: /login?next=/account/advanced
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: advanced account diagnostics route
+  - path: /participate/codex
+    title: Guided contribution
+    audience: registered
+    purpose: signed_in_participation
+    requires_auth: true
+    guest_fallback: /login?next=/participate/codex
+    must_exist: true
+    placeholder_allowed: true
+    placeholder_requirements: signed-in participation flow
 sections:
   - id: hero
     eyebrow: Explainable Shadowrun
@@ -389,8 +470,8 @@ sections:
     route: /
   - id: start_here
     eyebrow: How Chummer helps at the table
-    title: How Chummer helps at the table
-    intro: "See the product behavior first: build a runner, inspect the ruling, and keep a session moving without losing trust."
+    title: What comes after the core proof
+    intro: "Once the build, explanation trail, and continuity path feel trustworthy, the next product jobs are publication and improvement."
     audience: public
     route: /
   - id: why_trust_it

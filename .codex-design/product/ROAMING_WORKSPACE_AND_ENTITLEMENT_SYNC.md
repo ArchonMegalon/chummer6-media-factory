@@ -55,6 +55,7 @@ Includes:
 * rollback window
 * hardware-specific tuning
 * local secrets and key material
+* explicit device role posture such as `workstation`, `play_tablet`, `observer_screen`, `travel_cache`, or `preview_scout`
 * device-local channel posture such as "this machine is Preview, that one stays Stable"
 
 ### Entitlement scope
@@ -89,9 +90,12 @@ Roaming workspace restores a runner as a living dossier with:
 A `RuleEnvironment` is a versioned environment reference that may carry:
 
 * source pack refs
+* preset refs
 * house-rule pack refs
+* amend package refs
 * option toggles
 * compatibility fingerprint
+* activation receipt refs
 * owner scope: `person`, `campaign`, or `group`
 * approval state when governed promotion is required
 
@@ -113,6 +117,7 @@ A claimed second device should be able to say:
 * this runner belongs to a specific campaign
 * there is a newer draft on another device
 * this campaign requires a different rule environment
+* this runner depends on amend packages that are not active on this device
 * this install is eligible for a feature, but that eligibility came from Hub truth rather than a local toggle
 
 ## What never syncs
@@ -236,7 +241,23 @@ The home surface should be able to project:
 * last campaign
 * unresolved restore conflict
 * missing rule pack on this device
+* missing amend package on this device
 * feature unlocked through entitlement truth
+
+## Campaign workspace and device-role handoff
+
+Roaming workspace makes cross-device continuity possible, but the lived product surface is the campaign workspace and the install's device role.
+
+That next layer is defined in:
+
+* `CAMPAIGN_WORKSPACE_AND_DEVICE_ROLES.md`
+
+Roaming workspace therefore must preserve enough truth for the home cockpit or campaign workspace to answer:
+
+* what changed for me
+* which campaign needs attention
+* whether this device is acting as a workstation, play tablet, observer screen, travel cache, or preview scout
+* what the next safe action is
 
 ## Horizon handoff
 

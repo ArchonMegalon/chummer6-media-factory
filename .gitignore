@@ -29,6 +29,7 @@ git/
 # Local generated artifacts
 **/bin/
 **/obj/
+**/obj_tmp/
 **/__pycache__/
 *.pyc
 *.pyo
