@@ -22,6 +22,7 @@ test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
 test -f docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md
 test -f docs/EXTRACT-008-DS-execution-evidence.md
 test -f scripts/ai/contract-boundary-tests.sh
+test -f scripts/ai/materialize_media_release_proof.py
 test -f scripts/render_guide_asset.py
 
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
@@ -37,7 +38,7 @@ if rg -n 'namespace Chummer\.Campaign\.Contracts' src Chummer.Media.Factory.Runt
   exit 1
 fi
 
-python3 -m py_compile scripts/render_guide_asset.py
+python3 -m py_compile scripts/render_guide_asset.py scripts/ai/materialize_media_release_proof.py
 python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND"|"backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION"|"backend_provider": "onemin"|"manager_allow_reserve": true|"manager_allow_reserve_env": "CHUMMER_MEDIA_FACTORY_ONEMIN_ALLOW_RESERVE"' >/dev/null
 CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION=0 python3 scripts/render_guide_asset.py --prompt "media factory disabled dry run" --output /tmp/chummer-media-factory-disabled-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"image_execution_enabled": false|"backend_provider": "disabled"' >/dev/null
 if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=bogus python3 scripts/render_guide_asset.py --prompt "media factory bogus backend" --output /tmp/chummer-media-factory-bogus-backend.png --width 1600 --height 900 >/tmp/chummer-media-factory-bogus.log 2>&1; then
@@ -66,5 +67,6 @@ if ! find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | 
 fi
 
 dotnet run --project Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verify.csproj --no-build --configuration Release --nologo --verbosity quiet
+python3 scripts/ai/materialize_media_release_proof.py --status passed
 
 echo "verify ok"
