@@ -169,14 +169,9 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             if (handoff.ExchangeParityLines is { Count: > 0 })
             {
                 List<string> selectedParityLines = handoff.ExchangeParityLines.Take(2).ToList();
-                string? templateParityLine = handoff.ExchangeParityLines
-                    .FirstOrDefault(static line => line.StartsWith("Character template export:", StringComparison.OrdinalIgnoreCase));
-
-                if (!string.IsNullOrWhiteSpace(templateParityLine)
-                    && !selectedParityLines.Contains(templateParityLine, StringComparer.Ordinal))
-                {
-                    selectedParityLines.Add(templateParityLine);
-                }
+                PreserveParityLine("Sheet viewer:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveParityLine("Print PDF:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveParityLine("Character template export:", handoff.ExchangeParityLines, selectedParityLines);
 
                 evidenceLines.AddRange(selectedParityLines);
             }
@@ -359,5 +354,17 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         }
 
         return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed publication lane.";
+    }
+
+    private static void PreserveParityLine(string lanePrefix, IReadOnlyList<string> parityLines, ICollection<string> selectedParityLines)
+    {
+        string? parityLine = parityLines
+            .FirstOrDefault(line => line.StartsWith(lanePrefix, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(parityLine)
+            && !selectedParityLines.Contains(parityLine, StringComparer.Ordinal))
+        {
+            selectedParityLines.Add(parityLine);
+        }
     }
 }
