@@ -169,9 +169,11 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             if (handoff.ExchangeParityLines is { Count: > 0 })
             {
                 List<string> selectedParityLines = handoff.ExchangeParityLines.Take(2).ToList();
-                PreserveParityLine("Sheet viewer:", handoff.ExchangeParityLines, selectedParityLines);
-                PreserveParityLine("Print PDF:", handoff.ExchangeParityLines, selectedParityLines);
-                PreserveParityLine("Character template export:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveLaneLine("JSON exchange:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveLaneLine("Foundry exchange:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveLaneLine("Sheet viewer:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveLaneLine("Print PDF:", handoff.ExchangeParityLines, selectedParityLines);
+                PreserveLaneLine("Character template export:", handoff.ExchangeParityLines, selectedParityLines);
 
                 evidenceLines.AddRange(selectedParityLines);
             }
@@ -184,14 +186,9 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
             if (handoff.PortabilityPillarLines is { Count: > 0 })
             {
                 List<string> selectedPortabilityLines = handoff.PortabilityPillarLines.Take(3).ToList();
-                string? replayPortabilityLine = handoff.PortabilityPillarLines
-                    .FirstOrDefault(static line => line.StartsWith("Replay timeline:", StringComparison.OrdinalIgnoreCase));
-
-                if (!string.IsNullOrWhiteSpace(replayPortabilityLine)
-                    && !selectedPortabilityLines.Contains(replayPortabilityLine, StringComparer.Ordinal))
-                {
-                    selectedPortabilityLines.Add(replayPortabilityLine);
-                }
+                PreserveLaneLine("Replay timeline:", handoff.PortabilityPillarLines, selectedPortabilityLines);
+                PreserveLaneLine("Session recap:", handoff.PortabilityPillarLines, selectedPortabilityLines);
+                PreserveLaneLine("Run module:", handoff.PortabilityPillarLines, selectedPortabilityLines);
 
                 evidenceLines.AddRange(selectedPortabilityLines);
             }
@@ -356,15 +353,15 @@ public sealed class CreatorPublicationPlannerService : ICreatorPublicationPlanne
         return $"{HumanizePublicationStatus(output.Kind)} output stays attached to the same governed publication lane.";
     }
 
-    private static void PreserveParityLine(string lanePrefix, IReadOnlyList<string> parityLines, ICollection<string> selectedParityLines)
+    private static void PreserveLaneLine(string lanePrefix, IReadOnlyList<string> laneLines, ICollection<string> selectedLaneLines)
     {
-        string? parityLine = parityLines
+        string? laneLine = laneLines
             .FirstOrDefault(line => line.StartsWith(lanePrefix, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(parityLine)
-            && !selectedParityLines.Contains(parityLine, StringComparer.Ordinal))
+        if (!string.IsNullOrWhiteSpace(laneLine)
+            && !selectedLaneLines.Contains(laneLine, StringComparer.Ordinal))
         {
-            selectedParityLines.Add(parityLine);
+            selectedLaneLines.Add(laneLine);
         }
     }
 }
