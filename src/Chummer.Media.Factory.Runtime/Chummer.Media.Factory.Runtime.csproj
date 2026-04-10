@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Chummer.Media.Contracts\Chummer.Media.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\..\chummercomplete\chummer.run-services\Chummer.Campaign.Contracts\Chummer.Campaign.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\..\chummercomplete\chummer-hub-registry\Chummer.Hub.Registry.Contracts\Chummer.Hub.Registry.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\..\chummercomplete\chummer.run-services\Chummer.Run.Contracts\Chummer.Run.Contracts.csproj" />
   </ItemGroup>
