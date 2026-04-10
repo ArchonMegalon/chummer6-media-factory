@@ -52,7 +52,7 @@ def main() -> int:
         "evidence": {
             "runtime_verify_project": "Chummer.Media.Factory.Runtime.Verify",
             "build_lane": "dotnet build Chummer.Media.Factory.slnx --configuration Release",
-            "release_surface": "creator-publication and governed-prep packet planning",
+            "release_surface": "render jobs, manifests, previews, and asset lifecycle",
         },
     }
 
@@ -74,8 +74,7 @@ def main() -> int:
         ],
         "evidence": {
             "source": "Chummer.Media.Factory.Runtime.Verify",
-            "planner": "CreatorPublicationPlannerService",
-            "governance": "publication and portability evidence stays explicit in packet output",
+            "governance": "publication certification is manifest- and lifecycle-backed in media-factory outputs",
         },
     }
 

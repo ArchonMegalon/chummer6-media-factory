@@ -14,8 +14,8 @@ test -f Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verif
 test -f src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj
 test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
-test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs
-test -f src/Chummer.Media.Factory.Runtime/Assets/GovernedPrepPacketPlannerService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/AssetLifecycleService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/MEDIA_ADAPTER_MATRIX.md
 test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
@@ -27,11 +27,18 @@ test -f scripts/render_guide_asset.py
 
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
 rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
-rg -n 'DocumentPdf|DocumentThumbnailImage|GovernedPrepPacketPlannerService|CreatorPublicationPlannerService|PortraitImageVariant|NarrativeBriefVideo|RouteCinemaResult|AssetLifecyclePolicy|CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION' docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
-rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null
-rg -n 'Chummer\.Campaign\.Contracts|CreatorPublicationPlannerService|CreatorPublicationPlan|queue_review' src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs >/dev/null
-rg -n 'Chummer\.Campaign\.Contracts|GovernedPrepPacketPlannerService|GovernedPrepPacketProjection|launch_governed_packet|refresh_binding_posture' src/Chummer.Media.Factory.Runtime/Assets/GovernedPrepPacketPlannerService.cs >/dev/null
-rg -n 'ProjectReference Include="\$\(ChummerLocalCampaignContractsProject\)"|PackageReference Include="\$\(ChummerCampaignContractsPackageId\)" Version="\$\(ChummerCampaignContractsPackageVersion\)"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
+rg -n 'DocumentPdf|DocumentThumbnailImage|PortraitImageVariant|NarrativeBriefVideo|RouteCinemaResult|AssetLifecyclePolicy|CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION' docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'ProjectReference Include="\.\.\\Chummer\.Media\.Contracts\\Chummer\.Media\.Contracts\.csproj"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
+
+if rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null; then
+  echo "verify failed: campaign-contract package wiring must not exist in media-factory"
+  exit 1
+fi
+
+if rg -n 'Chummer\.Campaign\.Contracts|CreatorPublicationPlannerService|GovernedPrepPacketPlannerService|queue_review|share_public_publication|refresh_binding_posture|launch_governed_packet' src Chummer.Media.Factory.Runtime.Verify docs/MEDIA_CAPABILITY_SIGNOFF.md scripts/ai/materialize_media_release_proof.py -g '*.cs' -g '*.md' -g '*.py' >/dev/null; then
+  echo "verify failed: non-render campaign/publication planning leaked into media-factory surfaces"
+  exit 1
+fi
 
 if rg -n 'namespace Chummer\.Campaign\.Contracts' src Chummer.Media.Factory.Runtime.Verify -g '*.cs' >/dev/null; then
   echo "verify failed: media-factory must consume campaign contracts from the owner package/project, not redefine them"

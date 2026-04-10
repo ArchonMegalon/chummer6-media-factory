@@ -6,14 +6,6 @@
     <ProjectReference Include="..\..\..\..\..\chummercomplete\chummer.run-services\Chummer.Run.Contracts\Chummer.Run.Contracts.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(ChummerUseLocalCampaignContracts)' == 'true'">
-    <ProjectReference Include="$(ChummerLocalCampaignContractsProject)" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(ChummerUseLocalCampaignContracts)' != 'true'">
-    <PackageReference Include="$(ChummerCampaignContractsPackageId)" Version="$(ChummerCampaignContractsPackageVersion)" />
-  </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

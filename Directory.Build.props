@@ -4,10 +4,5 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
-    <ChummerCampaignContractsPackageId Condition="'$(ChummerCampaignContractsPackageId)' == ''">Chummer.Campaign.Contracts</ChummerCampaignContractsPackageId>
-    <ChummerCampaignContractsPackageVersion Condition="'$(ChummerCampaignContractsPackageVersion)' == ''">0.1.0-preview</ChummerCampaignContractsPackageVersion>
-    <ChummerLocalCampaignContractsProject Condition="'$(ChummerLocalCampaignContractsProject)' == ''">$(MSBuildThisFileDirectory)..\..\..\chummercomplete\chummer.run-services\Chummer.Campaign.Contracts\Chummer.Campaign.Contracts.csproj</ChummerLocalCampaignContractsProject>
-    <ChummerUseLocalCampaignContracts Condition="'$(ChummerUseLocalCampaignContracts)' == '' and Exists('$(ChummerLocalCampaignContractsProject)')">true</ChummerUseLocalCampaignContracts>
-    <ChummerUseLocalCampaignContracts Condition="'$(ChummerUseLocalCampaignContracts)' == ''">false</ChummerUseLocalCampaignContracts>
   </PropertyGroup>
 </Project>

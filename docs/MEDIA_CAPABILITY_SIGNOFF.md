@@ -20,7 +20,6 @@ Upstream repos may request media intent. They do not choose provider adapters, p
 The current owner-contract surface already defines stable capability families for:
 
 - documents and packets via `PacketFactoryResult`, `PacketArtifactHandle`, `DocumentPreviewImage`, `DocumentPdf`, and `DocumentThumbnailImage`
-- governed packet-planning seams via `PacketFactoryRequest`, `PacketAttachmentBatchRequest`, `GovernedPrepPacketPlannerService`, and `CreatorPublicationPlannerService`, so reusable prep, opposition, and creator-publication packets compile in media-factory without redefining campaign truth
 - portraits via `PortraitImageVariant`
 - bounded video via `NarrativeBriefVideo`, `CinematicVideo`, and `PersonaMessageVideo`
 - route cinema via `RouteCinemaResult` and `RouteCinemaArtifactHandle`
