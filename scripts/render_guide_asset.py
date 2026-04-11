@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -33,6 +34,9 @@ for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
         sys.path.insert(0, str(root))
 
 from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
+
+
+_ONEMIN_SLOT_HINTS_CACHE: dict[str, dict[str, object]] | None = None
 
 
 def _seed_runtime_env() -> None:
@@ -198,23 +202,34 @@ def _prompt_looks_flagship(prompt: str | None = None) -> bool:
 
 def _model_candidates(prompt: str | None = None) -> list[str]:
     values: list[str] = []
-    configured_candidates = [
+    configured_candidates: list[str] = []
+    for raw in (
         os.environ.get("CHUMMER6_ONEMIN_MODEL"),
         os.environ.get("CHUMMER_MEDIA_FACTORY_ONEMIN_MODEL"),
         os.environ.get("EA_ONEMIN_TOOL_IMAGE_MODEL"),
-    ]
+    ):
+        for candidate in str(raw or "").split(","):
+            cleaned = str(candidate or "").strip()
+            if cleaned and cleaned not in configured_candidates:
+                configured_candidates.append(cleaned)
     for candidate in (
         *configured_candidates,
         "gpt-image-1",
         "black-forest-labs/flux-schnell",
     ):
         cleaned = str(candidate or "").strip()
-        if cleaned.lower() in {"gpt-image-1-mini", "dall-e-3"}:
+        if cleaned.lower() == "dall-e-3":
+            continue
+        if cleaned.lower() == "gpt-image-1-mini" and cleaned not in configured_candidates:
             continue
         if cleaned and cleaned not in values:
             values.append(cleaned)
     if not _prompt_looks_flagship(prompt):
         return values
+    if configured_candidates:
+        explicit_front = [model for model in configured_candidates if model in values]
+        remainder = [model for model in values if model not in explicit_front]
+        return [*explicit_front, *remainder]
     preferred = [
         model
         for model in ("gpt-image-1", "black-forest-labs/flux-schnell")
@@ -268,7 +283,61 @@ def _configured_onemin_slots() -> list[dict[str, str]]:
             seen_keys.add(key)
             synthetic_index += 1
             slots.append({"env_name": f"ONEMIN_RESOLVED_SLOT_{synthetic_index}", "key": key})
+    health_hints = _ea_onemin_slot_health_hints()
+    if health_hints:
+        slots.sort(key=lambda slot: _slot_health_rank(slot=slot, health_hints=health_hints), reverse=True)
     return slots
+
+
+def _ea_onemin_slot_health_hints() -> dict[str, dict[str, object]]:
+    global _ONEMIN_SLOT_HINTS_CACHE
+    if isinstance(_ONEMIN_SLOT_HINTS_CACHE, dict):
+        return _ONEMIN_SLOT_HINTS_CACHE
+    worker_path = EA_ROOT / "scripts" / "chummer6_guide_media_worker.py"
+    if not worker_path.exists():
+        _ONEMIN_SLOT_HINTS_CACHE = {}
+        return _ONEMIN_SLOT_HINTS_CACHE
+    try:
+        spec = importlib.util.spec_from_file_location("ea_chummer6_slot_hints", worker_path)
+        if spec is None or spec.loader is None:
+            _ONEMIN_SLOT_HINTS_CACHE = {}
+            return _ONEMIN_SLOT_HINTS_CACHE
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        loader = getattr(module, "_onemin_slot_health_hints", None)
+        hints = loader() if callable(loader) else {}
+        _ONEMIN_SLOT_HINTS_CACHE = hints if isinstance(hints, dict) else {}
+    except Exception:
+        _ONEMIN_SLOT_HINTS_CACHE = {}
+    return _ONEMIN_SLOT_HINTS_CACHE
+
+
+def _slot_health_rank(*, slot: dict[str, str], health_hints: dict[str, dict[str, object]]) -> tuple[int, float, int, str]:
+    env_name = str(slot.get("env_name") or "").strip()
+    hint = health_hints.get(env_name) if isinstance(health_hints, dict) else None
+    if not isinstance(hint, dict):
+        return (0, -1.0, 0, env_name)
+    state = str(hint.get("state") or "").strip().lower()
+    slot_role = str(hint.get("slot_role") or "").strip().lower()
+    credits = -1.0
+    for key in ("billing_remaining_credits", "estimated_remaining_credits", "remaining_credits"):
+        value = hint.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            credits = float(value)
+            break
+        except Exception:
+            continue
+    state_rank = {
+        "ready": 4,
+        "active": 3,
+        "cooldown": 2,
+        "unknown": 1,
+        "quarantine": 0,
+    }.get(state, 1)
+    role_rank = 1 if slot_role != "reserve" else 0
+    return (state_rank, credits, role_rank, env_name)
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
