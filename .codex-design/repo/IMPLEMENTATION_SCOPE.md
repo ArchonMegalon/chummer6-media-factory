@@ -43,23 +43,6 @@
 * M7 storage/DR/scale
 * M8 finished media plant
 
-## Milestone coverage model (explicit ETA/completion truth)
-
-All rows map to contract set `media_execution_vnext` from `.codex-design/product/CONTRACT_SETS.yaml`.
-Completion is evidence-gated by repo-local artifacts and `scripts/ai/verify.sh`; no row closes on prose-only claims.
-
-| Milestone | Program mapping | Coverage sources | Completion gate | ETA/completion basis | Status |
-| --- | --- | --- | --- | --- | --- |
-| M0 contract canon | C1 media factory extraction | `docs/EXTRACT-001A-canonical-package-plane-evidence.md`, `docs/EXTRACT-001A-canonical-package-plane-runtime-backlog.md` | `CP-01`..`CP-03` pass | Package plane exists, canonical package identity is stable, boundary checks and pack verification pass | complete |
-| M1 asset/job kernel | C1 media factory extraction | `docs/EXTRACT-007-AK-execution-evidence.md`, `docs/EXTRACT-007-asset-kernel-implementation-backlog.md` | `AK-01`..`AK-06` pass | Kernel contracts for manifests, binary storage, jobs, previews, retention, and lineage are implemented and verified | complete |
-| M2 document rendering | C1c media-side external adapters, E4 media plane complete | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | Document capability family remains owner-repo, provider-private, and lifecycle-governed | Completion follows capability signoff plus adapter-matrix ownership evidence | complete |
-| M3 portrait forge | C1c media-side external adapters, E4 media plane complete | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | Portrait capability family remains owner-repo and lifecycle-governed | Completion follows capability signoff and adapter-family ownership evidence | complete |
-| M4 bounded video | C1c media-side external adapters, E4 media plane complete | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | Bounded-video and route-video capability families remain owner-repo and lifecycle-governed | Completion follows capability signoff and adapter-family ownership evidence | complete |
-| M5 template/style integration | C1c media-side external adapters | `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/MEDIA_ADAPTER_MATRIX.md` | Packet/document/preview artifact families are stable and provider choice remains switchable/kill-switchable in media-factory surfaces | Completion follows stable capability-family evidence and backend-control guardrails | complete |
-| M6 run-services cutover | C1 media factory extraction | `docs/EXTRACT-006-SEAM-execution-evidence.md`, `docs/EXTRACT-006-run-services-seam-cutover-backlog.md` | `SEAM-01`..`SEAM-04` pass (`G1`..`G4` pass) | Seam ownership is explicit: media-factory owns render/asset semantics, run-services is orchestration ingress/egress only | complete |
-| M7 storage/DR/scale | F1 observability, DR, replay safety | `docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md`, `Chummer.Media.Factory.Runtime.Verify/` | Restore/retention/replay-safe checks pass in runbook + runtime verify path | Completion follows restore-drill contract and replay-safe verification evidence | complete |
-| M8 finished media plant | E4 media plane complete | `docs/EXTRACT-008-DS-execution-evidence.md`, `docs/MEDIA_CAPABILITY_SIGNOFF.md`, `docs/EXTRACT-006-SEAM-execution-evidence.md` | `DS-01`..`DS-05` pass and no seam/ownership regressions | Aggregate completion closes when DTO boundaries, capability families, and seam ownership all remain green | complete |
-
 ## Worker rule
 
 If the feature is about rendering, previews, manifests, or asset lifecycle, it belongs here.
