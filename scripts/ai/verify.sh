@@ -16,7 +16,6 @@ test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
 test -f src/Chummer.Media.Factory.Runtime/Assets/AssetLifecycleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs
-test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/MEDIA_ADAPTER_MATRIX.md
 test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
@@ -30,17 +29,12 @@ rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|re
 rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
 rg -n 'DocumentPdf|DocumentThumbnailImage|PortraitImageVariant|NarrativeBriefVideo|RouteCinemaResult|AssetLifecyclePolicy|CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION' docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'ProjectReference Include="\.\.\\Chummer\.Media\.Contracts\\Chummer\.Media\.Contracts\.csproj"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
-rg -n 'PreserveLaneLine\("JSON exchange:"|PreserveLaneLine\("Foundry exchange:"|PreserveLaneLine\("Sheet viewer:"|PreserveLaneLine\("Print PDF:"|PreserveLaneLine\("Character template export:"|PreserveLaneLine\("Replay timeline:"|PreserveLaneLine\("Session recap:"|PreserveLaneLine\("Run module:"' src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs >/dev/null
-rg -n 'EvidenceLines\.Any\(static line => line\.Contains\("JSON exchange:"|EvidenceLines\.Any\(static line => line\.Contains\("Foundry exchange:"|EvidenceLines\.Any\(static line => line\.Contains\("Sheet viewer:"|EvidenceLines\.Any\(static line => line\.Contains\("Print PDF:"|EvidenceLines\.Any\(static line => line\.Contains\("Character template export:"|EvidenceLines\.Any\(static line => line\.Contains\("Replay timeline:"|EvidenceLines\.Any\(static line => line\.Contains\("Session recap:"|EvidenceLines\.Any\(static line => line\.Contains\("Run module:"' Chummer.Media.Factory.Runtime.Verify/Program.cs >/dev/null
-
 if rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null; then
   echo "verify failed: campaign-contract package wiring must not exist in media-factory"
   exit 1
 fi
 
-if rg -n 'Chummer\.Campaign\.Contracts|CreatorPublicationPlannerService|GovernedPrepPacketPlannerService|queue_review|share_public_publication|refresh_binding_posture|launch_governed_packet' src Chummer.Media.Factory.Runtime.Verify docs/MEDIA_CAPABILITY_SIGNOFF.md scripts/ai/materialize_media_release_proof.py -g '*.cs' -g '*.md' -g '*.py' \
-  --glob '!src/Chummer.Media.Factory.Runtime/Assets/CreatorPublicationPlannerService.cs' \
-  --glob '!Chummer.Media.Factory.Runtime.Verify/Program.cs' >/dev/null; then
+if rg -n 'Chummer\.Campaign\.Contracts|CreatorPublicationPlannerService|GovernedPrepPacketPlannerService|queue_review|share_public_publication|refresh_binding_posture|launch_governed_packet' src Chummer.Media.Factory.Runtime.Verify docs/MEDIA_CAPABILITY_SIGNOFF.md scripts/ai/materialize_media_release_proof.py -g '*.cs' -g '*.md' -g '*.py' >/dev/null; then
   echo "verify failed: non-render campaign/publication planning leaked into media-factory surfaces"
   exit 1
 fi
