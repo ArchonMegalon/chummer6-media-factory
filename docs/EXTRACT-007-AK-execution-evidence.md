@@ -59,4 +59,4 @@ This evidence file maps the shared asset-kernel execution backlog to implemented
 
 ## Queue slice resolution
 
-Current queue item `Add milestone mapping or executable queue work for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` is satisfied by the existing `AK-01`..`AK-06` execution lane and milestone mapping above, so no additional runnable backlog units are required in this repo for this slice.
+Current queue items `Publish or append runnable backlog for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` and `Add milestone mapping or executable queue work for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` are both satisfied by the existing `AK-01`..`AK-06` execution lane and milestone mapping above, so no additional runnable backlog units are required in this repo for this slice.
