@@ -90,6 +90,8 @@ def _load_health_registry() -> dict[str, object]:
         loaded = json.loads(HEALTH_OUT.read_text(encoding="utf-8")) if HEALTH_OUT.exists() else {}
     except Exception:
         loaded = {}
+    if not isinstance(loaded, dict):
+        loaded = {}
     providers = loaded.get("providers")
     if not isinstance(providers, dict):
         loaded["providers"] = {}
@@ -546,13 +548,17 @@ def _render_with_openai_edits(
     output_path: Path,
     width: int,
     height: int,
-    reference_image: Path,
+    reference_image: Path | None,
 ) -> dict[str, object]:
+    if reference_image is None:
+        raise RuntimeError("media_factory:missing_reference_image")
+    if not reference_image.exists():
+        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
+    if not reference_image.is_file():
+        raise RuntimeError(f"media_factory:invalid_reference_image:{reference_image}")
     api_key = _openai_api_key()
     if not api_key:
         raise RuntimeError("media_factory:openai_edits_not_configured")
-    if not reference_image.exists():
-        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
     fields = [
         ("model", str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_EDIT_MODEL") or "gpt-image-1").strip() or "gpt-image-1"),
         ("prompt", str(prompt or "").strip()),
@@ -1043,7 +1049,7 @@ def render_asset(
                 output_path=output_path,
                 width=width,
                 height=height,
-                reference_image=reference_image or Path(""),
+                reference_image=reference_image,
             )
             receipt_path = _write_receipt(
                 render_id=render_id,

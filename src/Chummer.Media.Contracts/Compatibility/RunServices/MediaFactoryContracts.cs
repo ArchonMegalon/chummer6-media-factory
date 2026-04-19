@@ -146,12 +146,14 @@ public sealed record RouteCinemaArtifactHandle(
     string? AssetId = null,
     TimeSpan? CacheTtl = null);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet authoring compatibility shim remains temporarily for upstream migration and must not expand inside Chummer.Media.Contracts.")]
 public sealed record PacketFactoryRequest(
     string Title,
     string Subject,
     IReadOnlyList<string>? References = null,
     IReadOnlyList<PacketAttachmentRequest>? Attachments = null);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet attachment targeting belongs upstream and remains temporarily for compatibility only.")]
 public enum PacketAttachmentTargetKind
 {
     Route,
@@ -159,14 +161,17 @@ public enum PacketAttachmentTargetKind
     Export
 }
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet attachment targeting belongs upstream and remains temporarily for compatibility only.")]
 public sealed record PacketAttachmentRequest(
     PacketAttachmentTargetKind TargetKind,
     string TargetId,
     string? TargetLabel = null);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet attachment batching belongs upstream and remains temporarily for compatibility only.")]
 public sealed record PacketAttachmentBatchRequest(
     IReadOnlyList<PacketAttachmentRequest> Attachments);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet attachment records belong upstream and remain temporarily for compatibility only.")]
 public sealed record PacketAttachmentRecord(
     string AttachmentId,
     string PacketId,
@@ -176,6 +181,7 @@ public sealed record PacketAttachmentRecord(
     DateTimeOffset AttachedAtUtc,
     IReadOnlyList<PacketArtifactHandle> Artifacts);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: packet authoring result semantics remain temporarily for upstream migration and must not expand inside Chummer.Media.Contracts.")]
 public sealed record PacketFactoryResult(
     string PacketId,
     string Title,
@@ -188,10 +194,12 @@ public sealed record PacketFactoryResult(
     IReadOnlyList<PacketAttachmentRecord>? Attachments = null,
     IReadOnlyList<string>? Evidence = null);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: route authoring compatibility shim remains temporarily for upstream migration and must not expand inside Chummer.Media.Contracts.")]
 public sealed record RouteCinemaRequest(
     string SourceNode,
     string TargetNode);
 
+[global::System.Obsolete("EXTRACT-008A quarantine: route narration and review compatibility shim remains temporarily for upstream migration and must not expand inside Chummer.Media.Contracts.")]
 public sealed record RouteCinemaResult(
     string RouteCinemaId,
     string SourceNode,

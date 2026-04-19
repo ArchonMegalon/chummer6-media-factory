@@ -215,6 +215,10 @@ Checks include:
 
 No mixed DTO residue was found in `src/Chummer.Media.Contracts`. No split/removal edits were required.
 
+Revalidation note (2026-04-15):
+- That closure statement was too broad. It covered the canonical render/job/asset families, but it did not inventory the legacy compatibility shim in `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs`.
+- The compatibility shim still exposes upstream semantics that are out of scope for media-factory-owned render-only contracts, so follow-on backlog units are required.
+
 ## DS-04 Boundary conformance tests
 
 Contract conformance tests are enforced by `scripts/ai/contract-boundary-tests.sh` and executed from `scripts/ai/verify.sh`:
@@ -232,7 +236,58 @@ Artifacts updated:
 - `docs/MF-005-service-seams-and-handoffs.md`
 - `docs/EXTRACT-006-run-services-seam-cutover-backlog.md`
 
-`EXTRACT-008` generic queue prompt is superseded by this execution evidence and mapped to DS-01..DS-05 when queue overlays prepend duplicate generic prompts.
+`EXTRACT-008` generic queue prompt was initially mapped to `DS-01`..`DS-05`, but revalidation on `2026-04-15` found remaining compatibility-shim residue. The active generic prompt now maps to `DS-01`..`DS-09`, with `DS-06`..`DS-09` covering the reopened compatibility follow-on lane.
+
+## DS-06 Compatibility-shim residue inventory
+
+The following public compatibility DTOs still mix render/job/asset lifecycle concerns with upstream authoring, delivery, or campaign-context semantics:
+
+| Type | Field | Classification | Notes |
+| --- | --- | --- | --- |
+| `PacketFactoryRequest` | `Title` | `forbidden_upstream` | Packet authoring title belongs to upstream orchestration or campaign/publication contracts. |
+| `PacketFactoryRequest` | `Subject` | `forbidden_upstream` | Narrative subject framing is upstream authoring meaning, not render execution input. |
+| `PacketFactoryRequest` | `References` | `forbidden_upstream` | Upstream evidence/reference selection is not a media-owned render/job lifecycle concern. |
+| `PacketFactoryRequest` | `Attachments` | `forbidden_upstream` | Attachment targeting mixes delivery/publication semantics into media contracts. |
+| `PacketAttachmentTargetKind` | `Route`, `Message`, `Export` | `forbidden_upstream` | Target routing semantics belong upstream. |
+| `PacketAttachmentRequest` | `TargetKind`, `TargetId`, `TargetLabel` | `forbidden_upstream` | Delivery/attachment targeting is not render-only ownership. |
+| `PacketAttachmentBatchRequest` | `Attachments` | `forbidden_upstream` | Batch attachment semantics remain upstream. |
+| `PacketAttachmentRecord` | `PacketId` | `forbidden_upstream` | Packet identity is upstream artifact/session meaning. |
+| `PacketAttachmentRecord` | `TargetKind`, `TargetId`, `TargetLabel` | `forbidden_upstream` | Attachment/delivery target meaning belongs upstream. |
+| `PacketFactoryResult` | `PacketId`, `Title`, `Subject`, `Html`, `Attachments`, `Evidence` | `forbidden_upstream` | Packet authoring/output semantics are upstream; only render artifact handles belong in media contracts. |
+| `RouteCinemaRequest` | `SourceNode`, `TargetNode` | `forbidden_upstream` | Route selection/context belongs upstream; media should receive prepared render inputs only. |
+| `RouteCinemaResult` | `SourceNode`, `TargetNode`, `Waypoints`, `WaypointScript`, `TravelSummary`, `ProjectionFingerprint`, `ReviewState` | `forbidden_upstream` | Route narration/review meaning is upstream context, not render/job/asset lifecycle state. |
+| `RouteCinemaResult` | `ApprovalState`, `RetentionState`, `CreatedAtUtc`, `ExpiresAtUtc`, `PreviewAssetId`, `RouteVideoAssetId`, `PreviewJobId`, `PreviewJobState`, `RouteVideoJobId`, `RouteVideoJobState`, `Artifacts`, `CacheTtl` | `asset_lifecycle` / `job_lifecycle` | These fields are media-owned and should remain after the upstream residue is split out. |
+
+Render-only compatibility types that still fit media ownership:
+- `AssetLifecyclePolicy`
+- `AssetCatalogItem`
+- `AssetRenderResult`
+- `AssetLifecycleMutationRequest`
+- `AssetLifecycleSweepResult`
+- `MediaRenderJobEnqueueRequest`
+- `MediaRenderJobStatus`
+- `PacketArtifactHandle`
+- `RouteCinemaArtifactHandle`
+
+## DS-07 Compatibility contract split plan
+
+Required split/quarantine plan:
+- `PacketFactoryRequest` / `PacketFactoryResult` / attachment DTOs: move packet authoring, attachment targeting, and HTML/evidence semantics upstream; keep only media artifact-handle/result DTOs in `Chummer.Media.Contracts`.
+- `RouteCinemaRequest` / `RouteCinemaResult`: move route selection, narration, waypoint script, projection fingerprint, and review-state meaning upstream; keep only render job ids, asset ids, artifact handles, and lifecycle timestamps/status in media contracts.
+- Compatibility transition posture: the known mixed compatibility DTOs in `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs` now carry explicit `EXTRACT-008A quarantine` `Obsolete` markers until upstream owner packages absorb the removed meaning. Do not introduce upstream package dependencies here.
+
+## DS-08 Guardrail expansion for compatibility residue
+
+Implemented guardrails:
+- `scripts/ai/contract-boundary-tests.sh` blocks obvious identifiers such as `Campaign*`, `Session*`, `Narrative*`, `Story*`, `Delivery*`, `RouteContext*`, and `Scene*`.
+- The contract-boundary test now requires every known mixed compatibility DTO type to carry an explicit `EXTRACT-008A quarantine` `Obsolete` marker.
+- The contract-boundary test now fails if those mixed DTO types appear anywhere outside `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs`.
+- This keeps the reopened residue explicitly quarantined while preventing silent spread into canonical render/job/asset lifecycle contracts.
+- Verification passed on `2026-04-15` via `bash scripts/ai/contract-boundary-tests.sh` and `bash scripts/ai/verify.sh`.
+
+## DS-09 Queue/worklist remap
+
+`WORKLIST.md` now records the DTO split generic prompt as reopened for compatibility-shim residue rather than fully satisfied.
 
 ## Milestone mapping for DTO split queue slices
 
@@ -245,5 +300,9 @@ Execution-to-gate mapping:
 - `DS-01` + `DS-03` enforce render-only DTO ownership required for `M8` aggregate closure.
 - `DS-02` + `DS-04` provide executable guardrails/tests used as completion truth gates for boundary integrity.
 - `DS-05` maps active generic queue prompts to runnable units so milestone evidence remains explicit rather than implied.
+- `DS-06` + `DS-07` inventory and plan the remaining compatibility-shim split work.
+- `DS-08` adds the missing verification follow-through for compatibility DTO names that currently evade the guardrails.
+- `DS-09` keeps queue/worklist truth honest while the compatibility follow-on lane remains open.
 
-Current queue item `Add milestone mapping or executable queue work for Media DTOs ...` is therefore satisfied by the existing `DS-01`..`DS-05` execution lane with no additional runnable backlog units required.
+Current queue item `Add milestone mapping or executable queue work for Media DTOs ...` remains covered by the existing milestone mapping in this evidence file.
+Current queue item `Publish or append runnable backlog for Media DTOs still need to be split cleanly between downstream render/job/asset lifecycle contracts and upstream narrative-authoring, delivery, and campaign-context contracts..` is not fully closed by `DS-01`..`DS-05` alone; it now maps to the appended `DS-06`..`DS-09` compatibility-residue lane.

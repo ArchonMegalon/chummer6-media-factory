@@ -4,6 +4,7 @@ set -euo pipefail
 export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-/tmp/chummer-media-factory-dotnet}"
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 export DOTNET_NOLOGO=1
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 test -f README.md
 test -f AGENTS.md
@@ -52,8 +53,41 @@ if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=bogus python3 scripts/render_guide_asset.
   exit 1
 fi
 rg -n 'media_factory:unsupported_backend:bogus' /tmp/chummer-media-factory-bogus.log >/dev/null
+if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=openai_edits OPENAI_API_KEY=dummy python3 scripts/render_guide_asset.py --prompt "media factory missing reference" --output /tmp/chummer-media-factory-openai-missing-ref.png --width 1600 --height 900 >/tmp/chummer-media-factory-openai-missing-ref.log 2>&1; then
+  echo "verify failed: openai_edits should require a reference image" >&2
+  exit 1
+fi
+rg -n 'media_factory:missing_reference_image' /tmp/chummer-media-factory-openai-missing-ref.log >/dev/null
+if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=openai_edits OPENAI_API_KEY=dummy python3 scripts/render_guide_asset.py --prompt "media factory invalid reference" --output /tmp/chummer-media-factory-openai-invalid-ref.png --width 1600 --height 900 --reference-image . >/tmp/chummer-media-factory-openai-invalid-ref.log 2>&1; then
+  echo "verify failed: openai_edits should reject non-file reference images" >&2
+  exit 1
+fi
+rg -n 'media_factory:invalid_reference_image:\.' /tmp/chummer-media-factory-openai-invalid-ref.log >/dev/null
+
+health_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-health.XXXXXX")"
+printf '[]\n' >"${health_state_dir}/guide_provider_health.json"
+CHUMMER_MEDIA_FACTORY_STATE_DIR="${health_state_dir}" python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("render_guide_asset", Path("scripts/render_guide_asset.py"))
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+registry = module._load_health_registry()
+assert isinstance(registry, dict)
+assert registry.get("providers") == {}
+PY
+rm -rf "${health_state_dir}"
 
 bash scripts/ai/contract-boundary-tests.sh
+
+run_contracts_csproj="/docker/chummercomplete/chummer.run-services/Chummer.Run.Contracts/Chummer.Run.Contracts.csproj"
+if [[ -f "${run_contracts_csproj}" ]]; then
+  # Warm the upstream contract graph once so transitive ref assemblies are ready
+  # before this repo builds against the external run-services contract seam.
+  dotnet build "${run_contracts_csproj}" --configuration Release --nologo --verbosity quiet
+fi
 
 dotnet restore Chummer.Media.Factory.slnx --nologo --verbosity quiet
 dotnet build Chummer.Media.Factory.slnx --no-restore --configuration Release --nologo --verbosity quiet
