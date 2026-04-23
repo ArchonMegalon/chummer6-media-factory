@@ -13,7 +13,7 @@ REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90
 
 PACKAGE_ID = "next90-m110-media-factory-runsite-bundles"
 FRONTIER_ID = "5126560638"
-LANDED_COMMIT = "__TO_FILL_M110_LANDED_COMMIT__"
+LANDED_COMMIT = "2818ec9"
 
 
 def read(path: Path) -> str:
