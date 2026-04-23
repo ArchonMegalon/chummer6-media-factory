@@ -14,6 +14,8 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
     "milestone_id": 107,
     "status": "complete",
     "completion_action": "verify_closed_package_only",
+    "proof_floor_commit": "a2a3702",
+    "proof_floor_summary": "Tighten M107 media recipe proof receipts",
     "owned_surfaces": [
         "structured_media_recipe_execution",
         "artifact_factory:receipts",
