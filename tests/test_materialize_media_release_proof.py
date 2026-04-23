@@ -39,7 +39,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 "milestone_id": 108,
                 "status": "complete",
                 "completion_action": "verify_closed_package_only",
-                "proof_floor_commit": "M108_PROOF_FLOOR_COMMIT",
+                "proof_floor_commit": "ef3f006",
                 "proof_floor_summary": "Pin M108 campaign briefing bundle closure with locale-bundled caption and preview siblings, bounded fallback locales, and length-prefixed receipt hashing",
                 "owned_surfaces": [
                     "campaign_briefing_bundle_rendering",
@@ -258,6 +258,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 "extra_key": "build_explain_guards",
                 "extra_value": [
                     "sibling payloads must stay scoped to the approved explain packet id and explain packet revision id before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+                    "non-JSON scope fallback requires exact keyed values or delimited scope tokens so near-match packet and revision ids cannot slip through by substring collision",
                     "build explain companion rendering requires one video, one audio, one preview-card, and one packet companion before the bundle can render",
                     "build explain video and audio siblings require caption refs while video, preview-card, and packet companions require preview refs",
                     "companion refs are unique per approved explain packet so downstream shelves cannot confuse sibling outputs",
@@ -331,6 +332,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 "extra_key": "install_aware_concierge_guards",
                 "extra_value": [
                     "install-aware concierge payloads must stay scoped to the install-aware packet id, installed build receipt id, and artifact identity id before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+                    "request-level rendering id, install-aware packet id, installed build receipt id, artifact identity id, and source values normalize surrounding whitespace before scope enforcement so valid concierge requests do not fail on padded caller input",
                     "install-aware concierge bundles require release explainer, support closure, and public concierge siblings to each emit video, audio, and preview-card artifacts before the bundle can render",
                     "install-aware concierge video and audio companions require caption refs while video and preview-card companions require preview refs",
                     "install-aware concierge artifacts require at least one sibling note ref and keep sibling notes bounded to at most two refs per artifact",
@@ -401,6 +403,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "GM prep packet rendering rejects duplicate source entries and duplicate packet refs inside one governed render request",
                     "bundle-scoped dedupe keys include governed source pack id, source pack revision id, rendering id, subject kind, source entry id, packet ref, artifact role, category, output format, and caller dedupe key",
                     "receipt hashes use length-prefixed subject-kind, artifact-role, and output-format segments so delimiter-heavy GM prep variants cannot collapse distinct outputs onto one receipt id",
+                    "entry receipt ids and subject receipt group ids stay scoped to governed source pack id, source pack revision id, and rendering id so reused packet refs cannot alias grouped evidence across governed packs",
                     "subject receipt groups preserve grouped entry ids, packet refs, packet receipt ids, preview receipt ids, optional briefing receipt ids, aggregate job ids, and grouped artifact rows so downstream shelves do not need to reconstruct governed prep evidence from raw artifact receipts",
                     "GM prep packet artifact receipts preserve asset urls, approval state, retention state, and storage class alongside packet, preview, and optional briefing outputs",
                     "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",

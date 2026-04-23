@@ -7,7 +7,7 @@ This repo-local proof floor closes `next90-m108-media-factory-campaign-briefing-
 - frontier id: `4459920059`
 - milestone id: `108`
 - package id: `next90-m108-media-factory-campaign-briefing-renders`
-- proof floor commit: `M108_PROOF_FLOOR_COMMIT`
+- proof floor commit: `ef3f006`
 - owned surfaces: `campaign_briefing_bundle_rendering`, `campaign_artifact_receipts`
 - allowed paths: `src`, `tests`, `docs`, `scripts`
 

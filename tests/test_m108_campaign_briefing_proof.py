@@ -8,7 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ID = "next90-m108-media-factory-campaign-briefing-renders"
-PROOF_FLOOR_COMMIT = "M108_PROOF_FLOOR_COMMIT"
+PROOF_FLOOR_COMMIT = "ef3f006"
 
 
 class M108CampaignBriefingProofTests(unittest.TestCase):
