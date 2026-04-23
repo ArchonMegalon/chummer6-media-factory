@@ -18,6 +18,7 @@ Proof floor:
 - `e93f8f4` adds `RoleReceiptGroups` so each video, audio, preview-card, and packet-bundle sibling has a first-class grouped receipt row with receipt ids, job ids, publication refs, caption refs, preview refs, and artifact detail.
 - `e93f8f4` adds aggregate `JobIds` on `StructuredMediaRecipeBundleReceipt` so publication surfaces can prove every emitted sibling has a media-factory job without reconstructing coverage from role groups.
 - `6adf9a8` tightens completed-package closure authority so the Fleet queue mirror, canonical design queue mirror, registry task row, proof-floor note, and generated release proof all verify the same M107 media recipe package instead of reopening it.
+- `9614cca` pins the queue-mirror closure guard so Fleet and design-owned queue rows must carry the same completed-package proof floor.
 
 Required proof commands:
 
