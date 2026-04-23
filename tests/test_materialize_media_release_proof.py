@@ -42,8 +42,8 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
             self.assertEqual(107, package["milestone_id"])
             self.assertEqual("complete", package["status"])
             self.assertEqual("verify_closed_package_only", package["completion_action"])
-            self.assertEqual("a2a3702", package["proof_floor_commit"])
-            self.assertEqual("Tighten M107 media recipe proof receipts", package["proof_floor_summary"])
+            self.assertEqual("e93f8f4", package["proof_floor_commit"])
+            self.assertEqual("Tighten M107 structured recipe receipt refs", package["proof_floor_summary"])
             self.assertEqual(
                 ["structured_media_recipe_execution", "artifact_factory:receipts"],
                 package["owned_surfaces"],

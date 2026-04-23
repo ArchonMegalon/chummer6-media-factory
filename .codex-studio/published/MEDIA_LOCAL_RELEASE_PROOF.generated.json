@@ -1,0 +1,62 @@
+{
+  "contract_name": "chummer6-media-factory.local_release_proof",
+  "evidence": {
+    "build_lane": "dotnet build Chummer.Media.Factory.slnx --configuration Release",
+    "release_surface": "render jobs, manifests, previews, structured recipe bundles, and asset lifecycle",
+    "runtime_verify_project": "Chummer.Media.Factory.Runtime.Verify"
+  },
+  "generated_at": "2026-04-23T15:38:30Z",
+  "proof_kind": "media_runtime_release",
+  "schema_version": 1,
+  "status": "passed",
+  "successor_packages": [
+    {
+      "artifact_roles": [
+        "StructuredRecipeVideo",
+        "StructuredRecipeAudio",
+        "StructuredRecipePreviewCard",
+        "StructuredRecipePacketBundle"
+      ],
+      "completion_action": "verify_closed_package_only",
+      "frontier_id": 1746209281,
+      "milestone_id": 107,
+      "owned_surfaces": [
+        "structured_media_recipe_execution",
+        "artifact_factory:receipts"
+      ],
+      "package_id": "next90-m107-media-factory-recipe-execution",
+      "proof": [
+        "src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs",
+        "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+        "tests/StructuredMediaRecipeSmoke/Program.cs",
+        "tests/test_structured_media_recipe_execution.py",
+        "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md",
+        "scripts/ai/verify.sh"
+      ],
+      "proof_floor_commit": "e93f8f4",
+      "proof_floor_summary": "Tighten M107 structured recipe receipt refs",
+      "publication_ready_ref_guards": [
+        "publication-ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, and cache ttl",
+        "bundle receipts expose aggregate JobIds matching every video, audio, preview-card, and packet-bundle artifact job",
+        "publication ref receipt rows preserve receipt id, job id, job state, output format, asset id, and cache ttl",
+        "role receipt groups preserve each video, audio, preview-card, and packet-bundle sibling's receipt ids, job ids, publication refs, caption refs, preview refs, and artifact rows",
+        "caption ref receipt rows group shared refs while preserving per-artifact publication and job detail",
+        "preview ref receipt rows group shared refs while preserving packet-bundle publication and job detail",
+        "packet-bundle siblings require at least one preview ref before recipe execution"
+      ],
+      "receipt_rows": [
+        "PublicationRefReceipts",
+        "PublicationReadyRefs",
+        "StructuredMediaRecipePublicationReadyRef",
+        "JobIds",
+        "CaptionRefReceipts",
+        "PreviewRefReceipts",
+        "RoleReceiptGroups",
+        "StructuredMediaRecipeRoleReceiptGroup",
+        "StructuredMediaRecipeRefArtifactReceipt",
+        "ArtifactReceipts"
+      ],
+      "status": "complete"
+    }
+  ]
+}
