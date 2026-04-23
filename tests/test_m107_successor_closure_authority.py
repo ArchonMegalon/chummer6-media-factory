@@ -4,12 +4,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 FLEET_QUEUE = Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
+DESIGN_QUEUE = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
 REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
 
 PACKAGE_ID = "next90-m107-media-factory-recipe-execution"
 FRONTIER_ID = "1746209281"
 LANDED_COMMIT = "47df6ab"
-PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f", "3dc59e0", "e93f8f4")
+PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f", "3dc59e0", "e93f8f4", "6adf9a8")
 
 
 def read(path: Path) -> str:
@@ -44,8 +45,12 @@ def registry_task_block(text: str) -> str:
 
 class M107SuccessorClosureAuthorityTests(unittest.TestCase):
     def test_fleet_queue_closes_exact_m107_media_recipe_package(self):
-        block = package_block(read(FLEET_QUEUE))
+        self.assert_queue_block_closes_exact_package(package_block(read(FLEET_QUEUE)))
 
+    def test_design_queue_mirror_closes_exact_m107_media_recipe_package(self):
+        self.assert_queue_block_closes_exact_package(package_block(read(DESIGN_QUEUE)))
+
+    def assert_queue_block_closes_exact_package(self, block: str):
         for token in (
             "title: Execute structured media recipes with receipts, captions, and preview refs",
             "repo: chummer6-media-factory",
@@ -99,6 +104,7 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
 
     def test_closure_authority_does_not_cite_active_run_helpers(self):
         queue_block = package_block(read(FLEET_QUEUE))
+        design_queue_block = package_block(read(DESIGN_QUEUE))
         registry = registry_task_block(read(REGISTRY))
         proof_floor = read(ROOT / "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md")
         generated_proof = read(ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json")
@@ -114,7 +120,7 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
             "active-run helper",
         )
 
-        combined = "\n".join((queue_block, registry, proof_floor, generated_proof)).lower()
+        combined = "\n".join((queue_block, design_queue_block, registry, proof_floor, generated_proof)).lower()
         for token in forbidden:
             self.assertNotIn(token.lower(), combined, token)
 
