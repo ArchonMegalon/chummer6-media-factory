@@ -83,6 +83,10 @@ public enum MediaRenderJobType
     DocumentPreviewImage,
     DocumentPdf,
     DocumentThumbnailImage,
+    RunsiteHostClip,
+    RunsiteRoutePreview,
+    RunsiteAudioCompanion,
+    RunsiteTourSibling,
     StructuredRecipeVideo,
     StructuredRecipeAudio,
     StructuredRecipePreviewCard,
@@ -118,6 +122,7 @@ public sealed record MediaRenderJobStatus(
     DateTimeOffset? StartedAtUtc,
     DateTimeOffset? CompletedAtUtc,
     string? AssetId,
+    string? AssetUrl,
     TimeSpan? CacheTtl,
     string? Error,
     AssetApprovalState? ApprovalState = null,
@@ -229,6 +234,69 @@ public sealed record RouteCinemaResult(
     IReadOnlyList<RouteCinemaArtifactHandle> Artifacts,
     TimeSpan? CacheTtl);
 
+public enum RunsiteOrientationArtifactRole
+{
+    HostClip,
+    RoutePreview,
+    AudioCompanion,
+    TourSibling
+}
+
+public sealed record RunsiteOrientationArtifactRenderRequest(
+    RunsiteOrientationArtifactRole Role,
+    string Category,
+    string Payload,
+    string OutputFormat,
+    string RouteSegmentId,
+    string DeduplicationKey,
+    TimeSpan? CacheTtl = null,
+    int MaxBytes = 0,
+    bool RequiresApproval = false,
+    bool PersistOnApproval = false,
+    bool AllowPersistentPinning = true);
+
+public sealed record RunsiteOrientationBundleRequest(
+    string BundleId,
+    string ApprovedRunsitePackId,
+    string RouteSummaryId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    IReadOnlyList<RunsiteOrientationArtifactRenderRequest> Artifacts);
+
+public sealed record RunsiteOrientationArtifactReceipt(
+    string ReceiptId,
+    RunsiteOrientationArtifactRole Role,
+    string Category,
+    string RouteSegmentId,
+    string OutputFormat,
+    string JobId,
+    MediaRenderJobState JobState,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
+public sealed record RunsiteRoutePreviewArtifactReceipt(
+    string RouteSegmentId,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
+public sealed record RunsiteOrientationBundleReceipt(
+    string BundleId,
+    string ApprovedRunsitePackId,
+    string RouteSummaryId,
+    string Source,
+    string PreviewTruthPosture,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset RenderedAtUtc,
+    IReadOnlyList<RunsiteOrientationArtifactReceipt> Artifacts,
+    IReadOnlyList<string> HostClipReceiptIds,
+    IReadOnlyList<string> RoutePreviewReceiptIds,
+    IReadOnlyList<RunsiteRoutePreviewArtifactReceipt> RoutePreviewArtifactReceipts,
+    IReadOnlyList<string> AudioCompanionReceiptIds,
+    IReadOnlyList<string> TourSiblingReceiptIds);
+
 public enum StructuredMediaRecipeFamily
 {
     Release,
@@ -279,6 +347,7 @@ public sealed record StructuredMediaRecipeArtifactReceipt(
     string JobId,
     MediaRenderJobState JobState,
     string? AssetId = null,
+    string? AssetUrl = null,
     TimeSpan? CacheTtl = null,
     AssetApprovalState? ApprovalState = null,
     AssetRetentionState? RetentionState = null,
@@ -287,11 +356,13 @@ public sealed record StructuredMediaRecipeArtifactReceipt(
 public sealed record StructuredMediaRecipePublicationRefReceipt(
     string Ref,
     StructuredMediaRecipeArtifactRole Role,
+    string Category,
     string ReceiptId,
     string JobId,
     MediaRenderJobState JobState,
     string OutputFormat,
     string? AssetId = null,
+    string? AssetUrl = null,
     TimeSpan? CacheTtl = null,
     AssetApprovalState? ApprovalState = null,
     AssetRetentionState? RetentionState = null,
@@ -300,6 +371,7 @@ public sealed record StructuredMediaRecipePublicationRefReceipt(
 public sealed record StructuredMediaRecipePublicationReadyRef(
     string Ref,
     StructuredMediaRecipeArtifactRole Role,
+    string Category,
     string ReceiptId,
     string JobId,
     MediaRenderJobState JobState,
@@ -307,6 +379,7 @@ public sealed record StructuredMediaRecipePublicationReadyRef(
     IReadOnlyList<string> CaptionRefs,
     IReadOnlyList<string> PreviewRefs,
     string? AssetId = null,
+    string? AssetUrl = null,
     TimeSpan? CacheTtl = null,
     AssetApprovalState? ApprovalState = null,
     AssetRetentionState? RetentionState = null,
@@ -315,11 +388,13 @@ public sealed record StructuredMediaRecipePublicationReadyRef(
 public sealed record StructuredMediaRecipeRefArtifactReceipt(
     string ReceiptId,
     StructuredMediaRecipeArtifactRole Role,
+    string Category,
     string PublicationRef,
     string JobId,
     MediaRenderJobState JobState,
     string OutputFormat,
     string? AssetId = null,
+    string? AssetUrl = null,
     TimeSpan? CacheTtl = null,
     AssetApprovalState? ApprovalState = null,
     AssetRetentionState? RetentionState = null,
