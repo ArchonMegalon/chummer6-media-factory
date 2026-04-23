@@ -54,7 +54,7 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
             "wave: W10",
             "repo: chummer6-media-factory",
             "status: complete",
-            "landed_commit: 2818ec9",
+            "landed_commit: 3accc50",
             "completion_action: verify_closed_package_only",
             "do_not_reopen_reason: M110 chummer6-media-factory runsite orientation bundles are complete",
             "- src",
