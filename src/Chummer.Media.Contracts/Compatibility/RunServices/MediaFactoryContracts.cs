@@ -119,7 +119,10 @@ public sealed record MediaRenderJobStatus(
     DateTimeOffset? CompletedAtUtc,
     string? AssetId,
     TimeSpan? CacheTtl,
-    string? Error);
+    string? Error,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public enum PacketArtifactRole
 {
@@ -276,7 +279,10 @@ public sealed record StructuredMediaRecipeArtifactReceipt(
     string JobId,
     MediaRenderJobState JobState,
     string? AssetId = null,
-    TimeSpan? CacheTtl = null);
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public sealed record StructuredMediaRecipePublicationRefReceipt(
     string Ref,
@@ -286,7 +292,10 @@ public sealed record StructuredMediaRecipePublicationRefReceipt(
     MediaRenderJobState JobState,
     string OutputFormat,
     string? AssetId = null,
-    TimeSpan? CacheTtl = null);
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public sealed record StructuredMediaRecipePublicationReadyRef(
     string Ref,
@@ -298,7 +307,10 @@ public sealed record StructuredMediaRecipePublicationReadyRef(
     IReadOnlyList<string> CaptionRefs,
     IReadOnlyList<string> PreviewRefs,
     string? AssetId = null,
-    TimeSpan? CacheTtl = null);
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public sealed record StructuredMediaRecipeRefArtifactReceipt(
     string ReceiptId,
@@ -308,7 +320,10 @@ public sealed record StructuredMediaRecipeRefArtifactReceipt(
     MediaRenderJobState JobState,
     string OutputFormat,
     string? AssetId = null,
-    TimeSpan? CacheTtl = null);
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public sealed record StructuredMediaRecipeCaptionRefReceipt(
     string Ref,

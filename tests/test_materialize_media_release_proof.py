@@ -42,8 +42,11 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
             self.assertEqual(107, package["milestone_id"])
             self.assertEqual("complete", package["status"])
             self.assertEqual("verify_closed_package_only", package["completion_action"])
-            self.assertEqual("e93f8f4", package["proof_floor_commit"])
-            self.assertEqual("Tighten M107 structured recipe receipt refs", package["proof_floor_summary"])
+            self.assertEqual("9614cca", package["proof_floor_commit"])
+            self.assertEqual(
+                "Pin M107 queue-mirror closure guard with structured recipe receipt refs, lifecycle truth, and output-ref dedupe safety",
+                package["proof_floor_summary"],
+            )
             self.assertEqual(
                 ["structured_media_recipe_execution", "artifact_factory:receipts"],
                 package["owned_surfaces"],
@@ -69,18 +72,26 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "StructuredMediaRecipeRoleReceiptGroup",
                     "StructuredMediaRecipeRefArtifactReceipt",
                     "ArtifactReceipts",
+                    "ApprovalState",
+                    "RetentionState",
+                    "StorageClass",
                 ],
                 package["receipt_rows"],
             )
             self.assertEqual(
                 [
-                    "publication-ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, and cache ttl",
+                    "recipe execution waits for completed media jobs before emitting publication-ready receipt refs",
+                    "publication-ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, cache ttl, approval state, retention state, and storage class",
                     "bundle receipts expose aggregate JobIds matching every video, audio, preview-card, and packet-bundle artifact job",
-                    "publication ref receipt rows preserve receipt id, job id, job state, output format, asset id, and cache ttl",
-                    "role receipt groups preserve each video, audio, preview-card, and packet-bundle sibling's receipt ids, job ids, publication refs, caption refs, preview refs, and artifact rows",
-                    "caption ref receipt rows group shared refs while preserving per-artifact publication and job detail",
-                    "preview ref receipt rows group shared refs while preserving packet-bundle publication and job detail",
+                    "publication ref receipt rows preserve receipt id, job id, job state, output format, asset id, cache ttl, approval state, retention state, and storage class",
+                    "role receipt groups preserve each video, audio, preview-card, and packet-bundle sibling's receipt ids, job ids, publication refs, caption refs, preview refs, lifecycle truth, and artifact rows",
+                    "caption ref receipt rows group shared refs while preserving per-artifact publication, job, and lifecycle detail",
+                    "preview ref receipt rows group shared refs while preserving packet-bundle publication, job, and lifecycle detail",
                     "packet-bundle siblings require at least one preview ref before recipe execution",
+                    "publication refs are unique per recipe bundle so publication-ready receipt rows remain unambiguous",
+                    "job dedupe includes artifact category, output format, and publication ref so colliding caller dedupe keys cannot collapse different recipe outputs",
+                    "job dedupe uses length-prefixed hashing so delimiter-heavy category, output format, publication ref, and caller dedupe values cannot collapse different recipe outputs",
+                    "receipt hashes include caption and preview refs so publication-ready refs remain tied to their emitted caption and preview surfaces",
                 ],
                 package["publication_ready_ref_guards"],
             )

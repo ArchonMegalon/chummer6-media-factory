@@ -42,6 +42,9 @@ class StructuredMediaRecipeExecutionTests(unittest.TestCase):
             "PreviewRefReceipts",
             "RoleReceiptGroups",
             "ArtifactReceipts",
+            "ApprovalState",
+            "RetentionState",
+            "StorageClass",
         ):
             self.assertTrue(token in contracts or token in runtime, token)
 
@@ -61,9 +64,36 @@ class StructuredMediaRecipeExecutionTests(unittest.TestCase):
             "BuildPreviewRefReceipts",
             "BuildRoleReceiptGroups",
             "BuildRefArtifactReceipts",
+            "WaitForTerminalStatusAsync",
+            "RequireUniquePublicationRefs",
+            "publication refs must be unique",
             "PacketBundle && previewRefs.Count == 0",
+            "artifact.OutputFormat",
+            "artifact.PublicationRef",
+            "field.Length",
+            "structured-media-recipe:",
+            "status.State is MediaRenderJobState.Succeeded",
+            "ApprovalState: status.ApprovalState",
+            "RetentionState: status.RetentionState",
+            "StorageClass: status.StorageClass",
         ):
             self.assertIn(token, runtime)
+
+    def test_recipe_smoke_proves_output_ref_dedupe_collision_safety(self):
+        smoke = read("tests/StructuredMediaRecipeSmoke/Program.cs")
+
+        for token in (
+            "recipe-execution-collision-proof",
+            "public-proof://release/video-web",
+            "caption://release/en-US.web.vtt",
+            "preview://release/web-card",
+            "Different video output refs must not collapse onto one recipe job",
+            "recipe-execution-delimiter-collision-proof",
+            "Delimiter-heavy recipe output refs must not collapse onto one recipe job",
+            "duplicate-publication-ref",
+            "Duplicate publication ref validation did not fail.",
+        ):
+            self.assertIn(token, smoke)
 
     def test_recipe_execution_stays_render_only(self):
         runtime = read("src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs")

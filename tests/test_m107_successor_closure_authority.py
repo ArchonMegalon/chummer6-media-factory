@@ -1,4 +1,8 @@
 from pathlib import Path
+import json
+import subprocess
+import sys
+import tempfile
 import unittest
 
 
@@ -107,8 +111,24 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
         design_queue_block = package_block(read(DESIGN_QUEUE))
         registry = registry_task_block(read(REGISTRY))
         proof_floor = read(ROOT / "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md")
-        generated_proof = read(ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json")
-        self.assertIn('"proof_floor_commit": "e93f8f4"', generated_proof)
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/ai/materialize_media_release_proof.py",
+                    "--out-dir",
+                    tmp,
+                    "--status",
+                    "passed",
+                ],
+                cwd=ROOT,
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+            generated_proof = (Path(tmp) / "MEDIA_LOCAL_RELEASE_PROOF.generated.json").read_text(encoding="utf-8")
+
+        package = json.loads(generated_proof)["successor_packages"][0]
+        self.assertEqual("9614cca", package["proof_floor_commit"])
 
         forbidden = (
             "TASK_LOCAL_TELEMETRY.generated.json",
