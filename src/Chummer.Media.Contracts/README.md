@@ -8,6 +8,7 @@ Contract families:
 - render job queue state (`Jobs/*`)
 - packet/document capability result contracts (`Packet*`)
 - route cinema capability result contracts (`RouteCinema*`)
+- structured media recipe receipts (`StructuredMediaRecipe*`), including first-class publication, caption, and preview ref receipt rows
 - media asset manifest and lifecycle state (`Assets/*`)
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)
