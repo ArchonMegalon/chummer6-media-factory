@@ -26,15 +26,22 @@ class StructuredMediaRecipeExecutionTests(unittest.TestCase):
             "AudioReceiptIds",
             "PreviewReceiptIds",
             "PacketReceiptIds",
+            "JobIds",
             "PublicationRefs",
             "CaptionRefs",
             "PreviewRefs",
             "StructuredMediaRecipePublicationRefReceipt",
+            "StructuredMediaRecipePublicationReadyRef",
             "StructuredMediaRecipeCaptionRefReceipt",
             "StructuredMediaRecipePreviewRefReceipt",
+            "StructuredMediaRecipeRefArtifactReceipt",
+            "StructuredMediaRecipeRoleReceiptGroup",
             "PublicationRefReceipts",
+            "PublicationReadyRefs",
             "CaptionRefReceipts",
             "PreviewRefReceipts",
+            "RoleReceiptGroups",
+            "ArtifactReceipts",
         ):
             self.assertTrue(token in contracts or token in runtime, token)
 
@@ -49,8 +56,12 @@ class StructuredMediaRecipeExecutionTests(unittest.TestCase):
             "MediaRenderJobEnqueueRequest",
             "recipe_receipt_",
             "BuildPublicationRefReceipts",
+            "BuildPublicationReadyRefs",
             "BuildCaptionRefReceipts",
             "BuildPreviewRefReceipts",
+            "BuildRoleReceiptGroups",
+            "BuildRefArtifactReceipts",
+            "PacketBundle && previewRefs.Count == 0",
         ):
             self.assertIn(token, runtime)
 

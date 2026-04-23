@@ -58,8 +58,31 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 package["artifact_roles"],
             )
             self.assertEqual(
-                ["PublicationRefReceipts", "CaptionRefReceipts", "PreviewRefReceipts"],
+                [
+                    "PublicationRefReceipts",
+                    "PublicationReadyRefs",
+                    "StructuredMediaRecipePublicationReadyRef",
+                    "JobIds",
+                    "CaptionRefReceipts",
+                    "PreviewRefReceipts",
+                    "RoleReceiptGroups",
+                    "StructuredMediaRecipeRoleReceiptGroup",
+                    "StructuredMediaRecipeRefArtifactReceipt",
+                    "ArtifactReceipts",
+                ],
                 package["receipt_rows"],
+            )
+            self.assertEqual(
+                [
+                    "publication-ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, and cache ttl",
+                    "bundle receipts expose aggregate JobIds matching every video, audio, preview-card, and packet-bundle artifact job",
+                    "publication ref receipt rows preserve receipt id, job id, job state, output format, asset id, and cache ttl",
+                    "role receipt groups preserve each video, audio, preview-card, and packet-bundle sibling's receipt ids, job ids, publication refs, caption refs, preview refs, and artifact rows",
+                    "caption ref receipt rows group shared refs while preserving per-artifact publication and job detail",
+                    "preview ref receipt rows group shared refs while preserving packet-bundle publication and job detail",
+                    "packet-bundle siblings require at least one preview ref before recipe execution",
+                ],
+                package["publication_ready_ref_guards"],
             )
             self.assertIn(
                 "src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs",

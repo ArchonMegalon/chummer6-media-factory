@@ -288,15 +288,48 @@ public sealed record StructuredMediaRecipePublicationRefReceipt(
     string? AssetId = null,
     TimeSpan? CacheTtl = null);
 
+public sealed record StructuredMediaRecipePublicationReadyRef(
+    string Ref,
+    StructuredMediaRecipeArtifactRole Role,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
+public sealed record StructuredMediaRecipeRefArtifactReceipt(
+    string ReceiptId,
+    StructuredMediaRecipeArtifactRole Role,
+    string PublicationRef,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
 public sealed record StructuredMediaRecipeCaptionRefReceipt(
     string Ref,
     IReadOnlyList<string> ReceiptIds,
-    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles);
+    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
 
 public sealed record StructuredMediaRecipePreviewRefReceipt(
     string Ref,
     IReadOnlyList<string> ReceiptIds,
-    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles);
+    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
+
+public sealed record StructuredMediaRecipeRoleReceiptGroup(
+    StructuredMediaRecipeArtifactRole Role,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> PublicationRefs,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
 
 public sealed record StructuredMediaRecipeBundleReceipt(
     string RecipeExecutionId,
@@ -310,9 +343,12 @@ public sealed record StructuredMediaRecipeBundleReceipt(
     IReadOnlyList<string> AudioReceiptIds,
     IReadOnlyList<string> PreviewReceiptIds,
     IReadOnlyList<string> PacketReceiptIds,
+    IReadOnlyList<string> JobIds,
     IReadOnlyList<string> PublicationRefs,
+    IReadOnlyList<StructuredMediaRecipePublicationReadyRef> PublicationReadyRefs,
     IReadOnlyList<string> CaptionRefs,
     IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<StructuredMediaRecipeRoleReceiptGroup> RoleReceiptGroups,
     IReadOnlyList<StructuredMediaRecipePublicationRefReceipt> PublicationRefReceipts,
     IReadOnlyList<StructuredMediaRecipeCaptionRefReceipt> CaptionRefReceipts,
     IReadOnlyList<StructuredMediaRecipePreviewRefReceipt> PreviewRefReceipts);
