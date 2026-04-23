@@ -8,6 +8,35 @@ from pathlib import Path
 from typing import Any, Dict
 
 UTC = dt.timezone.utc
+M107_STRUCTURED_RECIPE_PACKAGE = {
+    "package_id": "next90-m107-media-factory-recipe-execution",
+    "frontier_id": 1746209281,
+    "milestone_id": 107,
+    "status": "complete",
+    "completion_action": "verify_closed_package_only",
+    "owned_surfaces": [
+        "structured_media_recipe_execution",
+        "artifact_factory:receipts",
+    ],
+    "artifact_roles": [
+        "StructuredRecipeVideo",
+        "StructuredRecipeAudio",
+        "StructuredRecipePreviewCard",
+        "StructuredRecipePacketBundle",
+    ],
+    "receipt_rows": [
+        "PublicationRefReceipts",
+        "CaptionRefReceipts",
+        "PreviewRefReceipts",
+    ],
+    "proof": [
+        "src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs",
+        "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+        "tests/StructuredMediaRecipeSmoke/Program.cs",
+        "tests/test_structured_media_recipe_execution.py",
+        "scripts/ai/verify.sh",
+    ],
+}
 
 
 def iso_now() -> str:
@@ -52,8 +81,11 @@ def main() -> int:
         "evidence": {
             "runtime_verify_project": "Chummer.Media.Factory.Runtime.Verify",
             "build_lane": "dotnet build Chummer.Media.Factory.slnx --configuration Release",
-            "release_surface": "render jobs, manifests, previews, and asset lifecycle",
+            "release_surface": "render jobs, manifests, previews, structured recipe bundles, and asset lifecycle",
         },
+        "successor_packages": [
+            M107_STRUCTURED_RECIPE_PACKAGE,
+        ],
     }
 
     artifact_publication_certification = {
@@ -74,8 +106,11 @@ def main() -> int:
         ],
         "evidence": {
             "source": "Chummer.Media.Factory.Runtime.Verify",
-            "governance": "publication certification is manifest- and lifecycle-backed in media-factory outputs",
+            "governance": "publication certification is manifest-, recipe-receipt-, and lifecycle-backed in media-factory outputs",
         },
+        "successor_packages": [
+            M107_STRUCTURED_RECIPE_PACKAGE,
+        ],
     }
 
     write_json(out_dir / "MEDIA_LOCAL_RELEASE_PROOF.generated.json", media_release_proof)
