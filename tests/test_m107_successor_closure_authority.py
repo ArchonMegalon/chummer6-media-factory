@@ -9,7 +9,7 @@ REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90
 PACKAGE_ID = "next90-m107-media-factory-recipe-execution"
 FRONTIER_ID = "1746209281"
 LANDED_COMMIT = "47df6ab"
-PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f")
+PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f", "3dc59e0", "e93f8f4")
 
 
 def read(path: Path) -> str:
@@ -102,6 +102,7 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
         registry = registry_task_block(read(REGISTRY))
         proof_floor = read(ROOT / "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md")
         generated_proof = read(ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json")
+        self.assertIn('"proof_floor_commit": "e93f8f4"', generated_proof)
 
         forbidden = (
             "TASK_LOCAL_TELEMETRY.generated.json",
