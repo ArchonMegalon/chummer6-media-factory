@@ -14,8 +14,8 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
     "milestone_id": 107,
     "status": "complete",
     "completion_action": "verify_closed_package_only",
-    "proof_floor_commit": "9614cca",
-    "proof_floor_summary": "Pin M107 queue-mirror closure guard with structured recipe receipt refs, lifecycle truth, and output-ref dedupe safety",
+    "proof_floor_commit": "398f756",
+    "proof_floor_summary": "Pin M107 structured recipe receipt hardening with asset urls, stable replay ordering, and length-prefixed ref hashing",
     "owned_surfaces": [
         "structured_media_recipe_execution",
         "artifact_factory:receipts",
@@ -31,6 +31,7 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
         "PublicationReadyRefs",
         "StructuredMediaRecipePublicationReadyRef",
         "JobIds",
+        "AssetUrl",
         "CaptionRefReceipts",
         "PreviewRefReceipts",
         "RoleReceiptGroups",
@@ -44,6 +45,7 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
     "publication_ready_ref_guards": [
         "recipe execution waits for completed media jobs before emitting publication-ready receipt refs",
         "publication-ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, cache ttl, approval state, retention state, and storage class",
+        "artifact, publication-ready, publication-ref, caption-ref, and preview-ref receipt rows preserve direct asset urls so publication shelves do not need a follow-up asset lookup",
         "bundle receipts expose aggregate JobIds matching every video, audio, preview-card, and packet-bundle artifact job",
         "publication ref receipt rows preserve receipt id, job id, job state, output format, asset id, cache ttl, approval state, retention state, and storage class",
         "role receipt groups preserve each video, audio, preview-card, and packet-bundle sibling's receipt ids, job ids, publication refs, caption refs, preview refs, lifecycle truth, and artifact rows",
@@ -51,16 +53,70 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
         "preview ref receipt rows group shared refs while preserving packet-bundle publication, job, and lifecycle detail",
         "packet-bundle siblings require at least one preview ref before recipe execution",
         "publication refs are unique per recipe bundle so publication-ready receipt rows remain unambiguous",
+        "role, caption, and preview receipt groups sort their receipt ids and refs explicitly so replayed bundles keep stable publication evidence ordering",
         "job dedupe includes artifact category, output format, and publication ref so colliding caller dedupe keys cannot collapse different recipe outputs",
         "job dedupe uses length-prefixed hashing so delimiter-heavy category, output format, publication ref, and caller dedupe values cannot collapse different recipe outputs",
         "receipt hashes include caption and preview refs so publication-ready refs remain tied to their emitted caption and preview surfaces",
+        "receipt hashes use length-prefixed caption and preview ref segments so delimiter-heavy refs cannot collapse distinct publication-ready outputs onto one receipt id",
     ],
     "proof": [
         "src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs",
         "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
         "tests/StructuredMediaRecipeSmoke/Program.cs",
         "tests/test_structured_media_recipe_execution.py",
+        "tests/test_m107_successor_closure_authority.py",
         "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md",
+        "scripts/ai/materialize_media_release_proof.py",
+        "scripts/ai/verify.sh",
+    ],
+}
+
+M110_RUNSITE_ORIENTATION_PACKAGE = {
+    "package_id": "next90-m110-media-factory-runsite-bundles",
+    "frontier_id": 5126560638,
+    "milestone_id": 110,
+    "status": "complete",
+    "completion_action": "verify_closed_package_only",
+    "proof_floor_commit": "worktree-local",
+    "proof_floor_summary": "Pin M110 runsite orientation bundle proof with host clips, route-linked preview receipts, and preview-only posture",
+    "owned_surfaces": [
+        "runsite_orientation_bundle",
+        "route_preview:artifact_receipts",
+    ],
+    "artifact_roles": [
+        "RunsiteHostClip",
+        "RunsiteRoutePreview",
+        "RunsiteAudioCompanion",
+        "RunsiteTourSibling",
+    ],
+    "receipt_rows": [
+        "HostClipReceiptIds",
+        "RoutePreviewReceiptIds",
+        "RoutePreviewArtifactReceipts",
+        "RunsiteRoutePreviewArtifactReceipt",
+        "AudioCompanionReceiptIds",
+        "TourSiblingReceiptIds",
+        "Artifacts",
+        "JobId",
+        "CacheTtl",
+    ],
+    "orientation_guards": [
+        "runsite orientation bundles require at least one host clip before rendering",
+        "runsite orientation bundles require at least one route preview before rendering",
+        "preview truth posture stays pre-session-orientation-only-not-tactical-truth",
+        "route preview receipt rows preserve route segment ids plus receipt and media job identity",
+        "bundle-scoped dedupe keys include approved runsite pack, route summary, bundle id, role, route segment, category, output format, and caller dedupe",
+        "artifact receipts expose media-factory job ids for every host clip, route preview, audio companion, and optional tour sibling",
+        "orientation job dedupe and receipt hashing use length-prefixed segments so delimiter-heavy variants cannot collapse onto one media job or receipt id",
+    ],
+    "proof": [
+        "src/Chummer.Media.Factory.Runtime/Assets/RunsiteOrientationBundleService.cs",
+        "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+        "tests/RunsiteOrientationBundleSmoke/Program.cs",
+        "tests/test_runsite_orientation_bundle_contracts.py",
+        "tests/test_m110_successor_closure_authority.py",
+        "docs/NEXT90_M110_RUNSITE_ORIENTATION_PROOF_FLOOR.md",
+        "scripts/ai/materialize_media_release_proof.py",
         "scripts/ai/verify.sh",
     ],
 }
@@ -108,10 +164,11 @@ def main() -> int:
         "evidence": {
             "runtime_verify_project": "Chummer.Media.Factory.Runtime.Verify",
             "build_lane": "dotnet build Chummer.Media.Factory.slnx --configuration Release",
-            "release_surface": "render jobs, manifests, previews, structured recipe bundles, and asset lifecycle",
+            "release_surface": "render jobs, manifests, previews, runsite orientation bundles, structured recipe bundles, and asset lifecycle",
         },
         "successor_packages": [
             M107_STRUCTURED_RECIPE_PACKAGE,
+            M110_RUNSITE_ORIENTATION_PACKAGE,
         ],
     }
 
@@ -137,6 +194,7 @@ def main() -> int:
         },
         "successor_packages": [
             M107_STRUCTURED_RECIPE_PACKAGE,
+            M110_RUNSITE_ORIENTATION_PACKAGE,
         ],
     }
 
