@@ -17,10 +17,12 @@ Proof floor:
 - `e93f8f4` hardens generated proof with explicit structured publication-ready ref guards for per-artifact receipt, job, output-format, caption, preview, grouped caption, grouped preview, and packet-bundle preview receipt detail.
 - `e93f8f4` adds `RoleReceiptGroups` so each video, audio, preview-card, and packet-bundle sibling has a first-class grouped receipt row with receipt ids, job ids, publication refs, caption refs, preview refs, and artifact detail.
 - `e93f8f4` adds aggregate `JobIds` on `StructuredMediaRecipeBundleReceipt` so publication surfaces can prove every emitted sibling has a media-factory job without reconstructing coverage from role groups.
+- `6adf9a8` tightens completed-package closure authority so the Fleet queue mirror, canonical design queue mirror, registry task row, proof-floor note, and generated release proof all verify the same M107 media recipe package instead of reopening it.
 
 Required proof commands:
 
 - `python3 -m unittest tests/test_structured_media_recipe_execution.py tests/test_materialize_media_release_proof.py`
+- `python3 -m unittest tests/test_m107_successor_closure_authority.py`
 - `dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --configuration Release --nologo --verbosity quiet`
 
 Closed-package surface:
