@@ -30,7 +30,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         foreach (var artifact in normalized.Artifacts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var status = await _jobs.EnqueueAsync(
+            var enqueued = await _jobs.EnqueueAsync(
                 new MediaRenderJobEnqueueRequest(
                     JobType: ToJobType(artifact.Role),
                     DeduplicationKey: BuildScopedDeduplicationKey(normalized, artifact),
@@ -43,6 +43,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                     PersistOnApproval: artifact.PersistOnApproval,
                     AllowPersistentPinning: artifact.AllowPersistentPinning),
                 cancellationToken);
+            var status = await WaitForTerminalStatusAsync(enqueued.JobId, cancellationToken);
 
             receipts.Add(new StructuredMediaRecipeArtifactReceipt(
                 ReceiptId: BuildReceiptId(normalized, artifact),
@@ -55,7 +56,10 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 JobId: status.JobId,
                 JobState: status.State,
                 AssetId: status.AssetId,
-                CacheTtl: status.CacheTtl));
+                CacheTtl: status.CacheTtl,
+                ApprovalState: status.ApprovalState,
+                RetentionState: status.RetentionState,
+                StorageClass: status.StorageClass));
         }
 
         return new StructuredMediaRecipeBundleReceipt(
@@ -100,6 +104,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         RequireRole(artifacts, StructuredMediaRecipeArtifactRole.Audio, request);
         RequireRole(artifacts, StructuredMediaRecipeArtifactRole.PreviewCard, request);
         RequireRole(artifacts, StructuredMediaRecipeArtifactRole.PacketBundle, request);
+        RequireUniquePublicationRefs(artifacts);
 
         return request with
         {
@@ -150,6 +155,19 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         if (!artifacts.Any(artifact => artifact.Role == role))
         {
             throw new ArgumentException($"Structured media recipes require at least one {role} artifact.", nameof(request));
+        }
+    }
+
+    private static void RequireUniquePublicationRefs(IReadOnlyCollection<StructuredMediaRecipeArtifactRequest> artifacts)
+    {
+        var duplicate = artifacts
+            .GroupBy(static artifact => artifact.PublicationRef, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(static group => group.Count() > 1);
+        if (duplicate is not null)
+        {
+            throw new ArgumentException(
+                $"Structured media recipe publication refs must be unique per bundle: {duplicate.Key}.",
+                nameof(StructuredMediaRecipeRequest.Artifacts));
         }
     }
 
@@ -220,21 +238,34 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
 
     private static string BuildScopedDeduplicationKey(
         StructuredMediaRecipeRequest request,
-        StructuredMediaRecipeArtifactRequest artifact) =>
-        string.Join(
-            ":",
+        StructuredMediaRecipeArtifactRequest artifact)
+    {
+        var fields = new[]
+        {
             "structured-media-recipe",
-            request.RecipeFamily,
+            request.RecipeFamily.ToString(),
             request.ApprovedSourcePackId,
             request.RecipeExecutionId,
-            artifact.Role,
-            artifact.DeduplicationKey);
+            artifact.Role.ToString(),
+            artifact.Category,
+            artifact.OutputFormat,
+            artifact.PublicationRef,
+            artifact.DeduplicationKey
+        };
+        var input = string.Join("\n", fields.Select(static field => $"{field.Length}:{field}"));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return "structured-media-recipe:" + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 
     private static string BuildReceiptId(
         StructuredMediaRecipeRequest request,
         StructuredMediaRecipeArtifactRequest artifact)
     {
-        var input = BuildScopedDeduplicationKey(request, artifact) + ":" + artifact.OutputFormat + ":" + artifact.PublicationRef;
+        var input = string.Join(
+            "\n",
+            BuildScopedDeduplicationKey(request, artifact),
+            string.Join("|", artifact.CaptionRefs),
+            string.Join("|", artifact.PreviewRefs));
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return "recipe_receipt_" + Convert.ToHexString(bytes).ToLowerInvariant()[..16];
     }
@@ -260,7 +291,10 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 JobState: receipt.JobState,
                 OutputFormat: receipt.OutputFormat,
                 AssetId: receipt.AssetId,
-                CacheTtl: receipt.CacheTtl))
+                CacheTtl: receipt.CacheTtl,
+                ApprovalState: receipt.ApprovalState,
+                RetentionState: receipt.RetentionState,
+                StorageClass: receipt.StorageClass))
             .ToArray();
 
     private static IReadOnlyList<StructuredMediaRecipePublicationReadyRef> BuildPublicationReadyRefs(
@@ -278,7 +312,10 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 CaptionRefs: receipt.CaptionRefs,
                 PreviewRefs: receipt.PreviewRefs,
                 AssetId: receipt.AssetId,
-                CacheTtl: receipt.CacheTtl))
+                CacheTtl: receipt.CacheTtl,
+                ApprovalState: receipt.ApprovalState,
+                RetentionState: receipt.RetentionState,
+                StorageClass: receipt.StorageClass))
             .ToArray();
 
     private static IReadOnlyList<StructuredMediaRecipeCaptionRefReceipt> BuildCaptionRefReceipts(
@@ -334,6 +371,38 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 JobState: receipt.JobState,
                 OutputFormat: receipt.OutputFormat,
                 AssetId: receipt.AssetId,
-                CacheTtl: receipt.CacheTtl))
+                CacheTtl: receipt.CacheTtl,
+                ApprovalState: receipt.ApprovalState,
+                RetentionState: receipt.RetentionState,
+                StorageClass: receipt.StorageClass))
             .ToArray();
+
+    private async Task<MediaRenderJobStatus> WaitForTerminalStatusAsync(
+        string jobId,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var status = _jobs.Get(jobId);
+            if (status is null)
+            {
+                throw new InvalidOperationException($"Structured media recipe job {jobId} disappeared before receipt emission.");
+            }
+
+            if (status.State is MediaRenderJobState.Succeeded)
+            {
+                return status;
+            }
+
+            if (status.State is MediaRenderJobState.Failed or MediaRenderJobState.Expired)
+            {
+                throw new InvalidOperationException($"Structured media recipe job {jobId} ended as {status.State}: {status.Error ?? "unknown"}");
+            }
+
+            await Task.Delay(20, cancellationToken);
+        }
+
+        throw new TimeoutException($"Structured media recipe job {jobId} did not finish before receipt emission.");
+    }
 }
