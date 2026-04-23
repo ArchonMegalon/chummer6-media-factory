@@ -36,6 +36,7 @@ M107_STRUCTURED_RECIPE_PACKAGE = {
         "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
         "tests/StructuredMediaRecipeSmoke/Program.cs",
         "tests/test_structured_media_recipe_execution.py",
+        "docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md",
         "scripts/ai/verify.sh",
     ],
 }

@@ -65,6 +65,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 "src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs",
                 package["proof"],
             )
+            self.assertIn("docs/NEXT90_M107_MEDIA_RECIPE_PROOF_FLOOR.md", package["proof"])
 
 
 if __name__ == "__main__":
