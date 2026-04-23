@@ -14,7 +14,7 @@ M108_CAMPAIGN_BRIEFING_PACKAGE = {
     "milestone_id": 108,
     "status": "complete",
     "completion_action": "verify_closed_package_only",
-    "proof_floor_commit": "M108_PROOF_FLOOR_COMMIT",
+    "proof_floor_commit": "ef3f006",
     "proof_floor_summary": "Pin M108 campaign briefing bundle closure with locale-bundled caption and preview siblings, bounded fallback locales, and length-prefixed receipt hashing",
     "owned_surfaces": [
         "campaign_briefing_bundle_rendering",
@@ -391,6 +391,7 @@ M113_GM_PREP_PACKET_PACKAGE = {
         "GM prep packet rendering rejects duplicate source entries and duplicate packet refs inside one governed render request",
         "bundle-scoped dedupe keys include governed source pack id, source pack revision id, rendering id, subject kind, source entry id, packet ref, artifact role, category, output format, and caller dedupe key",
         "receipt hashes use length-prefixed subject-kind, artifact-role, and output-format segments so delimiter-heavy GM prep variants cannot collapse distinct outputs onto one receipt id",
+        "entry receipt ids and subject receipt group ids stay scoped to governed source pack id, source pack revision id, and rendering id so reused packet refs cannot alias grouped evidence across governed packs",
         "subject receipt groups preserve grouped entry ids, packet refs, packet receipt ids, preview receipt ids, optional briefing receipt ids, aggregate job ids, and grouped artifact rows so downstream shelves do not need to reconstruct governed prep evidence from raw artifact receipts",
         "GM prep packet artifact receipts preserve asset urls, approval state, retention state, and storage class alongside packet, preview, and optional briefing outputs",
         "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
