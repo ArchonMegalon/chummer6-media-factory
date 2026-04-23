@@ -49,15 +49,21 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
         expected_tokens = (
             "title: Render runsite host clips, route previews, and orientation bundle receipts",
             "task: Make runsite orientation a first-class artifact bundle with host clips, previews, and route-linked receipts.",
+            "frontier_id: 5126560638",
             "milestone_id: 110",
             "wave: W10",
             "repo: chummer6-media-factory",
+            "status: complete",
+            "landed_commit: 2818ec9",
+            "completion_action: verify_closed_package_only",
+            "do_not_reopen_reason: M110 chummer6-media-factory runsite orientation bundles are complete",
             "- src",
             "- tests",
             "- docs",
             "- scripts",
             "runsite_orientation_bundle",
             "route_preview:artifact_receipts",
+            "tests/test_m110_successor_closure_authority.py",
         )
 
         for block in (package_block(read(FLEET_QUEUE)), package_block(read(DESIGN_QUEUE))):
@@ -65,10 +71,6 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
                 self.assertIn(token, block, token)
 
             for forbidden in (
-                "status: complete",
-                "landed_commit:",
-                "completion_action:",
-                "do_not_reopen_reason:",
                 "artifact_factory:receipts",
                 "structured_media_recipe_execution",
             ):
