@@ -4,7 +4,7 @@
     "governance": "publication certification is manifest-, recipe-receipt-, and lifecycle-backed in media-factory outputs",
     "source": "Chummer.Media.Factory.Runtime.Verify"
   },
-  "generated_at": "2026-04-23T22:30:47Z",
+  "generated_at": "2026-04-24T04:44:48Z",
   "lanes": [
     "target.sheet-viewer",
     "target.print-pdf-export",
@@ -157,6 +157,12 @@
       "status": "complete"
     },
     {
+      "allowed_paths": [
+        "src",
+        "tests",
+        "docs",
+        "scripts"
+      ],
       "artifact_roles": [
         "BuildExplainCompanionVideo",
         "BuildExplainCompanionAudio",
@@ -164,7 +170,11 @@
         "BuildExplainCompanionPacketCompanion"
       ],
       "build_explain_guards": [
+        "request-level rendering id, approved explain packet id, explain packet revision id, and source normalize surrounding whitespace before scope enforcement, dedupe, and receipt emission so valid padded retries keep stable job ids and receipt ids",
+        "null artifact lists and null sibling entries fail closed with explicit request-scoped validation before approved explain packet normalization continues",
         "sibling payloads must stay scoped to the approved explain packet id and explain packet revision id before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+        "JSON and keyed text scope values trim surrounding whitespace before exact scope matching so padded approved explain payloads stay valid without reopening substring spoof paths",
+        "valid JSON payloads fail closed when required scope fields are missing so object, array, or string note payloads cannot bypass approved explain packet validation through substring fallback",
         "non-JSON scope fallback requires exact keyed values or delimited scope tokens so near-match packet and revision ids cannot slip through by substring collision",
         "build explain companion rendering requires one video, one audio, one preview-card, and one packet companion before the bundle can render",
         "build explain video and audio siblings require caption refs while video, preview-card, and packet companions require preview refs",
@@ -176,7 +186,9 @@
         "source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity so replayed approved explain packet renders cannot fork stable job ids, receipt ids, ready refs, or grouped role receipts",
         "companion ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, asset url, cache ttl, approval state, retention state, and storage class",
         "role, caption, and preview receipt groups preserve aggregate job ids, grouped companion refs, and grouped artifact rows so downstream shelves do not need to reconstruct explain evidence from raw artifact receipts",
-        "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp"
+        "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
+        "build explain package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+        "queue and registry mirrors must match the canonical M109 package and task blocks exactly so repo-local proof cannot drift on status or scoped fields"
       ],
       "completion_action": "implementation_only",
       "frontier_id": 4037265286,
@@ -189,12 +201,14 @@
       "proof": [
         "src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs",
         "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+        "src/Chummer.Media.Contracts/README.md",
         "tests/BuildExplainCompanionSmoke/Program.cs",
         "tests/test_m109_successor_package_authority.py",
         "tests/test_build_explain_companion_rendering.py",
         "tests/test_m109_build_explain_proof.py",
         "docs/NEXT90_M109_BUILD_EXPLAIN_COMPANION_PROOF_FLOOR.md",
         "scripts/ai/materialize_media_release_proof.py",
+        "scripts/ai/verify.sh",
         "scripts/ai/verify_m109_build_explain_companion.sh"
       ],
       "proof_floor_commit": "unlanded",
@@ -222,7 +236,12 @@
         "RetentionState",
         "StorageClass"
       ],
-      "status": "in_progress"
+      "repo": "chummer6-media-factory",
+      "status": "in_progress",
+      "task": "Render approved Build Lab explain packets into video, audio, preview-card, and packet companions without mutating engine truth.",
+      "title": "Render build explainer video, audio, preview-card, and packet siblings from approved explain packets",
+      "wave": "W9",
+      "work_task_id": "109.3"
     },
     {
       "artifact_roles": [
@@ -241,7 +260,8 @@
         "route preview receipt rows preserve route segment ids plus receipt and media job identity",
         "bundle-scoped dedupe keys include approved runsite pack, route summary, bundle id, role, route segment, category, output format, and caller dedupe",
         "artifact receipts expose media-factory job ids for every host clip, route preview, audio companion, and optional tour sibling",
-        "orientation job dedupe and receipt hashing use length-prefixed segments so delimiter-heavy variants cannot collapse onto one media job or receipt id"
+        "orientation job dedupe and receipt hashing use length-prefixed segments so delimiter-heavy variants cannot collapse onto one media job or receipt id",
+        "runsite orientation package authority requires exactly one canonical queue row per mirror and exactly one registry task block"
       ],
       "owned_surfaces": [
         "runsite_orientation_bundle",
@@ -274,6 +294,12 @@
       "status": "complete"
     },
     {
+      "allowed_paths": [
+        "src",
+        "tests",
+        "docs",
+        "scripts"
+      ],
       "artifact_roles": [
         "InstallAwareReleaseExplainerVideo",
         "InstallAwareReleaseExplainerAudio",
@@ -288,18 +314,26 @@
       "completion_action": "implementation_only",
       "frontier_id": 4132724850,
       "install_aware_concierge_guards": [
-        "install-aware concierge payloads must stay scoped to the install-aware packet id, installed build receipt id, and artifact identity id before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+        "install-aware concierge payloads must stay scoped to the install-aware packet id, installed build receipt id, and artifact identity id before media jobs enqueue, JSON payloads must match those scope fields exactly, and non-JSON payloads must satisfy keyed or delimiter-safe scope matching instead of raw substring mentions alone",
         "request-level rendering id, install-aware packet id, installed build receipt id, artifact identity id, and source values normalize surrounding whitespace before scope enforcement so valid concierge requests do not fail on padded caller input",
+        "parseable JSON payloads fail closed when required scope fields are missing or the root payload is not an object, so JSON strings, arrays, or note-only objects cannot bypass exact install-aware scope matching through text fallback",
+        "JSON and keyed text scope values trim surrounding whitespace before exact scope matching so padded install-aware payloads stay valid without reopening substring spoof paths",
         "install-aware concierge bundles require release explainer, support closure, and public concierge siblings to each emit video, audio, and preview-card artifacts before the bundle can render",
         "install-aware concierge video and audio companions require caption refs while video and preview-card companions require preview refs",
         "install-aware concierge artifacts require at least one sibling note ref and keep sibling notes bounded to at most two refs per artifact",
         "companion refs are unique per install-aware packet so downstream shelves cannot confuse release, support, and public concierge outputs",
         "bundle-scoped dedupe keys include install-aware packet id, installed build receipt id, artifact identity id, rendering id, bundle kind, sibling role, category, output format, companion ref, and caller dedupe key",
+        "source and requested timestamp metadata stay outside bundle-scoped dedupe, receipt identity, and companion-ready identity so replayed install-aware packets cannot fork stable jobs, receipt ids, or ready refs",
+        "normalized artifact ordering plus normalized caption, preview, and sibling-note ref ordering keep receipt ids, companion refs, ready refs, and grouped bundle, role, caption, preview, and sibling-note receipt rows stable when callers reorder the same install-aware packet artifacts",
+        "case-insensitive caption, preview, and sibling-note dedupe selects one canonical ref spelling before receipt hashing and aggregate ref emission so mixed-case duplicate refs stay stable when callers reorder them",
         "receipt hashes include caption, preview, and sibling-note refs so concierge receipts stay tied to their emitted release, support, and public siblings",
         "receipt hashes use length-prefixed caption, preview, and sibling-note ref segments so delimiter-heavy refs cannot collapse distinct concierge outputs onto one receipt id",
+        "top-level caption, preview, and sibling-note aggregate refs stay first-class receipt rows so downstream shelves can surface bundle-wide concierge evidence without reconstructing it from grouped rows",
         "companion ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, sibling note refs, asset id, asset url, cache ttl, approval state, retention state, and storage class",
-        "role, caption, preview, and sibling-note receipt groups preserve aggregate job ids, grouped companion refs, grouped bundle kinds, and grouped artifact rows so downstream shelves do not need to reconstruct concierge evidence from raw artifact receipts",
-        "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp"
+        "caption, preview, and sibling-note grouped receipt rows preserve bundle kinds, roles, and grouped asset urls so downstream shelves can publish first-class concierge evidence without reconstructing it from raw artifact receipts",
+        "bundle, role, caption, preview, and sibling-note receipt groups preserve aggregate job ids, grouped companion refs, grouped bundle kinds or roles, and grouped artifact rows so downstream shelves do not need to reconstruct concierge evidence from raw artifact receipts",
+        "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
+        "install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block"
       ],
       "milestone_id": 111,
       "owned_surfaces": [
@@ -321,7 +355,7 @@
         "scripts/ai/verify.sh"
       ],
       "proof_floor_commit": "unlanded",
-      "proof_floor_summary": "Track M111 install-aware concierge bundle implementation with scoped install-aware payloads, first-class companion refs, and bounded sibling notes",
+      "proof_floor_summary": "Track M111 install-aware concierge bundle implementation with exact package identity, scoped install-aware payloads, stable sibling ordering, and bounded sibling notes",
       "receipt_rows": [
         "ReleaseExplainerReceiptIds",
         "SupportClosureReceiptIds",
@@ -330,6 +364,11 @@
         "CompanionRefs",
         "CompanionReadyRefs",
         "InstallAwareConciergeCompanionReadyRef",
+        "CaptionRefs",
+        "PreviewRefs",
+        "SiblingNoteRefs",
+        "BundleReceiptGroups",
+        "InstallAwareConciergeBundleReceiptGroup",
         "RoleReceiptGroups",
         "InstallAwareConciergeRoleReceiptGroup",
         "CompanionRefReceipts",
@@ -346,7 +385,12 @@
         "RetentionState",
         "StorageClass"
       ],
-      "status": "in_progress"
+      "repo": "chummer6-media-factory",
+      "status": "in_progress",
+      "task": "Render install-aware release, support, and public concierge companions with captions, previews, and bounded sibling notes.",
+      "title": "Render release explainer, support closure, and public concierge companion bundles with captions, previews, and sibling notes",
+      "wave": "W9",
+      "work_task_id": "111.3"
     },
     {
       "artifact_roles": [
@@ -389,6 +433,7 @@
         "tests/test_m113_successor_package_authority.py",
         "docs/NEXT90_M113_GM_PREP_PACKET_PROOF_FLOOR.md",
         "scripts/ai/materialize_media_release_proof.py",
+        "scripts/ai/verify_m113_gm_prep_packets.sh",
         "scripts/ai/verify.sh"
       ],
       "proof_floor_commit": "unlanded",
