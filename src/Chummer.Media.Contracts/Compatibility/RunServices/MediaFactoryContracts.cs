@@ -82,7 +82,15 @@ public enum MediaRenderJobType
     PersonaMessageVideo,
     DocumentPreviewImage,
     DocumentPdf,
-    DocumentThumbnailImage
+    DocumentThumbnailImage,
+    RunsiteHostClip,
+    RunsiteRoutePreview,
+    RunsiteAudioCompanion,
+    RunsiteTourSibling,
+    StructuredRecipeVideo,
+    StructuredRecipeAudio,
+    StructuredRecipePreviewCard,
+    StructuredRecipePacketBundle
 }
 
 public enum MediaRenderJobState
@@ -114,8 +122,12 @@ public sealed record MediaRenderJobStatus(
     DateTimeOffset? StartedAtUtc,
     DateTimeOffset? CompletedAtUtc,
     string? AssetId,
+    string? AssetUrl,
     TimeSpan? CacheTtl,
-    string? Error);
+    string? Error,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
 
 public enum PacketArtifactRole
 {
@@ -221,5 +233,214 @@ public sealed record RouteCinemaResult(
     MediaRenderJobState RouteVideoJobState,
     IReadOnlyList<RouteCinemaArtifactHandle> Artifacts,
     TimeSpan? CacheTtl);
+
+public enum RunsiteOrientationArtifactRole
+{
+    HostClip,
+    RoutePreview,
+    AudioCompanion,
+    TourSibling
+}
+
+public sealed record RunsiteOrientationArtifactRenderRequest(
+    RunsiteOrientationArtifactRole Role,
+    string Category,
+    string Payload,
+    string OutputFormat,
+    string RouteSegmentId,
+    string DeduplicationKey,
+    TimeSpan? CacheTtl = null,
+    int MaxBytes = 0,
+    bool RequiresApproval = false,
+    bool PersistOnApproval = false,
+    bool AllowPersistentPinning = true);
+
+public sealed record RunsiteOrientationBundleRequest(
+    string BundleId,
+    string ApprovedRunsitePackId,
+    string RouteSummaryId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    IReadOnlyList<RunsiteOrientationArtifactRenderRequest> Artifacts);
+
+public sealed record RunsiteOrientationArtifactReceipt(
+    string ReceiptId,
+    RunsiteOrientationArtifactRole Role,
+    string Category,
+    string RouteSegmentId,
+    string OutputFormat,
+    string JobId,
+    MediaRenderJobState JobState,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
+public sealed record RunsiteRoutePreviewArtifactReceipt(
+    string RouteSegmentId,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string? AssetId = null,
+    TimeSpan? CacheTtl = null);
+
+public sealed record RunsiteOrientationBundleReceipt(
+    string BundleId,
+    string ApprovedRunsitePackId,
+    string RouteSummaryId,
+    string Source,
+    string PreviewTruthPosture,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset RenderedAtUtc,
+    IReadOnlyList<RunsiteOrientationArtifactReceipt> Artifacts,
+    IReadOnlyList<string> HostClipReceiptIds,
+    IReadOnlyList<string> RoutePreviewReceiptIds,
+    IReadOnlyList<RunsiteRoutePreviewArtifactReceipt> RoutePreviewArtifactReceipts,
+    IReadOnlyList<string> AudioCompanionReceiptIds,
+    IReadOnlyList<string> TourSiblingReceiptIds);
+
+public enum StructuredMediaRecipeFamily
+{
+    Release,
+    Support,
+    Publication,
+    ProofShelf
+}
+
+public enum StructuredMediaRecipeArtifactRole
+{
+    Video,
+    Audio,
+    PreviewCard,
+    PacketBundle
+}
+
+public sealed record StructuredMediaRecipeArtifactRequest(
+    StructuredMediaRecipeArtifactRole Role,
+    string Category,
+    string Payload,
+    string OutputFormat,
+    string PublicationRef,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string DeduplicationKey,
+    TimeSpan? CacheTtl = null,
+    int MaxBytes = 0,
+    bool RequiresApproval = false,
+    bool PersistOnApproval = false,
+    bool AllowPersistentPinning = true);
+
+public sealed record StructuredMediaRecipeRequest(
+    string RecipeExecutionId,
+    StructuredMediaRecipeFamily RecipeFamily,
+    string ApprovedSourcePackId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    IReadOnlyList<StructuredMediaRecipeArtifactRequest> Artifacts);
+
+public sealed record StructuredMediaRecipeArtifactReceipt(
+    string ReceiptId,
+    StructuredMediaRecipeArtifactRole Role,
+    string Category,
+    string OutputFormat,
+    string PublicationRef,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string JobId,
+    MediaRenderJobState JobState,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record StructuredMediaRecipePublicationRefReceipt(
+    string Ref,
+    StructuredMediaRecipeArtifactRole Role,
+    string Category,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record StructuredMediaRecipePublicationReadyRef(
+    string Ref,
+    StructuredMediaRecipeArtifactRole Role,
+    string Category,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record StructuredMediaRecipeRefArtifactReceipt(
+    string ReceiptId,
+    StructuredMediaRecipeArtifactRole Role,
+    string Category,
+    string PublicationRef,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record StructuredMediaRecipeCaptionRefReceipt(
+    string Ref,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
+
+public sealed record StructuredMediaRecipePreviewRefReceipt(
+    string Ref,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<StructuredMediaRecipeArtifactRole> Roles,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
+
+public sealed record StructuredMediaRecipeRoleReceiptGroup(
+    StructuredMediaRecipeArtifactRole Role,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> PublicationRefs,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<StructuredMediaRecipeRefArtifactReceipt> ArtifactReceipts);
+
+public sealed record StructuredMediaRecipeBundleReceipt(
+    string RecipeExecutionId,
+    StructuredMediaRecipeFamily RecipeFamily,
+    string ApprovedSourcePackId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset RenderedAtUtc,
+    IReadOnlyList<StructuredMediaRecipeArtifactReceipt> Artifacts,
+    IReadOnlyList<string> VideoReceiptIds,
+    IReadOnlyList<string> AudioReceiptIds,
+    IReadOnlyList<string> PreviewReceiptIds,
+    IReadOnlyList<string> PacketReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> PublicationRefs,
+    IReadOnlyList<StructuredMediaRecipePublicationReadyRef> PublicationReadyRefs,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<StructuredMediaRecipeRoleReceiptGroup> RoleReceiptGroups,
+    IReadOnlyList<StructuredMediaRecipePublicationRefReceipt> PublicationRefReceipts,
+    IReadOnlyList<StructuredMediaRecipeCaptionRefReceipt> CaptionRefReceipts,
+    IReadOnlyList<StructuredMediaRecipePreviewRefReceipt> PreviewRefReceipts);
 
 #pragma warning restore CS1591
