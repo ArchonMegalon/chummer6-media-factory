@@ -1,6 +1,6 @@
 # Chummer.Media.Contracts
 
-Canonical render-only DTO package for `chummer-media-factory`.
+Canonical render-verified DTO package for `chummer-media-factory`.
 
 Contract families:
 
@@ -8,7 +8,15 @@ Contract families:
 - render job queue state (`Jobs/*`)
 - packet/document capability result contracts (`Packet*`)
 - route cinema capability result contracts (`RouteCinema*`)
-- structured media recipe receipts (`StructuredMediaRecipe*`), including first-class publication, caption, and preview ref receipt rows
+- campaign briefing bundle receipts (`CampaignBriefing*`), including locale-bundle rows with stable receipt ids, first-class requested-locale/fallback summary fields, and bounded fallback sibling bundle receipts
+- starter onboarding artifact receipts (`StarterArtifact*`), including requested-locale and fallback locale groups plus first-class bundle, caption, preview, and support-note receipt rows for starter primers, first-session briefings, and support-safe onboarding companions
+- runsite orientation bundle receipts (`RunsiteOrientation*`)
+- structured media recipe receipts (`StructuredMediaRecipe*`), including structured publication-ready refs plus first-class role, publication, caption, and preview ref receipt rows with aggregate job and publication coverage
+- build explain companion receipts (`BuildExplainCompanion*`), including approved explain packet-scoped sibling refs plus first-class role, caption, and preview receipt rows with direct asset-url and lifecycle truth for downstream explain shelves
+- creator promo kit receipts (`CreatorPromoKit*`), including approved manifest-scoped video, poster, and preview-card siblings plus first-class artifact, caption, and preview receipt groups with direct asset-url and lifecycle truth for creator publication shelves
+- explain presenter sibling receipts (`ExplainPresenter*`), including approved explanation-packet audio or presenter siblings, grounding-scope identity, and first-party text fallback receipts without calculation authority
+- install-aware concierge bundle receipts (`InstallAwareConcierge*`), including release explainer, support closure, and public concierge siblings plus first-class aggregate caption/preview/sibling-note refs and grouped caption, preview, and sibling-note receipt rows
+- replay/exchange preview receipts (`ReplayExchangePreview*`), including recap, replay, and exchange preview-card plus inspectable sibling receipts with first-class bundle, kind, caption, and preview grouping for portable artifact shelves
 - media asset manifest and lifecycle state (`Assets/*`)
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)
@@ -30,4 +38,5 @@ Out of scope:
 - narrative authoring
 - campaign/session context
 - approval policy and delivery policy
+- route, map, or tactical truth
 - rules/canon authoring and provider-routing policy
