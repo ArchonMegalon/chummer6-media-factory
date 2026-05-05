@@ -26,6 +26,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
     {
         var normalized = Normalize(request);
         var receipts = new List<StructuredMediaRecipeArtifactReceipt>(normalized.Artifacts.Count);
+        DateTimeOffset? renderedAtUtc = null;
 
         foreach (var artifact in normalized.Artifacts)
         {
@@ -44,6 +45,10 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                     AllowPersistentPinning: artifact.AllowPersistentPinning),
                 cancellationToken);
             var status = await WaitForTerminalStatusAsync(enqueued.JobId, cancellationToken);
+            var jobRenderedAtUtc = status.CompletedAtUtc ?? status.CreatedAtUtc;
+            renderedAtUtc = renderedAtUtc is { } currentRenderedAtUtc
+                ? MaxTimestamp(currentRenderedAtUtc, jobRenderedAtUtc)
+                : jobRenderedAtUtc;
 
             receipts.Add(new StructuredMediaRecipeArtifactReceipt(
                 ReceiptId: BuildReceiptId(normalized, artifact),
@@ -56,6 +61,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 JobId: status.JobId,
                 JobState: status.State,
                 AssetId: status.AssetId,
+                AssetUrl: status.AssetUrl,
                 CacheTtl: status.CacheTtl,
                 ApprovalState: status.ApprovalState,
                 RetentionState: status.RetentionState,
@@ -68,7 +74,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             ApprovedSourcePackId: normalized.ApprovedSourcePackId,
             Source: normalized.Source,
             RequestedAtUtc: normalized.RequestedAtUtc,
-            RenderedAtUtc: DateTimeOffset.UtcNow,
+            RenderedAtUtc: renderedAtUtc ?? normalized.RequestedAtUtc,
             Artifacts: receipts,
             VideoReceiptIds: ReceiptIdsFor(receipts, StructuredMediaRecipeArtifactRole.Video),
             AudioReceiptIds: ReceiptIdsFor(receipts, StructuredMediaRecipeArtifactRole.Audio),
@@ -77,11 +83,12 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             JobIds: receipts
                 .Select(static receipt => receipt.JobId)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static jobId => jobId, StringComparer.OrdinalIgnoreCase)
                 .ToArray(),
-            PublicationRefs: receipts.Select(static receipt => receipt.PublicationRef).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            PublicationRefs: OrderedDistinct(receipts.Select(static receipt => receipt.PublicationRef)),
             PublicationReadyRefs: BuildPublicationReadyRefs(receipts),
-            CaptionRefs: receipts.SelectMany(static receipt => receipt.CaptionRefs).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            PreviewRefs: receipts.SelectMany(static receipt => receipt.PreviewRefs).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            CaptionRefs: OrderedDistinct(receipts.SelectMany(static receipt => receipt.CaptionRefs)),
+            PreviewRefs: OrderedDistinct(receipts.SelectMany(static receipt => receipt.PreviewRefs)),
             RoleReceiptGroups: BuildRoleReceiptGroups(receipts),
             PublicationRefReceipts: BuildPublicationRefReceipts(receipts),
             CaptionRefReceipts: BuildCaptionRefReceipts(receipts),
@@ -106,12 +113,20 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         RequireRole(artifacts, StructuredMediaRecipeArtifactRole.PacketBundle, request);
         RequireUniquePublicationRefs(artifacts);
 
+        var orderedArtifacts = artifacts
+            .OrderBy(static artifact => artifact.Role)
+            .ThenBy(static artifact => artifact.PublicationRef, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static artifact => artifact.OutputFormat, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static artifact => artifact.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static artifact => artifact.DeduplicationKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         return request with
         {
             RecipeExecutionId = request.RecipeExecutionId.Trim(),
             ApprovedSourcePackId = request.ApprovedSourcePackId.Trim(),
             Source = request.Source.Trim(),
-            Artifacts = artifacts
+            Artifacts = orderedArtifacts
         };
     }
 
@@ -184,26 +199,11 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                     .ToArray();
                 return new StructuredMediaRecipeRoleReceiptGroup(
                     Role: group.Key,
-                    ReceiptIds: rows
-                        .Select(static receipt => receipt.ReceiptId)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    JobIds: rows
-                        .Select(static receipt => receipt.JobId)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    PublicationRefs: rows
-                        .Select(static receipt => receipt.PublicationRef)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    CaptionRefs: rows
-                        .SelectMany(static receipt => receipt.CaptionRefs)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
-                    PreviewRefs: rows
-                        .SelectMany(static receipt => receipt.PreviewRefs)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray(),
+                    ReceiptIds: OrderedDistinct(rows.Select(static receipt => receipt.ReceiptId)),
+                    JobIds: OrderedDistinct(rows.Select(static receipt => receipt.JobId)),
+                    PublicationRefs: OrderedDistinct(rows.Select(static receipt => receipt.PublicationRef)),
+                    CaptionRefs: OrderedDistinct(rows.SelectMany(static receipt => receipt.CaptionRefs)),
+                    PreviewRefs: OrderedDistinct(rows.SelectMany(static receipt => receipt.PreviewRefs)),
                     ArtifactReceipts: BuildRefArtifactReceipts(rows));
             })
             .ToArray();
@@ -211,11 +211,10 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
     private static IReadOnlyList<string> NormalizeRefs(IReadOnlyList<string> refs, string name)
     {
         ArgumentNullException.ThrowIfNull(refs, name);
-        return refs
-            .Select(static value => value?.Trim() ?? string.Empty)
-            .Where(static value => value.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        return OrderedDistinct(
+            refs
+                .Select(static value => value?.Trim() ?? string.Empty)
+                .Where(static value => value.Length > 0));
     }
 
     private static void RequireText(string value, string name)
@@ -264,11 +263,23 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         var input = string.Join(
             "\n",
             BuildScopedDeduplicationKey(request, artifact),
-            string.Join("|", artifact.CaptionRefs),
-            string.Join("|", artifact.PreviewRefs));
+            BuildRefHashSegment("caption", artifact.CaptionRefs),
+            BuildRefHashSegment("preview", artifact.PreviewRefs));
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return "recipe_receipt_" + Convert.ToHexString(bytes).ToLowerInvariant()[..16];
     }
+
+    private static string BuildRefHashSegment(string prefix, IReadOnlyList<string> refs) =>
+        string.Join(
+            "\n",
+            new[] { $"{prefix}:{refs.Count}" }
+                .Concat(refs.Select(static value => $"{value.Length}:{value}")));
+
+    private static IReadOnlyList<string> OrderedDistinct(IEnumerable<string> values) =>
+        values
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static IReadOnlyList<string> ReceiptIdsFor(
         IEnumerable<StructuredMediaRecipeArtifactReceipt> receipts,
@@ -276,6 +287,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         receipts
             .Where(receipt => receipt.Role == role)
             .Select(static receipt => receipt.ReceiptId)
+            .OrderBy(static receiptId => receiptId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     private static IReadOnlyList<StructuredMediaRecipePublicationRefReceipt> BuildPublicationRefReceipts(
@@ -286,11 +298,15 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             .Select(static receipt => new StructuredMediaRecipePublicationRefReceipt(
                 Ref: receipt.PublicationRef,
                 Role: receipt.Role,
+                Category: receipt.Category,
                 ReceiptId: receipt.ReceiptId,
                 JobId: receipt.JobId,
                 JobState: receipt.JobState,
                 OutputFormat: receipt.OutputFormat,
+                CaptionRefs: receipt.CaptionRefs,
+                PreviewRefs: receipt.PreviewRefs,
                 AssetId: receipt.AssetId,
+                AssetUrl: receipt.AssetUrl,
                 CacheTtl: receipt.CacheTtl,
                 ApprovalState: receipt.ApprovalState,
                 RetentionState: receipt.RetentionState,
@@ -305,6 +321,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             .Select(static receipt => new StructuredMediaRecipePublicationReadyRef(
                 Ref: receipt.PublicationRef,
                 Role: receipt.Role,
+                Category: receipt.Category,
                 ReceiptId: receipt.ReceiptId,
                 JobId: receipt.JobId,
                 JobState: receipt.JobState,
@@ -312,6 +329,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
                 CaptionRefs: receipt.CaptionRefs,
                 PreviewRefs: receipt.PreviewRefs,
                 AssetId: receipt.AssetId,
+                AssetUrl: receipt.AssetUrl,
                 CacheTtl: receipt.CacheTtl,
                 ApprovalState: receipt.ApprovalState,
                 RetentionState: receipt.RetentionState,
@@ -326,10 +344,9 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             .OrderBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
             .Select(static group => new StructuredMediaRecipeCaptionRefReceipt(
                 Ref: group.Key,
-                ReceiptIds: group
-                    .Select(static item => item.receipt.ReceiptId)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray(),
+                ReceiptIds: OrderedDistinct(group.Select(static item => item.receipt.ReceiptId)),
+                JobIds: OrderedDistinct(group.Select(static item => item.receipt.JobId)),
+                PublicationRefs: OrderedDistinct(group.Select(static item => item.receipt.PublicationRef)),
                 Roles: group
                     .Select(static item => item.receipt.Role)
                     .Distinct()
@@ -346,10 +363,9 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             .OrderBy(static group => group.Key, StringComparer.OrdinalIgnoreCase)
             .Select(static group => new StructuredMediaRecipePreviewRefReceipt(
                 Ref: group.Key,
-                ReceiptIds: group
-                    .Select(static item => item.receipt.ReceiptId)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray(),
+                ReceiptIds: OrderedDistinct(group.Select(static item => item.receipt.ReceiptId)),
+                JobIds: OrderedDistinct(group.Select(static item => item.receipt.JobId)),
+                PublicationRefs: OrderedDistinct(group.Select(static item => item.receipt.PublicationRef)),
                 Roles: group
                     .Select(static item => item.receipt.Role)
                     .Distinct()
@@ -366,11 +382,15 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
             .Select(static receipt => new StructuredMediaRecipeRefArtifactReceipt(
                 ReceiptId: receipt.ReceiptId,
                 Role: receipt.Role,
+                Category: receipt.Category,
                 PublicationRef: receipt.PublicationRef,
                 JobId: receipt.JobId,
                 JobState: receipt.JobState,
                 OutputFormat: receipt.OutputFormat,
+                CaptionRefs: receipt.CaptionRefs,
+                PreviewRefs: receipt.PreviewRefs,
                 AssetId: receipt.AssetId,
+                AssetUrl: receipt.AssetUrl,
                 CacheTtl: receipt.CacheTtl,
                 ApprovalState: receipt.ApprovalState,
                 RetentionState: receipt.RetentionState,
@@ -405,4 +425,7 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
 
         throw new TimeoutException($"Structured media recipe job {jobId} did not finish before receipt emission.");
     }
+
+    private static DateTimeOffset MaxTimestamp(DateTimeOffset left, DateTimeOffset right) =>
+        left >= right ? left : right;
 }

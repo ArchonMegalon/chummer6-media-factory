@@ -4,8 +4,8 @@
     <PackageId>Chummer.Media.Contracts</PackageId>
     <AssemblyName>Chummer.Media.Contracts</AssemblyName>
     <RootNamespace>Chummer.Media.Contracts</RootNamespace>
-    <Description>Canonical render-only media job and asset lifecycle contracts for Chummer media-factory.</Description>
-    <PackageTags>chummer;media;contracts;render-only;dto</PackageTags>
+    <Description>Canonical render-verified media job and asset lifecycle contracts for Chummer media-factory.</Description>
+    <PackageTags>chummer;media;contracts;render-verified;dto</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

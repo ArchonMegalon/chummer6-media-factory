@@ -1,13 +1,13 @@
 # Next90 M111 Install-Aware Concierge Proof Floor
 
-This repo-local proof floor tracks `next90-m111-media-factory-concierge-bundles` inside `chummer6-media-factory`.
+This repo-local proof floor closes `next90-m111-media-factory-concierge-bundles` inside `chummer6-media-factory`.
 
 ## Package
 
 - frontier id: `4132724850`
 - milestone id: `111`
 - package id: `next90-m111-media-factory-concierge-bundles`
-- proof floor commit: `unlanded`
+- proof floor commit: `7d5a0167`
 - owned surfaces: `release_explainer_artifacts`, `support_closure_artifacts`, `public_concierge_companions`
 - allowed paths: `src`, `tests`, `docs`, `scripts`
 
@@ -16,12 +16,13 @@ This repo-local proof floor tracks `next90-m111-media-factory-concierge-bundles`
 - `src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs` renders release explainer, support closure, and public concierge companions through media-factory job execution only.
 - `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs` defines `InstallAwareConciergeRenderRequest`, `InstallAwareConciergeBundleReceipt`, `InstallAwareConciergeArtifactReceipt`, top-level `CaptionRefs`, `PreviewRefs`, and `SiblingNoteRefs`, `InstallAwareConciergeCompanionReadyRef`, `InstallAwareConciergeBundleReceiptGroup`, `InstallAwareConciergeRoleReceiptGroup`, `InstallAwareConciergeCaptionRefReceipt`, `InstallAwareConciergePreviewRefReceipt`, and `InstallAwareConciergeSiblingNoteReceipt`.
 - `tests/InstallAwareConciergeSmoke/Program.cs` proves each concierge bundle kind requires video, audio, and preview-card siblings, publishes first-class per-bundle aggregate receipt rows, keeps caption, preview, and sibling-note grouped receipts first-class with bundle kinds, roles, and grouped asset urls, keeps payload scope install-aware, keeps bounded sibling notes enforced, prevents delimiter-heavy refs from collapsing dedupe or receipt ids, and proves replayed packets keep stable job ids, receipt ids, and companion-ready rows even when `Source` or `RequestedAtUtc` changes.
-- `tests/test_install_aware_concierge_rendering.py` fail-closes contract drift so install-aware concierge rendering stays first-class and render-only.
-- `tests/test_m111_successor_package_authority.py` fail-closes queue, registry, generated-proof, and package-scope drift while the slice remains in progress.
+- `tests/test_install_aware_concierge_rendering.py` fail-closes contract drift so install-aware concierge rendering stays first-class and render-verified.
+- `tests/test_m111_successor_package_authority.py` fail-closes queue, registry, generated-proof, and do-not-reopen drift so future shards verify the closed package instead of repeating it.
 - `scripts/ai/materialize_media_release_proof.py` emits the M111 package into repo-local release proof receipts with the exact title, task, work-task id, wave, repo, allowed-path scope, and owned surfaces assigned to this slice.
 - `.codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json` and `.codex-studio/published/ARTIFACT_PUBLICATION_CERTIFICATION.generated.json` must stay synchronized with the current M111 materializer output so published proof cannot drift behind the repo-local guard set.
 - `scripts/ai/verify_m111_install_aware_concierge.sh` gives the package one repo-local verifier entrypoint for the authority tests and smoke proof.
 - `scripts/ai/verify.sh` calls the dedicated M111 verifier as part of the standard media-factory verify lane.
+- canonical queue and registry evidence for M111 must cite the published generated proof outputs and the standard `scripts/ai/verify.sh` lane, so future shards can verify the closed package instead of rediscovering the same repo-local proof anchors.
 
 ## Guard conditions
 
@@ -42,7 +43,7 @@ This repo-local proof floor tracks `next90-m111-media-factory-concierge-bundles`
 - caption, preview, and sibling-note grouped receipt rows must preserve bundle kinds, roles, and grouped asset urls so downstream shelves can publish release, support, and public concierge evidence without reconstructing it from raw artifact receipts
 - bundle receipt groups must preserve aggregate receipt ids, job ids, companion refs, caption refs, preview refs, sibling note refs, roles, and grouped artifact rows for each release, support, and public concierge sibling bundle
 - rendered timestamps must resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp
-- install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block while the package remains unlanded
+- install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block
 - proof must not cite task-local telemetry, active-run handoff notes, or blocked helper commands as closure evidence
 
 ## Verification

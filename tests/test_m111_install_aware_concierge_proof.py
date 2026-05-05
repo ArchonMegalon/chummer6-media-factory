@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ID = "next90-m111-media-factory-concierge-bundles"
 PUBLISHED_RELEASE_PROOF = ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json"
 PUBLISHED_CERTIFICATION = ROOT / ".codex-studio/published/ARTIFACT_PUBLICATION_CERTIFICATION.generated.json"
+LANDED_COMMIT = "7d5a0167"
 
 
 def load_package(path: Path) -> dict:
@@ -29,7 +30,7 @@ class M111InstallAwareConciergeProofTests(unittest.TestCase):
             "bundle receipt groups must preserve aggregate receipt ids, job ids, companion refs, caption refs, preview refs, sibling note refs, roles, and grouped artifact rows for each release, support, and public concierge sibling bundle",
             "parseable JSON payloads fail closed when required scope fields are missing or the root payload is not an object, so JSON strings, arrays, or note-only objects cannot bypass exact install-aware scope matching through text fallback",
             "JSON and keyed text scope values trim surrounding whitespace before exact scope matching so padded install-aware payloads stay valid without reopening substring spoof paths",
-            "install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block while the package remains unlanded",
+            "install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
             "`python3 -m unittest tests.test_m111_successor_package_authority tests.test_m111_install_aware_concierge_proof tests.test_install_aware_concierge_rendering` exits 0",
             "`dotnet run --project tests/InstallAwareConciergeSmoke/Chummer.Media.Factory.InstallAwareConciergeSmoke.csproj --configuration Release --nologo --verbosity quiet` exits 0",
             "`bash scripts/ai/verify_m111_install_aware_concierge.sh` exits 0",
@@ -69,9 +70,9 @@ class M111InstallAwareConciergeProofTests(unittest.TestCase):
         self.assertEqual(111, package["milestone_id"])
         self.assertEqual("W9", package["wave"])
         self.assertEqual("chummer6-media-factory", package["repo"])
-        self.assertEqual("in_progress", package["status"])
-        self.assertEqual("implementation_only", package["completion_action"])
-        self.assertEqual("unlanded", package["proof_floor_commit"])
+        self.assertEqual("complete", package["status"])
+        self.assertEqual("verify_closed_package_only", package["completion_action"])
+        self.assertEqual(LANDED_COMMIT, package["proof_floor_commit"])
         self.assertEqual(["src", "tests", "docs", "scripts"], package["allowed_paths"])
         self.assertEqual(
             ["release_explainer_artifacts", "support_closure_artifacts", "public_concierge_companions"],
@@ -98,6 +99,7 @@ class M111InstallAwareConciergeProofTests(unittest.TestCase):
             "caption, preview, and sibling-note grouped receipt rows preserve bundle kinds, roles, and grouped asset urls so downstream shelves can publish first-class concierge evidence without reconstructing it from raw artifact receipts",
             "bundle, role, caption, preview, and sibling-note receipt groups preserve aggregate job ids, grouped companion refs, grouped bundle kinds or roles, and grouped artifact rows so downstream shelves do not need to reconstruct concierge evidence from raw artifact receipts",
             "install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+            "canonical successor queue rows are now complete with `landed_commit: 7d5a0167`, so future slices can close this package only from the landed proof floor.",
         ):
             self.assertIn(token, package["install_aware_concierge_guards"])
 

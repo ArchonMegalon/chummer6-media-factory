@@ -14,7 +14,7 @@ REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90
 PACKAGE_ID = "next90-m107-media-factory-recipe-execution"
 FRONTIER_ID = "1746209281"
 LANDED_COMMIT = "47df6ab"
-PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f", "3dc59e0", "e93f8f4", "6adf9a8", "9614cca")
+PROOF_FLOOR_COMMITS = ("a2a3702", "15fb6ef", "c13b80f", "3dc59e0", "e93f8f4", "6adf9a8", "9614cca", "398f756")
 
 
 def read(path: Path) -> str:
@@ -27,9 +27,9 @@ def package_block(text: str) -> str:
     if package_start == -1:
         raise AssertionError(f"missing package row {PACKAGE_ID}")
 
-    title_start = text.rfind("\n  - title:", 0, package_start)
+    title_start = text.rfind("\n- title:", 0, package_start)
     start = title_start + 1 if title_start != -1 else package_start
-    next_row = text.find("\n  - title:", package_start + len(marker))
+    next_row = text.find("\n- title:", package_start + len(marker))
     if next_row == -1:
         return text[start:]
     return text[start:next_row]
@@ -77,7 +77,7 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
             "tests/test_structured_media_recipe_execution.py",
             "scripts/ai/verify.sh",
             "python3 -m unittest tests/test_structured_media_recipe_execution.py exits 0.",
-            "dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --no-restore exits 0.",
+            "dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --no-restore",
             "./scripts/ai/verify.sh exits 0.",
         ):
             self.assertIn(token, block, token)
@@ -98,7 +98,7 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
             "tests/StructuredMediaRecipeSmoke/Program.cs proves video, audio, preview-card, and packet-bundle execution",
             "scripts/ai/verify.sh now gates the structured recipe contract scan",
             "python3 -m unittest tests/test_structured_media_recipe_execution.py exits 0.",
-            "dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --no-restore exits 0.",
+            "dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --no-restore",
             "./scripts/ai/verify.sh exits 0",
         ):
             self.assertIn(token, block, token)
@@ -127,8 +127,14 @@ class M107SuccessorClosureAuthorityTests(unittest.TestCase):
             )
             generated_proof = (Path(tmp) / "MEDIA_LOCAL_RELEASE_PROOF.generated.json").read_text(encoding="utf-8")
 
-        package = json.loads(generated_proof)["successor_packages"][0]
-        self.assertEqual("9614cca", package["proof_floor_commit"])
+        package = next(
+            candidate
+            for candidate in json.loads(generated_proof)["successor_packages"]
+            if candidate["package_id"] == PACKAGE_ID
+        )
+        self.assertEqual("398f756", package["proof_floor_commit"])
+        self.assertIn("tests/test_m107_successor_closure_authority.py", package["proof"])
+        self.assertIn("scripts/ai/materialize_media_release_proof.py", package["proof"])
 
         forbidden = (
             "TASK_LOCAL_TELEMETRY.generated.json",

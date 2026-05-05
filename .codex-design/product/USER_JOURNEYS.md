@@ -5,7 +5,7 @@
 This file is the top-level product map for the journeys users actually live inside.
 
 The detailed happy-path and failure-mode canon still lives under `journeys/*.md`.
-This file keeps the center of gravity legible as one product story:
+This file keeps the center of gravity legible as one product story for the explainable campaign OS:
 
 * Build
 * Explain
@@ -32,6 +32,8 @@ Canonical detail:
 
 * `journeys/build-and-inspect-a-character.md`
 * `BUILD_LAB_PRODUCT_MODEL.md`
+* `CAMPAIGN_ADOPTION_WIZARD.md`
+* `RUNNER_RESUME_AND_GOAL_PINS.md`
 
 ## Explain
 
@@ -49,10 +51,11 @@ Canonical detail:
 * `journeys/build-and-inspect-a-character.md`
 * `BUILD_LAB_PRODUCT_MODEL.md`
 * `CHARACTER_LIFECYCLE_AND_LIVING_DOSSIER.md`
+* `SOURCE_ANCHOR_AND_LOCAL_RULEBOOK_BINDING.md`
 
 ## Run
 
-Goal: keep the same runner, crew, campaign, and recent workspace alive across live play, claimed-device handoff, reconnect, and recovery.
+Goal: keep the same runner, crew, campaign, and campaign ledger alive across live play, claimed-device handoff, reconnect, and recovery.
 
 Flagship bar:
 
@@ -60,6 +63,10 @@ Flagship bar:
 * live, stale, offline, pending, and conflict posture are visually obvious
 * missing or incompatible rule packs and amend packages are explicit before a resumed device computes against the wrong environment
 * player, GM, and observer flows feel authored for live play rather than recycled workbench layouts
+* finding a table, passing community-rule preflight, and getting into the right session space are part of the same trustworthy run journey
+* the campaign ledger is a named first-class surface rather than hidden continuity glue
+* combat turns, between-turn affordances, and GM action state are understandable without table folklore
+* one approved run closeout can visibly change the campaign and world memory without hidden AI authority
 
 Canonical detail:
 
@@ -71,6 +78,13 @@ Canonical detail:
 * `journeys/run-a-campaign-and-return.md`
 * `CAMPAIGN_SPINE_AND_CREW_MODEL.md`
 * `WORLD_STATE_AND_MISSION_MARKET_MODEL.md`
+* `OPEN_RUNS_AND_COMMUNITY_HUB.md`
+* `SEATTLE_OPEN_RUN_001_VERTICAL_SLICE.md`
+* `LIVE_ACTION_ECONOMY_AND_TURN_ASSIST.md`
+* `GM_RUNBOARD_LIVE_OPERATIONS.md`
+* `PREP_PACKET_FACTORY_AND_PROCEDURAL_TABLES.md`
+* `CREW_AND_MISSION_FIT_MODEL.md`
+* `BLACK_LEDGER_MVP_001.md`
 
 ## Publish
 
@@ -89,6 +103,28 @@ Canonical detail:
 * `CHARACTER_LIFECYCLE_AND_LIVING_DOSSIER.md`
 * `WORLD_STATE_AND_MISSION_MARKET_MODEL.md`
 
+## Join
+
+Goal: find the right table, prove fit, schedule it cleanly, and arrive with the right runner and expectations.
+
+Flagship bar:
+
+* a player can see the active community rule environment before applying
+* preflight explains pass, warn, fail, or blocked instead of silently gatekeeping
+* quickstart runners are good enough for real table entry, especially on mobile
+* Discord, Teams, and VTTs remain projection lanes instead of becoming Chummer truth
+
+Canonical detail:
+
+* `journeys/find-and-join-an-open-run.md`
+* `OPEN_RUNS_AND_COMMUNITY_HUB.md`
+* `COMMUNITY_RULE_ENVIRONMENTS_AND_APPROVAL.md`
+* `RUN_APPLICATION_PREFLIGHT_MODEL.md`
+* `QUICKSTART_RUNNER_AND_PREGEN_FLOW.md`
+* `SESSION_ZERO_AND_TABLE_CONTRACT_MODEL.md`
+* `SEATTLE_OPEN_RUN_001_VERTICAL_SLICE.md`
+* `CREW_AND_MISSION_FIT_MODEL.md`
+
 ## Improve
 
 Goal: report pain, follow closure, and trust whether the product actually got better.
@@ -104,6 +140,7 @@ Canonical detail:
 * `journeys/install-and-update.md`
 * `journeys/claim-install-and-close-a-support-case.md`
 * `journeys/organize-a-community-and-close-the-loop.md`
+* `SUPPORT_PACKET_AND_CALCULATION_REPORT_UX.md`
 * `PRODUCT_CONTROL_AND_GOVERNOR_LOOP.md`
 * `SUPPORT_AND_SIGNAL_OODA_LOOP.md`
 
@@ -111,3 +148,4 @@ Canonical detail:
 
 If a repo changes one of these cross-head journeys, it must update the detailed journey doc and this top-level map before implementation lands.
 If a release claim depends on these journeys, the same change must keep `FLAGSHIP_RELEASE_ACCEPTANCE.yaml` and `METRICS_AND_SLOS.yaml` honest.
+If a horizon or extension makes the story harder to explain than `build correctly, explain clearly, run reliably, recover calmly, carry the campaign forward`, the horizon is ahead of the product center of gravity.

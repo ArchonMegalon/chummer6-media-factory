@@ -24,12 +24,16 @@ def package_block(text: str) -> str:
     if package_start == -1:
         raise AssertionError(f"missing package row {PACKAGE_ID}")
 
-    title_start = text.rfind("\n  - title:", 0, package_start)
+    title_start = text.rfind("\n- title:", 0, package_start)
     start = title_start + 1 if title_start != -1 else package_start
-    next_row = text.find("\n  - title:", package_start + len(marker))
+    next_row = text.find("\n- title:", package_start + len(marker))
     if next_row == -1:
         return text[start:]
     return text[start:next_row]
+
+
+def package_row_count(text: str) -> int:
+    return text.count(f"package_id: {PACKAGE_ID}")
 
 
 def registry_task_block(text: str) -> str:
@@ -42,6 +46,10 @@ def registry_task_block(text: str) -> str:
     if next_row == -1:
         return text[start:]
     return text[start:next_row]
+
+
+def registry_task_count(text: str) -> int:
+    return text.count("id: 110.2")
 
 
 class M110RunsiteOrientationProofTests(unittest.TestCase):
@@ -66,7 +74,12 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
             "tests/test_m110_successor_closure_authority.py",
         )
 
-        for block in (package_block(read(FLEET_QUEUE)), package_block(read(DESIGN_QUEUE))):
+        fleet_queue = read(FLEET_QUEUE)
+        design_queue = read(DESIGN_QUEUE)
+        self.assertEqual(1, package_row_count(fleet_queue))
+        self.assertEqual(1, package_row_count(design_queue))
+
+        for block in (package_block(fleet_queue), package_block(design_queue)):
             for token in expected_tokens:
                 self.assertIn(token, block, token)
 
@@ -77,7 +90,9 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
                 self.assertNotIn(forbidden, block, forbidden)
 
     def test_registry_task_stays_exactly_on_media_factory_orientation_rendering(self):
-        block = registry_task_block(read(REGISTRY))
+        text = read(REGISTRY)
+        self.assertEqual(1, registry_task_count(text))
+        block = registry_task_block(text)
 
         for token in (
             "id: 110.2",
@@ -113,7 +128,7 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
         self.assertEqual(110, package["milestone_id"])
         self.assertEqual("complete", package["status"])
         self.assertEqual("verify_closed_package_only", package["completion_action"])
-        self.assertEqual("worktree-local", package["proof_floor_commit"])
+        self.assertEqual("3accc50", package["proof_floor_commit"])
         self.assertEqual(
             ["runsite_orientation_bundle", "route_preview:artifact_receipts"],
             package["owned_surfaces"],
@@ -124,6 +139,10 @@ class M110RunsiteOrientationProofTests(unittest.TestCase):
         )
         self.assertIn(
             "orientation job dedupe and receipt hashing use length-prefixed segments so delimiter-heavy variants cannot collapse onto one media job or receipt id",
+            package["orientation_guards"],
+        )
+        self.assertIn(
+            "runsite orientation package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
             package["orientation_guards"],
         )
         self.assertIn(

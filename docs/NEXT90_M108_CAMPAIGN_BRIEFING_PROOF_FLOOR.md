@@ -16,7 +16,7 @@ This repo-local proof floor closes `next90-m108-media-factory-campaign-briefing-
 - `src/Chummer.Media.Factory.Runtime/Assets/CampaignBriefingBundleService.cs` renders locale-matched cold-open and mission briefing media, caption, and preview siblings through media-factory job execution only.
 - `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs` defines `CampaignBriefingBundleRequest`, `CampaignBriefingBundleReceipt`, `CampaignBriefingLocaleBundleReceipt`, and `CampaignBriefingFallbackSiblingReceipt`.
 - `tests/CampaignBriefingBundleSmoke/Program.cs` proves requested-locale cold-open and mission briefing siblings are mandatory, fallback locales stay bounded, caption and preview ids stay slot-aware, and delimiter-heavy locale variants cannot collapse dedupe or receipt ids.
-- `tests/test_campaign_briefing_bundle_contracts.py` fail-closes contract drift so campaign briefing bundles stay first-class and render-only.
+- `tests/test_campaign_briefing_bundle_contracts.py` fail-closes contract drift so campaign briefing bundles stay first-class and render-verified.
 - `tests/test_m108_campaign_briefing_proof.py` fail-closes the generated proof floor so M108 stays pinned as a completed package with the current closure commit.
 - `tests/test_m108_successor_package_authority.py` fail-closes queue, registry, generated-proof, and do-not-reopen drift so future shards verify the closed package instead of repeating it.
 - `scripts/ai/materialize_media_release_proof.py` emits the M108 closure package into repo-local release proof receipts.

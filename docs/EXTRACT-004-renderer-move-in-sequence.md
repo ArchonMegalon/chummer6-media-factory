@@ -63,7 +63,7 @@ Scope:
 
 Entry gates:
 - all R2 exit gates are satisfied
-- video plan contracts are render-only and policy-free (no delivery, no campaign/session decisions)
+- video plan contracts are render-verified and policy-free (no delivery, no campaign/session decisions)
 - cost/latency guardrails are represented as execution constraints, not orchestration policy
 
 Exit gates:

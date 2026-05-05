@@ -32,6 +32,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         public required DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? StartedAtUtc { get; set; }
         public DateTimeOffset? CompletedAtUtc { get; set; }
+        public DateTimeOffset? RestoredAtUtc { get; set; }
         public string? AssetId { get; set; }
         public string? Error { get; set; }
         public MediaRenderJobState State { get; set; }
@@ -216,6 +217,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                     CreatedAtUtc = job.CreatedAtUtc,
                     StartedAtUtc = job.StartedAtUtc,
                     CompletedAtUtc = job.CompletedAtUtc,
+                    RestoredAtUtc = job.State == MediaRenderJobState.Succeeded ? DateTimeOffset.UtcNow : null,
                     AssetId = job.AssetId,
                     Error = job.Error,
                     State = job.State
@@ -271,6 +273,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 row.AssetId = asset.AssetId;
                 row.State = MediaRenderJobState.Succeeded;
                 row.CompletedAtUtc = DateTimeOffset.UtcNow;
+                row.RestoredAtUtc = null;
                 row.Error = null;
             }
         }
@@ -281,6 +284,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 row.Error = exception.Message;
                 row.State = MediaRenderJobState.Failed;
                 row.CompletedAtUtc = DateTimeOffset.UtcNow;
+                row.RestoredAtUtc = null;
             }
 
             _deadLetters.Enqueue(new PipelineDeadLetterEntry(
@@ -319,22 +323,25 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
 
     private void RefreshExpiry(MediaRenderJobRow row)
     {
+        var expiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
         if (row.State != MediaRenderJobState.Succeeded ||
             row.Policy.LongTermCache ||
             row.Policy.CacheTtl <= TimeSpan.Zero ||
-            row.CompletedAtUtc is not { } completedAtUtc ||
-            completedAtUtc + row.Policy.CacheTtl > DateTimeOffset.UtcNow)
+            expiryAnchorUtc is not { } ||
+            expiryAnchorUtc + row.Policy.CacheTtl > DateTimeOffset.UtcNow)
         {
             return;
         }
 
         lock (_sync)
         {
+            var refreshedExpiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
             if (row.State == MediaRenderJobState.Succeeded &&
-                row.CompletedAtUtc is { } completed &&
-                completed + row.Policy.CacheTtl <= DateTimeOffset.UtcNow)
+                refreshedExpiryAnchorUtc is { } &&
+                refreshedExpiryAnchorUtc + row.Policy.CacheTtl <= DateTimeOffset.UtcNow)
             {
                 row.State = MediaRenderJobState.Expired;
+                row.RestoredAtUtc = null;
                 _jobIdsByDeduplicationKey.TryRemove(row.DeduplicationKey, out _);
             }
         }
@@ -394,6 +401,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     {
         lock (_sync)
         {
+            var asset = row.AssetId is null ? null : _assetLifecycle.Resolve(row.AssetId);
             return new MediaRenderJobStatus(
                 JobId: row.JobId,
                 JobType: row.JobType,
@@ -402,8 +410,12 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 StartedAtUtc: row.StartedAtUtc,
                 CompletedAtUtc: row.CompletedAtUtc,
                 AssetId: row.AssetId,
+                AssetUrl: asset?.Url,
                 CacheTtl: row.Policy.CacheTtl,
-                Error: row.Error);
+                Error: row.Error,
+                ApprovalState: asset?.ApprovalState,
+                RetentionState: asset?.RetentionState,
+                StorageClass: asset?.StorageClass);
         }
     }
 

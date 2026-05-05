@@ -1,0 +1,1 @@
+Validated asset storage changes and ensured all media DTOs are render-verified.

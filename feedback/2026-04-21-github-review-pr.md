@@ -1,0 +1,14 @@
+# GitHub Codex Review
+
+PR: https://github.com/ArchonMegalon/chummer6-media-factory/pull/4
+
+Findings:
+- [high] src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs [contracts] contracts-quarantine-still-exports-upstream-dtos
+`.codex-design/review/REVIEW_CONTEXT.md` says DTOs that mix rendering with narrative-authoring or canon-generation are P1 findings.; `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs` still publicly exports `PacketFactory*`, `PacketAttachment*`, and `RouteCinema*` DTOs with upstream semantics such as `Subject`, `References`, `Attachments`, `WaypointScript`, `TravelSummary`, and `ReviewState`.; `scripts/ai/contract-boundary-tests.sh` now treats those mixed DTOs as acceptable when they carry an `EXTRACT-008A quarantine` obsolete marker, so verification no longer fails on the boundary violation itself.
+Expected fix: Remove these mixed compatibility DTOs from the public `Chummer.Media.Contracts` surface or move them behind the upstream owner seam, and change the boundary test to fail on their presence instead of permitting quarantine markers.
+- [high] Chummer.Media.Factory.Runtime.Verify/Program.cs [tests] runtime-verify-missing-reject-lifecycle-coverage
+`.codex-design/review/REVIEW_CONTEXT.md` requires approval/persist/reject coverage for asset lifecycle state machines.; `Chummer.Media.Factory.Runtime.Verify/Program.cs` exercises approval, pin/persist, restore, cache expiry, and job expiry, but it never drives a rejected asset through `ApplyLifecycleAsync` and never asserts rejected retention state, rejection timestamps, or restore behavior for rejected assets.; `scripts/ai/verify.sh` relies on this verifier as the executable lifecycle regression suite, so the reject path is still untested.
+Expected fix: Add a reject-path verification case that rejects an approval-gated asset and asserts rejected state, timestamps, retention behavior, and no persisted/pinned carryover after restore.
+- [high] .codex-design/repo/IMPLEMENTATION_SCOPE.md [review] milestone-m8-completion-truth-still-overstates-dto-closure
+`.codex-design/repo/IMPLEMENTATION_SCOPE.md` marks `M8 finished media plant` as `complete` and says the gate is `DS-01`..`DS-05` passing.; `docs/EXTRACT-008-DS-execution-evidence.md` explicitly says the earlier DTO-closure statement was too broad, records remaining compatibility-shim residue, and says follow-on `DS-06`..`DS-09` work is required.; `WORKLIST.md` keeps `EXTRACT-008A` queued for compatibility DTO residue, so the milestone table is still presenting partial completion truth as complete.
+Expected fix: Update the milestone coverage model so M8 and the DTO-boundary lane reflect the still-open `EXTRACT-008A` residue instead of claiming full completion from `DS-01`..`DS-05` alone.

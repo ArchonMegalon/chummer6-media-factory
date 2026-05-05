@@ -7,6 +7,11 @@ cd "$repo_root"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+if ! rg -n 'bash scripts/ai/verify_m116_creator_promo_kits.sh' scripts/ai/verify.sh >/dev/null; then
+  echo "verify failed: scripts/ai/verify.sh must call bash scripts/ai/verify_m116_creator_promo_kits.sh" >&2
+  exit 1
+fi
+
 python3 -m unittest \
   tests.test_m116_successor_package_authority \
   tests.test_m116_creator_promo_proof \
@@ -44,6 +49,18 @@ def require_unique_package_ids(path: Path, payload: dict) -> None:
             f"verify failed: {path.name} repeated successor package ids: {', '.join(sorted(duplicates))}"
         )
 
+def require_unique_strings(package_name: str, field_name: str, values: list[str]) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    if duplicates:
+        raise SystemExit(
+            f"verify failed: {package_name} repeated {field_name}: {', '.join(sorted(duplicates))}"
+        )
+
 def load_package(path: Path) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
     require_unique_package_ids(path, payload)
@@ -65,8 +82,10 @@ for package_name, package in (
     ("published release proof", published_release),
     ("published publication certification", published_certification),
 ):
+    require_unique_strings(package_name, "proof citations", package["proof"])
+    require_unique_strings(package_name, "creator promo guard rows", package["creator_promo_guards"])
     for proof_path in package["proof"]:
-        if not proof_path.startswith(("src/", "tests/", "docs/", "scripts/")):
+        if not proof_path.startswith(("src/", "tests/", "docs/", "scripts/", ".codex-studio/published/")):
             raise SystemExit(
                 f"verify failed: {package_name} cited proof outside the M116 allowed paths: {proof_path}"
             )

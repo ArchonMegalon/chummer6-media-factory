@@ -9,7 +9,7 @@ This slice does not move document/portrait/video execution yet. It defines concr
 ## Ownership boundary
 
 `chummer-media-factory` owns:
-- manifest persistence wiring for render-only asset state
+- manifest persistence wiring for render-verified asset state
 - binary storage adapter seam for immutable output bytes
 - preview linkage between canonical assets and derived previews
 - TTL/retention sweep contracts and lifecycle transition signals
@@ -24,7 +24,7 @@ This slice does not move document/portrait/video execution yet. It defines concr
 
 ### K1. Manifest persistence wiring
 
-Implement a manifest persistence contract set that can upsert, read, and update render-only lifecycle metadata without provider SDK leakage.
+Implement a manifest persistence contract set that can upsert, read, and update render-verified lifecycle metadata without provider SDK leakage.
 
 Acceptance checks:
 - [ ] Contract plane includes request/response DTOs for manifest write and fetch operations.
@@ -65,7 +65,7 @@ Define lineage traversal query/result contracts so supersession and derivation c
 Acceptance checks:
 - [ ] Contract plane includes lineage traversal request/result DTOs.
 - [ ] Traversal can resolve parent, children, and supersession relationships without mutating assets.
-- [ ] Contracts preserve render-only ownership and avoid upstream orchestration payloads.
+- [ ] Contracts preserve render-verified ownership and avoid upstream orchestration payloads.
 
 ## Exit condition for EXTRACT-003
 

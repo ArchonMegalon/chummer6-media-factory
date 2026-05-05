@@ -37,7 +37,7 @@ forbidden_public_identifier_drift="$(
   rg -n --glob '*.cs' '^\s*public\s+.*\b(Campaign(Id|Key|Context)?|Session(Id|Key|Context)?|Scene(Id|Key|Context)?|RouteContext(Id|Key|Context)?|Narrative[A-Za-z0-9_]*|Story[A-Za-z0-9_]*|Lore[A-Za-z0-9_]*|Canon[A-Za-z0-9_]*|Delivery(Policy|Channel|Route|Target|Audience|Decision)?[A-Za-z0-9_]*|Spider[A-Za-z0-9_]*|RuntimeLock[A-Za-z0-9_]*|ProviderRouting[A-Za-z0-9_]*|ProviderRoute[A-Za-z0-9_]*|Rule(Set|s)?[A-Za-z0-9_]*|Relay[A-Za-z0-9_]*)\b' "${contracts_root}" || true
 )"
 if [[ -n "${forbidden_public_identifier_drift}" ]]; then
-  echo "render-only boundary violation in public declarations:"
+  echo "render-verified boundary violation in public declarations:"
   echo "${forbidden_public_identifier_drift}"
   exit 1
 fi
@@ -46,7 +46,7 @@ forbidden_field_identifier_drift="$(
   rg -n --glob '*.cs' '^\s*[A-Za-z_][A-Za-z0-9_<>,\.\?\[\]]*\s+(Campaign(Id|Key|Context)?|Session(Id|Key|Context)?|Scene(Id|Key|Context)?|RouteContext(Id|Key|Context)?|Narrative[A-Za-z0-9_]*|Story[A-Za-z0-9_]*|Lore[A-Za-z0-9_]*|Canon[A-Za-z0-9_]*|Delivery(Policy|Channel|Route|Target|Audience|Decision)?[A-Za-z0-9_]*|Spider[A-Za-z0-9_]*|RuntimeLock[A-Za-z0-9_]*|ProviderRouting[A-Za-z0-9_]*|ProviderRoute[A-Za-z0-9_]*|Rule(Set|s)?[A-Za-z0-9_]*|Relay[A-Za-z0-9_]*)\s*[,)]' "${contracts_root}" || true
 )"
 if [[ -n "${forbidden_field_identifier_drift}" ]]; then
-  echo "render-only boundary violation in contract fields:"
+  echo "render-verified boundary violation in contract fields:"
   echo "${forbidden_field_identifier_drift}"
   exit 1
 fi

@@ -16,8 +16,12 @@ test -f tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefing
 test -f tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj
 test -f tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj
 test -f tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj
+test -f tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj
 test -f tests/InstallAwareConciergeSmoke/Chummer.Media.Factory.InstallAwareConciergeSmoke.csproj
+test -f tests/ReplayExchangePreviewSmoke/Chummer.Media.Factory.ReplayExchangePreviewSmoke.csproj
 test -f tests/GmPrepPacketSmoke/Chummer.Media.Factory.GmPrepPacketSmoke.csproj
+test -f tests/StarterArtifactBundleSmoke/Chummer.Media.Factory.StarterArtifactBundleSmoke.csproj
+test -f tests/CreatorPromoKitSmoke/Chummer.Media.Factory.CreatorPromoKitSmoke.csproj
 test -f src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj
 test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
@@ -27,7 +31,10 @@ test -f src/Chummer.Media.Factory.Runtime/Assets/GmPrepPacketBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs
 test -f docs/chummer-media-factory.design.v1.md
 test -f docs/MEDIA_ADAPTER_MATRIX.md
 test -f docs/MEDIA_CAPABILITY_SIGNOFF.md
@@ -36,16 +43,32 @@ test -f docs/EXTRACT-008-DS-execution-evidence.md
 test -f docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md
 test -f docs/NEXT90_M110_RUNSITE_ORIENTATION_PROOF_FLOOR.md
 test -f docs/NEXT90_M109_BUILD_EXPLAIN_COMPANION_PROOF_FLOOR.md
+test -f docs/NEXT90_M145_EXPLAIN_PRESENTER_SIBLINGS_PROOF_FLOOR.md
 test -f docs/NEXT90_M111_INSTALL_AWARE_CONCIERGE_PROOF_FLOOR.md
+test -f docs/NEXT90_M115_REPLAY_EXCHANGE_PREVIEW_PROOF_FLOOR.md
 test -f docs/NEXT90_M113_GM_PREP_PACKET_PROOF_FLOOR.md
+test -f docs/NEXT90_M116_CREATOR_PROMO_KIT_PROOF_FLOOR.md
+test -f docs/NEXT90_M119_STARTER_ARTIFACT_PROOF_FLOOR.md
+test -f docs/NEXT90_M135_MEDIA_COVERAGE_PROOF_FLOOR.md
 test -f scripts/ai/contract-boundary-tests.sh
 test -f scripts/ai/materialize_media_release_proof.py
+test -f scripts/ai/verify_m135_media_coverage.sh
 test -f scripts/ai/verify_m109_build_explain_companion.sh
+test -f scripts/ai/verify_m145_explain_presenter_siblings.sh
 test -f scripts/ai/verify_m111_install_aware_concierge.sh
+test -f scripts/ai/verify_m115_replay_exchange_previews.sh
+test -f scripts/ai/verify_m113_gm_prep_packets.sh
+test -f scripts/ai/verify_m116_creator_promo_kits.sh
+test -f scripts/ai/verify_m119_starter_artifacts.sh
 test -f scripts/render_guide_asset.py
 test -f tests/test_m109_successor_package_authority.py
+test -f tests/test_m145_successor_package_authority.py
 test -f tests/test_m111_successor_package_authority.py
+test -f tests/test_m115_successor_package_authority.py
 test -f tests/test_m113_successor_package_authority.py
+test -f tests/test_m116_successor_package_authority.py
+test -f tests/test_m119_successor_package_authority.py
+test -f tests/test_m135_media_coverage_proof.py
 
 rg -n 'media_factory_state_backup_v1|Chummer\.Media\.Factory\.Runtime\.Verify|retention sweep' docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md >/dev/null
 rg -n 'CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND|CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION|preview image|archive / retention storage|Receipts must record the actual selected backend' docs/MEDIA_ADAPTER_MATRIX.md >/dev/null
@@ -53,15 +76,22 @@ rg -n 'DocumentPdf|DocumentThumbnailImage|PortraitImageVariant|NarrativeBriefVid
 rg -n 'CampaignBriefingBundleReceipt|CampaignBriefingLocaleReceipt|CampaignBriefingFallbackSiblingReceipt|ColdOpenCaptionReceiptId|MissionBriefingCaptionReceiptId|ColdOpenPreviewReceiptId|MissionBriefingPreviewReceiptId|CampaignColdOpen|CampaignMissionBriefing|CampaignCaption|CampaignPreview' src docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md >/dev/null
 rg -n 'next90-m108-media-factory-campaign-briefing-renders|4459920059|campaign_briefing_bundle_rendering|campaign_artifact_receipts|verify_closed_package_only|proof floor commit|requested-locale ColdOpen|requested-locale MissionBriefing|requested locale as the primary sibling|fallback locales|slot-aware caption and preview sibling ids|length-prefixed locale|approval state, retention state, and storage class|normalized locale-bundle ordering|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'BuildExplainCompanionRenderRequest|BuildExplainCompanionRenderReceipt|BuildExplainCompanionReadyRef|BuildExplainCompanionRoleReceiptGroup|BuildExplainCompanionRefReceipt|BuildExplainCaptionRefReceipt|BuildExplainPreviewRefReceipt|BuildExplainCompanionVideo|BuildExplainCompanionAudio|BuildExplainCompanionPreviewCard|BuildExplainCompanionPacketCompanion' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'ExplainPresenterSiblingRenderRequest|ExplainPresenterSiblingRenderReceipt|ExplainPresenterTextFallbackReceipt|ExplainPresenterSiblingReadyRef|ExplainPresenterSiblingRoleReceiptGroup|ExplainPresenterCompanionRefReceipt|ExplainPresenterCaptionRefReceipt|ExplainPresenterPreviewRefReceipt|ExplainPresenterSiblingAudio|ExplainPresenterSiblingPresenterVideo' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'pre-session-orientation-only-not-tactical-truth|HostClipReceiptIds|RoutePreviewReceiptIds|RoutePreviewArtifactReceipts|RunsiteRoutePreviewArtifactReceipt|RunsiteOrientationArtifactReceipt' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'next90-m110-media-factory-runsite-bundles|5126560638|runsite_orientation_bundle|route_preview:artifact_receipts|pre-session-orientation-only-not-tactical-truth|length-prefixed|category, output format' docs/NEXT90_M110_RUNSITE_ORIENTATION_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'InstallAwareConciergeRenderRequest|InstallAwareConciergeBundleReceipt|InstallAwareConciergeCompanionReadyRef|InstallAwareConciergeRoleReceiptGroup|InstallAwareConciergeCompanionRefReceipt|InstallAwareConciergeCaptionRefReceipt|InstallAwareConciergePreviewRefReceipt|InstallAwareConciergeSiblingNoteReceipt|InstallAwareReleaseExplainerVideo|InstallAwareSupportClosureAudio|InstallAwarePublicConciergePreviewCard' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'next90-m111-media-factory-concierge-bundles|4132724850|release_explainer_artifacts|support_closure_artifacts|public_concierge_companions|install-aware concierge payloads must stay scoped|bounded sibling notes|length-prefixed caption, preview, and sibling-note ref segments' docs/NEXT90_M111_INSTALL_AWARE_CONCIERGE_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
+rg -n 'ReplayExchangePreviewRenderRequest|ReplayExchangePreviewRenderReceipt|ReplayExchangePreviewBundleReceipt|ReplayExchangePreviewKindReceiptGroup|ReplayExchangePreviewReadyRef|ReplayExchangePreviewArtifactRefReceipt|ReplayExchangePreviewCaptionRefReceipt|ReplayExchangePreviewPreviewRefReceipt|RecapPreviewCard|RecapInspectableSibling|ReplayPreviewCard|ReplayInspectableSibling|ExchangePreviewCard|ExchangeInspectableSibling' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'next90-m115-media-factory-exchange-previews|1547375325|recap_preview_artifacts|replay_exchange_preview_artifacts|ReplayExchangePreviewRenderingService|replay, recap, and exchange bundles must each stay first-class|preview-card and inspectable sibling artifacts must both preserve preview refs|length-prefixed caption and preview ref segments' docs/NEXT90_M115_REPLAY_EXCHANGE_PREVIEW_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs tests/ReplayExchangePreviewSmoke/Program.cs >/dev/null
 rg -n 'GmPrepPacketRenderRequest|GmPrepPacketBundleReceipt|GmPrepPacketEntryReceipt|GmPrepPacketSubjectReceiptGroup|GmPrepOppositionPacket|GmPrepScenePreview|GmPrepLibraryBriefing' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
-rg -n 'next90-m113-media-factory-gm-prep-packets|3813748639|gm_prep_packets|opposition_packet_artifacts|governed source pack id|optional briefing|length-prefixed subject-kind, artifact-role, and output-format' docs/NEXT90_M113_GM_PREP_PACKET_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
+rg -n 'next90-m113-media-factory-gm-prep-packets|3813748639|gm_prep_packets|opposition_packet_artifacts|governed source pack id|source pack revision id|packet ref|source entry id|optional briefing|length-prefixed subject-kind, artifact-role, and output-format|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M113_GM_PREP_PACKET_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
+rg -n 'next90-m116-media-factory-creator-promo-kits|4956678153|creator_promo_kits|publication_preview_artifacts|CreatorPromoKitRenderingService|creator promo kit rendering stays render-verified|parseable JSON creator promo payloads fail closed|promo video, one promo poster, and one preview-card sibling|caption and preview dedupe selects one canonical ref spelling|rendered timestamps resolve from completed media jobs|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M116_CREATOR_PROMO_KIT_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md scripts/ai/materialize_media_release_proof.py src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs tests/CreatorPromoKitSmoke/Program.cs >/dev/null
+rg -n 'StarterArtifactBundleRenderRequest|StarterArtifactBundleReceipt|StarterArtifactReadyRef|StarterArtifactLocaleReceiptGroup|StarterArtifactBundleLocaleReceiptGroup|StarterArtifactArtifactRefReceipt|StarterArtifactCaptionRefReceipt|StarterArtifactPreviewRefReceipt|StarterArtifactSupportNoteReceipt|StarterPrimerVideo|FirstSessionBriefingAudio|SupportSafeOnboardingPreviewCard' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'next90-m119-media-factory-starter-artifacts|1413666751|starter_primer_artifacts|first_session_briefing_artifacts|approved starter source pack id|source pack revision id|starter lane id|fallback locale triads|support-safe onboarding siblings require bounded support-note refs|mixed-case duplicate refs|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M119_STARTER_ARTIFACT_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py tests/StarterArtifactBundleSmoke/Program.cs >/dev/null
 rg -n 'StructuredMediaRecipeExecutionService|PublicationRefs|PublicationReadyRefs|StructuredMediaRecipePublicationReadyRef|CaptionRefs|PreviewRefs|VideoReceiptIds|AudioReceiptIds|PreviewReceiptIds|PacketReceiptIds|JobIds|RoleReceiptGroups|StructuredMediaRecipeRoleReceiptGroup|PublicationRefReceipts|CaptionRefReceipts|PreviewRefReceipts|ArtifactReceipts|AssetUrl' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'artifact category, output format, and publication ref|duplicate publication refs|colliding caller dedupe keys|Different video output refs must not collapse onto one recipe job' docs/MEDIA_CAPABILITY_SIGNOFF.md tests/StructuredMediaRecipeSmoke/Program.cs >/dev/null
-rg -n 'next90-m109-media-factory-build-explain-bundles|build_explain_companion_rendering|explain_artifact_receipts|BuildExplainCompanionRenderingService|BuildExplainCompanionRenderReceipt|build explain companion receipts stay render-only|approved explain packet id and explain packet revision id|duplicate companion refs inside one approved explain packet|stable when callers reorder build explain siblings|source or requested timestamp drift|source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity|length-prefixed dedupe and receipt hashing' docs/NEXT90_M109_BUILD_EXPLAIN_COMPANION_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs tests/BuildExplainCompanionSmoke/Program.cs >/dev/null
+rg -n 'next90-m109-media-factory-build-explain-bundles|build_explain_companion_rendering|explain_artifact_receipts|BuildExplainCompanionRenderingService|BuildExplainCompanionRenderReceipt|build explain companion receipts stay render-verified|approved explain packet id and explain packet revision id|duplicate companion refs inside one approved explain packet|case-insensitive or padded build explain companion ref validation did not fail|stable when callers reorder build explain siblings|top-level request whitespace changes|request-level .* normalize surrounding whitespace|source or requested timestamp drift|source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity|length-prefixed dedupe and receipt hashing' docs/NEXT90_M109_BUILD_EXPLAIN_COMPANION_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs tests/BuildExplainCompanionSmoke/Program.cs >/dev/null
+rg -n 'next90-m145-media-factory-explain-presenter-siblings|explain_presenter_siblings:media_factory|ExplainPresenterSiblingRenderingService|ExplainPresenterSiblingRenderReceipt|first-party text fallback|approved explanation packet id|grounding scope ref|duplicate companion refs inside one approved explanation packet|top-level request whitespace changes|source or requested timestamp drift|length-prefixed caption, preview, and text-fallback segments' docs/NEXT90_M145_EXPLAIN_PRESENTER_SIBLINGS_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs tests/ExplainPresenterSiblingSmoke/Program.cs >/dev/null
 rg -n 'ProjectReference Include="\.\.\\Chummer\.Media\.Contracts\\Chummer\.Media\.Contracts\.csproj"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
 if rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null; then
   echo "verify failed: campaign-contract package wiring must not exist in media-factory"
@@ -118,6 +148,9 @@ PY
 rm -rf "${health_state_dir}"
 
 bash scripts/ai/verify_m109_build_explain_companion.sh
+bash scripts/ai/verify_m145_explain_presenter_siblings.sh
+bash scripts/ai/verify_m115_replay_exchange_previews.sh
+bash scripts/ai/verify_m119_starter_artifacts.sh
 bash scripts/ai/contract-boundary-tests.sh
 
 run_contracts_csproj="/docker/chummercomplete/chummer.run-services/Chummer.Run.Contracts/Chummer.Run.Contracts.csproj"
@@ -149,8 +182,12 @@ dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.Cam
 dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj --configuration Release --nologo --verbosity quiet
+dotnet run --project tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj --configuration Release --nologo --verbosity quiet
 bash scripts/ai/verify_m111_install_aware_concierge.sh
-dotnet run --project tests/GmPrepPacketSmoke/Chummer.Media.Factory.GmPrepPacketSmoke.csproj --configuration Release --nologo --verbosity quiet
+bash scripts/ai/verify_m115_replay_exchange_previews.sh
+bash scripts/ai/verify_m113_gm_prep_packets.sh
+bash scripts/ai/verify_m116_creator_promo_kits.sh
+bash scripts/ai/verify_m135_media_coverage.sh
 python3 scripts/ai/materialize_media_release_proof.py --status passed
 
 echo "verify ok"

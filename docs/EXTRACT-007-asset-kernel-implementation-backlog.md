@@ -8,7 +8,7 @@ Execute the shared asset kernel implementation backlog so renderer move-in work 
 
 1. AK-01 Manifest store implementation seam
 - Implement manifest write/read/update paths for immutable asset metadata and mutable lifecycle state.
-- Enforce render-only manifest fields: asset identity, content hash, binary locator, preview refs, TTL/retention fields, and lineage refs.
+- Enforce render-verified manifest fields: asset identity, content hash, binary locator, preview refs, TTL/retention fields, and lineage refs.
 - Evidence: passing contract tests for create/get/update manifest flows and lifecycle-only mutations.
 
 2. AK-02 Binary storage adapter + checksum enforcement

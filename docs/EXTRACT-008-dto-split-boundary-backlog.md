@@ -2,7 +2,7 @@
 
 ## Objective
 
-Convert the remaining generic uncovered-scope prompt about media DTO split into runnable, evidence-gated work that keeps `Chummer.Media.Contracts` render-only and pushes narrative-authoring, delivery, and campaign/session context contracts upstream.
+Convert the remaining generic uncovered-scope prompt about media DTO split into runnable, evidence-gated work that keeps `Chummer.Media.Contracts` render-verified and pushes narrative-authoring, delivery, and campaign/session context contracts upstream.
 
 ## Runnable backlog
 
@@ -16,12 +16,12 @@ Convert the remaining generic uncovered-scope prompt about media DTO split into 
 - Evidence: guardrail checks wired into `scripts/ai/verify.sh` path or equivalent repo verification command.
 
 3. DS-03 Split/removal pass for mixed DTO residue
-- If any mixed DTO/field is found, split it into render-only media contract plus upstream contract TODO handoff note, without importing upstream packages into this repo.
+- If any mixed DTO/field is found, split it into render-verified media contract plus upstream contract TODO handoff note, without importing upstream packages into this repo.
 - Keep media-side DTOs deterministic and provider-neutral.
 - Evidence: diff showing only render/job/asset lifecycle ownership remains in media contracts.
 
 4. DS-04 Boundary conformance tests
-- Add contract tests that assert render-only namespace policy and forbid dependencies on engine/play/ui-kit/provider SDK/runtime delivery models.
+- Add contract tests that assert render-verified namespace policy and forbid dependencies on engine/play/ui-kit/provider SDK/runtime delivery models.
 - Include tests for approval/persist/reject lifecycle semantics without policy-rule leakage.
 - Evidence: passing contract tests in local verify run.
 
@@ -38,7 +38,7 @@ Convert the remaining generic uncovered-scope prompt about media DTO split into 
 - Evidence: appended residue table in `docs/EXTRACT-008-DS-execution-evidence.md` with every compatibility field classified.
 
 7. DS-07 Compatibility contract split plan
-- Publish the concrete split plan for compatibility DTOs that still mix render-only surfaces with upstream packet/route authoring meaning.
+- Publish the concrete split plan for compatibility DTOs that still mix render-verified surfaces with upstream packet/route authoring meaning.
 - For each mixed type, name the media-side contract that remains, the upstream-owned contract family that should absorb the removed meaning, and the temporary compatibility/deprecation posture required to land the split safely.
 - Evidence: backlog/evidence docs identify exact mixed types and the target split or quarantine action for each.
 
@@ -54,7 +54,7 @@ Convert the remaining generic uncovered-scope prompt about media DTO split into 
 
 This slice is complete when:
 - `EXTRACT-008` is present in queue/worklist as the runnable mapping for DTO split uncovered-scope findings,
-- verification enforces render-only DTO boundaries across both canonical and compatibility surfaces,
+- verification enforces render-verified DTO boundaries across both canonical and compatibility surfaces,
 - no active generic DTO-split queue prompt is left unmapped to `DS-01`..`DS-09` runnable units,
 - and compatibility DTO residue is either split out of `Chummer.Media.Contracts` or explicitly quarantined behind a documented deprecation/removal plan.
 
