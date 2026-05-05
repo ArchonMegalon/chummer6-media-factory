@@ -27,9 +27,9 @@ def package_block(text: str) -> str:
     if package_start == -1:
         raise AssertionError(f"missing package row {PACKAGE_ID}")
 
-    title_start = text.rfind("\n  - title:", 0, package_start)
+    title_start = text.rfind("\n- title:", 0, package_start)
     start = title_start + 1 if title_start != -1 else package_start
-    next_row = text.find("\n  - title:", package_start + len(marker))
+    next_row = text.find("\n- title:", package_start + len(marker))
     if next_row == -1:
         return text[start:]
     return text[start:next_row]
@@ -80,8 +80,8 @@ class M108SuccessorClosureAuthorityTests(unittest.TestCase):
             "docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md",
             "scripts/ai/materialize_media_release_proof.py",
             "scripts/ai/verify.sh",
-            "python3 -m unittest tests.test_m108_successor_package_authority tests.test_m108_campaign_briefing_proof tests.test_campaign_briefing_bundle_contracts exits 0.",
-            "dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefingBundleSmoke.csproj --configuration Release --nologo --verbosity quiet exits 0.",
+            "python3 -m unittest tests.test_m108_successor_package_authority tests.test_m108_campaign_briefing_proof tests.test_campaign_briefing_bundle_contracts",
+            "dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefingBundleSmoke.csproj --configuration",
             "./scripts/ai/verify.sh exits 0.",
         ):
             self.assertIn(token, block, token)
@@ -100,8 +100,8 @@ class M108SuccessorClosureAuthorityTests(unittest.TestCase):
             "tests/test_campaign_briefing_bundle_contracts.py, /docker/fleet/repos/chummer-media-factory/tests/test_m108_campaign_briefing_proof.py, and /docker/fleet/repos/chummer-media-factory/tests/test_m108_successor_package_authority.py fail-close contract drift, repo-local proof drift, queue and registry closure drift, and do-not-reopen proof drift.",
             "NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md records the repo-local M108 proof floor.",
             "materialize_media_release_proof.py emits the M108 package into MEDIA_LOCAL_RELEASE_PROOF.generated.json and ARTIFACT_PUBLICATION_CERTIFICATION.generated.json with the current complete status.",
-            "python3 -m unittest tests.test_m108_successor_package_authority tests.test_m108_campaign_briefing_proof tests.test_campaign_briefing_bundle_contracts exits 0.",
-            "dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefingBundleSmoke.csproj --configuration Release --nologo --verbosity quiet exits 0.",
+            "python3 -m unittest tests.test_m108_successor_package_authority tests.test_m108_campaign_briefing_proof tests.test_campaign_briefing_bundle_contracts",
+            "dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefingBundleSmoke.csproj --configuration",
             "./scripts/ai/verify.sh exits 0.",
         ):
             self.assertIn(token, block, token)

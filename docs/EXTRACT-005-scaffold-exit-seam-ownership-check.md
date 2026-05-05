@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define scaffold-stage exit criteria that proves `chummer.run-services` no longer owns the effective media seam for render-only jobs and asset lifecycle.
+Define scaffold-stage exit criteria that proves `chummer.run-services` no longer owns the effective media seam for render-verified jobs and asset lifecycle.
 
 This check is a boundary-proof gate, not a renderer feature-delivery gate.
 
@@ -16,11 +16,11 @@ At scaffold exit:
 
 All criteria below must pass.
 
-### E1. Contract-plane authority is local and render-only
+### E1. Contract-plane authority is local and render-verified
 
 Pass checks:
 - `Chummer.Media.Contracts` contains queue/job and asset lifecycle DTOs needed for render execution semantics.
-- DTOs remain render-only and exclude narrative-authoring, canon-generation, rules/session relay, and delivery policy concerns.
+- DTOs remain render-verified and exclude narrative-authoring, canon-generation, rules/session relay, and delivery policy concerns.
 - Contract families do not depend on engine implementation, play implementation, UI-kit, provider SDK, or storage implementation types.
 
 Fail if:
@@ -54,7 +54,7 @@ Fail if:
 Pass checks:
 - asset-kernel completion backlog (manifest persistence, storage seam, preview linkage, retention sweep contract, lineage traversal) exists before renderer move-in.
 - renderer move-in order and gates are documented as document -> portrait -> video after kernel preconditions.
-- stage gate language preserves the render-only boundary and blocks policy/scope leakage.
+- stage gate language preserves the render-verified boundary and blocks policy/scope leakage.
 
 Fail if:
 - renderer move-in can proceed without kernel seam completion.

@@ -9,9 +9,27 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+M109_PACKAGE_ID = "next90-m109-media-factory-build-explain-bundles"
 
 
 class MaterializeMediaReleaseProofTests(unittest.TestCase):
+    def assert_single_package_entry(self, packages: list[dict], package_id: str) -> dict:
+        matches = [package for package in packages if package["package_id"] == package_id]
+        self.assertEqual(1, len(matches), f"expected exactly one {package_id} successor package entry")
+        return matches[0]
+
+    def test_materializer_rejects_duplicate_successor_package_ids(self):
+        script = (ROOT / "scripts/ai/materialize_media_release_proof.py").read_text(encoding="utf-8")
+
+        for token in (
+            "def require_unique_successor_package_ids(",
+            "must contain exactly one successor package entry per package id",
+            "require_unique_successor_package_ids(",
+            "media_release_proof[\"successor_packages\"]",
+            "artifact_publication_certification[\"successor_packages\"]",
+        ):
+            self.assertIn(token, script)
+
     def test_generated_receipts_pin_successor_package_closure(self):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(
@@ -32,6 +50,17 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
             certification = json.loads(
                 (Path(tmp) / "ARTIFACT_PUBLICATION_CERTIFICATION.generated.json").read_text(encoding="utf-8")
             )
+
+        self.assertEqual(
+            len(release["successor_packages"]),
+            len({package["package_id"] for package in release["successor_packages"]}),
+            "release proof should contain exactly one successor package entry per package id",
+        )
+        self.assertEqual(
+            len(certification["successor_packages"]),
+            len({package["package_id"] for package in certification["successor_packages"]}),
+            "artifact publication certification should contain exactly one successor package entry per package id",
+        )
 
         expected_packages = {
             "next90-m108-media-factory-campaign-briefing-renders": {
@@ -208,6 +237,85 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "runsite orientation package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
                 ],
             },
+            "next90-m119-media-factory-starter-artifacts": {
+                "frontier_id": 1413666751,
+                "milestone_id": 119,
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "TO_BE_FILLED_M119_COMMIT",
+                "proof_floor_summary": "Pin M119 localized starter artifact closure with fallback locale bundles, support-safe note receipts, and stable mixed-case ref hashing",
+                "owned_surfaces": [
+                    "starter_primer_artifacts",
+                    "first_session_briefing_artifacts",
+                ],
+                "artifact_roles": [
+                    "StarterPrimerVideo",
+                    "StarterPrimerAudio",
+                    "StarterPrimerPreviewCard",
+                    "FirstSessionBriefingVideo",
+                    "FirstSessionBriefingAudio",
+                    "FirstSessionBriefingPreviewCard",
+                    "SupportSafeOnboardingVideo",
+                    "SupportSafeOnboardingAudio",
+                    "SupportSafeOnboardingPreviewCard",
+                ],
+                "receipt_rows": [
+                    "StarterPrimerReceiptIds",
+                    "FirstSessionBriefingReceiptIds",
+                    "SupportSafeOnboardingReceiptIds",
+                    "RequestedLocaleReceiptIds",
+                    "FallbackLocaleReceiptIds",
+                    "JobIds",
+                    "ArtifactRefs",
+                    "ReadyRefs",
+                    "CaptionRefs",
+                    "PreviewRefs",
+                    "SupportNoteRefs",
+                    "LocaleReceiptGroups",
+                    "StarterArtifactLocaleReceiptGroup",
+                    "BundleLocaleReceiptGroups",
+                    "StarterArtifactBundleLocaleReceiptGroup",
+                    "ArtifactRefReceipts",
+                    "StarterArtifactArtifactRefReceipt",
+                    "CaptionRefReceipts",
+                    "StarterArtifactCaptionRefReceipt",
+                    "PreviewRefReceipts",
+                    "StarterArtifactPreviewRefReceipt",
+                    "SupportNoteReceipts",
+                    "StarterArtifactSupportNoteReceipt",
+                    "AssetUrl",
+                    "ApprovalState",
+                    "RetentionState",
+                    "StorageClass",
+                ],
+                "proof": [
+                    "src/Chummer.Media.Factory.Runtime/Assets/StarterArtifactBundleService.cs",
+                    "tests/test_starter_artifact_rendering.py",
+                    "docs/NEXT90_M119_STARTER_ARTIFACT_PROOF_FLOOR.md",
+                    "scripts/ai/materialize_media_release_proof.py",
+                ],
+                "extra_key": "starter_artifact_guards",
+                "extra_value": [
+                    "starter artifact rendering stays render-verified by requiring an approved starter source pack id, source pack revision id, starter lane id, and per-artifact locale plus sibling-only payloads before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+                    "parseable JSON starter artifact payloads fail closed when required scope fields are missing or mismatched, so JSON strings, arrays, or wrong-sibling objects cannot bypass exact scope matching through text fallback",
+                    "non-JSON starter artifact payloads require exact keyed values or delimiter-safe scope tokens, so near-match source pack ids, starter lane ids, and locales cannot pass by raw substring collision",
+                    "starter artifact bundles require requested-locale and fallback locale triads for starter primer, first-session briefing, and support-safe onboarding siblings, while fallback locales stay bounded to at most two locales",
+                    "starter primer and first-session video/audio siblings require caption refs, video and preview-card siblings require preview refs, and support-safe onboarding siblings require bounded support-note refs",
+                    "starter artifact rendering rejects duplicate artifact refs inside one starter-lane render request",
+                    "bundle-scoped dedupe keys include approved starter source pack id, source pack revision id, starter lane id, bundle kind, role, locale, category, output format, artifact ref, and caller dedupe key",
+                    "receipt hashes include caption, preview, and support-note refs so starter receipts stay tied to emitted companion evidence",
+                    "receipt hashes use length-prefixed locale, output-format, caption, preview, and support-note segments so delimiter-heavy starter variants cannot collapse distinct outputs onto one receipt id",
+                    "normalized sibling ordering keeps receipt ids, ready refs, locale receipt groups, bundle-locale receipt groups, and aggregate ref receipts stable when callers reorder the same starter siblings",
+                    "case-insensitive caption, preview, and support-note dedupe selects one canonical ref spelling before receipt hashing and aggregate ref emission so mixed-case duplicate refs stay stable when callers reorder them",
+                    "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
+                    "starter artifact package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "generated and published proof artifacts require exactly one M119 successor package entry before drift comparison",
+                    "generated proof requires unique M119 proof citations and unique starter artifact guard rows before drift comparison so closed-package evidence cannot silently duplicate itself while still matching canonical mirrors",
+                    "queue and registry mirrors must match the canonical M119 package and task blocks exactly so repo-local proof cannot drift on status or scoped fields",
+                    "proof citations stay anchored to repo-local src, tests, docs, and scripts paths so closed-package evidence cannot drift into sibling surfaces",
+                    "canonical successor queue rows are now complete with `landed_commit: TO_BE_FILLED_M119_COMMIT`, so future slices can close this package only from the landed proof floor.",
+                ],
+            },
             "next90-m109-media-factory-build-explain-bundles": {
                 "title": "Render build explainer video, audio, preview-card, and packet siblings from approved explain packets",
                 "task": "Render approved Build Lab explain packets into video, audio, preview-card, and packet companions without mutating engine truth.",
@@ -216,9 +324,9 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                 "milestone_id": 109,
                 "wave": "W9",
                 "repo": "chummer6-media-factory",
-                "status": "in_progress",
-                "completion_action": "implementation_only",
-                "proof_floor_commit": "unlanded",
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "7d5a0167",
                 "proof_floor_summary": "Track M109 build explain companion bundle implementation with approved explain packets, stable sibling ordering, and first-class companion receipt refs",
                 "allowed_paths": [
                     "src",
@@ -281,9 +389,10 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "valid JSON payloads fail closed when required scope fields are missing so object, array, or string note payloads cannot bypass approved explain packet validation through substring fallback",
                     "non-JSON scope fallback requires exact keyed values or delimited scope tokens so near-match packet and revision ids cannot slip through by substring collision",
                     "case-insensitive duplicate caption and preview refs canonicalize to one stable spelling before grouped receipt rows emit so mixed-case ref variants cannot rewrite aggregate receipt casing when callers reorder the same approved explain packet siblings",
+                    "caption and preview refs trim surrounding whitespace before grouped receipt rows and receipt hashes emit so padded sibling refs cannot fork stable companion receipt ids or ready refs",
                     "build explain companion rendering requires one video, one audio, one preview-card, and one packet companion before the bundle can render",
                     "build explain video and audio siblings require caption refs while video, preview-card, and packet companions require preview refs",
-                    "companion refs are unique per approved explain packet so downstream shelves cannot confuse sibling outputs",
+                    "companion refs trim surrounding whitespace and stay unique case-insensitively per approved explain packet so downstream shelves cannot confuse sibling outputs with padded or mixed-case retries",
                     "bundle-scoped dedupe keys include approved explain packet id, explain packet revision id, rendering id, sibling role, category, output format, companion ref, and caller dedupe key",
                     "receipt hashes include caption and preview refs so companion receipts stay tied to their emitted explain siblings",
                     "receipt hashes use length-prefixed caption and preview ref segments so delimiter-heavy refs cannot collapse distinct companion outputs onto one receipt id",
@@ -293,20 +402,24 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "role, caption, and preview receipt groups preserve aggregate job ids, grouped companion refs, and grouped artifact rows so downstream shelves do not need to reconstruct explain evidence from raw artifact receipts",
                     "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
                     "build explain package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "canonical successor queue rows are now complete with `landed_commit: 7d5a0167`, so future slices can close this package only from the landed proof floor.",
+                    "generated and published proof artifacts require exactly one M109 successor package entry before drift comparison",
+                    "repo-local proof materialization now fails closed when either generated or published proof artifact repeats any successor package id, so package-specific drift checks cannot be masked by duplicate package rows elsewhere in the same proof file",
                     "queue and registry mirrors must match the canonical M109 package and task blocks exactly so repo-local proof cannot drift on status or scoped fields",
+                    "proof citations stay anchored to repo-local src, tests, docs, and scripts paths so closed-package evidence cannot drift into sibling surfaces",
                 ],
             },
             "next90-m145-media-factory-explain-presenter-siblings": {
                 "title": "Render optional audio or presenter siblings from approved explanation packets without becoming calculation authority.",
                 "task": "Render optional audio or presenter siblings from approved explanation packets while preserving packet identity, grounding scope, and first-party text fallback.",
                 "work_task_id": "145.5",
-                "frontier_id": 1455045505,
+                "frontier_id": 2090633046,
                 "milestone_id": 145,
                 "wave": "W28",
                 "repo": "chummer6-media-factory",
-                "status": "in_progress",
-                "completion_action": "implementation_only",
-                "proof_floor_commit": "unlanded",
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "7d5a0167",
                 "proof_floor_summary": "Track M145 explain presenter sibling rendering with approved explanation-packet scope, stable optional sibling ordering, and first-party text fallback receipts",
                 "allowed_paths": [
                     "src",
@@ -367,6 +480,7 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "JSON and keyed text explain presenter scope values trim surrounding whitespace before exact scope matching so padded approved explanation payloads stay valid without reopening substring spoof paths",
                     "non-JSON scope fallback requires exact keyed values or delimited scope tokens so near-match packet, revision, or grounding-scope ids cannot slip through by substring collision",
                     "explain presenter audio and presenter siblings require caption refs while presenter-video siblings require preview refs",
+                    "case-insensitive duplicate caption and preview refs canonicalize to one stable spelling before grouped receipt rows emit so mixed-case ref variants cannot rewrite aggregate receipt casing when callers reorder the same approved explanation packet siblings",
                     "companion refs are unique per approved explanation packet so downstream shelves cannot confuse optional audio and presenter outputs",
                     "bundle-scoped dedupe keys include approved explanation packet id, explanation packet revision id, grounding scope ref, rendering id, sibling role, category, output format, companion ref, and caller dedupe key",
                     "receipt hashes include caption refs, preview refs, and first-party text fallback so sibling receipts stay tied to their emitted explanation packet fallback posture",
@@ -378,15 +492,16 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "role, caption, and preview receipt groups preserve aggregate job ids, grouped companion refs, and grouped artifact rows so downstream shelves do not need to reconstruct explain presenter evidence from raw artifact receipts",
                     "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
                     "explain presenter package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "canonical successor queue rows are now complete with `landed_commit: 7d5a0167`, so future slices can close this package only from the landed proof floor.",
                     "queue and registry mirrors must match the canonical M145 package and task blocks exactly so repo-local proof cannot drift on status or scoped fields",
                 ],
             },
             "next90-m111-media-factory-concierge-bundles": {
                 "frontier_id": 4132724850,
                 "milestone_id": 111,
-                "status": "in_progress",
-                "completion_action": "implementation_only",
-                "proof_floor_commit": "unlanded",
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "7d5a0167",
                 "proof_floor_summary": "Track M111 install-aware concierge bundle implementation with exact package identity, scoped install-aware payloads, stable sibling ordering, and bounded sibling notes",
                 "owned_surfaces": [
                     "release_explainer_artifacts",
@@ -467,15 +582,174 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "bundle, role, caption, preview, and sibling-note receipt groups preserve aggregate job ids, grouped companion refs, grouped bundle kinds or roles, and grouped artifact rows so downstream shelves do not need to reconstruct concierge evidence from raw artifact receipts",
                     "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
                     "install-aware concierge package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "canonical successor queue rows are now complete with `landed_commit: 7d5a0167`, so future slices can close this package only from the landed proof floor.",
+                ],
+            },
+            "next90-m115-media-factory-exchange-previews": {
+                "frontier_id": 1547375325,
+                "milestone_id": 115,
+                "status": "in_progress",
+                "completion_action": "implementation_only",
+                "proof_floor_commit": "unlanded",
+                "proof_floor_summary": "Track M115 recap, replay, and exchange preview rendering with inspectable siblings, stable grouped receipts, and replay-safe dedupe",
+                "owned_surfaces": [
+                    "recap_preview_artifacts",
+                    "replay_exchange_preview_artifacts",
+                ],
+                "artifact_roles": [
+                    "RecapPreviewCard",
+                    "RecapInspectableSibling",
+                    "ReplayPreviewCard",
+                    "ReplayInspectableSibling",
+                    "ExchangePreviewCard",
+                    "ExchangeInspectableSibling",
+                ],
+                "receipt_rows": [
+                    "Artifacts",
+                    "BundleReceipts",
+                    "ReplayExchangePreviewBundleReceipt",
+                    "KindReceiptGroups",
+                    "ReplayExchangePreviewKindReceiptGroup",
+                    "PreviewCardReceiptIds",
+                    "InspectableSiblingReceiptIds",
+                    "BundleRefs",
+                    "LineageRefs",
+                    "CompatibilityReceiptIds",
+                    "ProvenanceReceiptIds",
+                    "BoundedLossReceiptIds",
+                    "JobIds",
+                    "ReadyRefs",
+                    "ReplayExchangePreviewReadyRef",
+                    "ArtifactRefReceipts",
+                    "ReplayExchangePreviewArtifactRefReceipt",
+                    "CaptionRefReceipts",
+                    "ReplayExchangePreviewCaptionRefReceipt",
+                    "PreviewRefReceipts",
+                    "ReplayExchangePreviewPreviewRefReceipt",
+                    "AssetUrl",
+                    "ApprovalState",
+                    "RetentionState",
+                    "StorageClass",
+                ],
+                "proof": [
+                    "src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs",
+                    "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+                    "tests/ReplayExchangePreviewSmoke/Program.cs",
+                    "tests/test_replay_exchange_preview_rendering.py",
+                    "tests/test_m115_replay_exchange_preview_proof.py",
+                    "tests/test_m115_successor_package_authority.py",
+                    "docs/NEXT90_M115_REPLAY_EXCHANGE_PREVIEW_PROOF_FLOOR.md",
+                    "scripts/ai/materialize_media_release_proof.py",
+                    "scripts/ai/verify_m115_replay_exchange_previews.sh",
+                    "scripts/ai/verify.sh",
+                ],
+                "extra_key": "exchange_preview_guards",
+                "extra_value": [
+                    "replay, recap, and exchange bundles must each stay first-class so portable artifact shelves can inspect every preview lane directly",
+                    "every bundle preserves BundleRef, LineageRef, CompatibilityReceiptId, ProvenanceReceiptId, and BoundedLossReceiptId in both artifact receipts and grouped receipts",
+                    "preview-card and inspectable sibling artifacts must both preserve preview refs so downstream shelves can render bounded previews without re-querying artifact internals",
+                    "bundle refs and artifact refs stay unique per render request so recap, replay, and exchange outputs cannot cross-link accidentally",
+                    "bundle-scoped dedupe keys include bundle kind, bundle ref, lineage ref, compatibility receipt id, provenance receipt id, bounded-loss receipt id, role, category, output format, artifact ref, and caller dedupe key",
+                    "source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity so replayed preview renders cannot fork stable jobs, receipt ids, or ready refs",
+                    "normalized bundle ordering plus normalized caption and preview ref ordering keep preview-card receipt ids, inspectable sibling receipt ids, ready refs, and grouped kind, caption, and preview receipt rows stable when callers reorder the same bundles",
+                    "case-insensitive caption and preview dedupe selects one canonical ref spelling before receipt hashing and aggregate ref emission so mixed-case duplicate refs stay stable when callers reorder them",
+                    "receipt hashes include caption and preview refs so replay, recap, and exchange sibling receipts stay tied to their emitted bounded preview posture",
+                    "receipt hashes use length-prefixed caption and preview ref segments so delimiter-heavy variants cannot collapse distinct outputs onto one receipt id",
+                    "kind, caption, and preview grouped receipt rows preserve aggregate job ids, grouped artifact refs, and grouped artifact rows so downstream shelves do not need to reconstruct recap, replay, and exchange evidence from raw artifact receipts",
+                    "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite render time with a newer request timestamp",
+                    "replay/exchange preview package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                ],
+            },
+            "next90-m116-media-factory-creator-promo-kits": {
+                "frontier_id": 4956678153,
+                "milestone_id": 116,
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "29ea571",
+                "proof_floor_summary": "Pin M116 creator promo kit closure with approved manifest scope, stable sibling ordering, and first-class preview and caption receipt groups",
+                "owned_surfaces": [
+                    "creator_promo_kits",
+                    "publication_preview_artifacts",
+                ],
+                "artifact_roles": [
+                    "CreatorPromoVideo",
+                    "CreatorPromoPoster",
+                    "CreatorPromoPreviewCard",
+                ],
+                "receipt_rows": [
+                    "PromoVideoReceiptIds",
+                    "PromoPosterReceiptIds",
+                    "PreviewCardReceiptIds",
+                    "JobIds",
+                    "ArtifactRefs",
+                    "ReadyRefs",
+                    "CreatorPromoKitReadyRef",
+                    "CaptionRefs",
+                    "PreviewRefs",
+                    "RoleReceiptGroups",
+                    "CreatorPromoKitRoleReceiptGroup",
+                    "ArtifactRefReceipts",
+                    "CreatorPromoKitArtifactRefReceipt",
+                    "CaptionRefReceipts",
+                    "CreatorPromoCaptionRefReceipt",
+                    "PreviewRefReceipts",
+                    "CreatorPromoPreviewRefReceipt",
+                    "ArtifactReceipts",
+                    "AssetUrl",
+                    "ApprovalState",
+                    "RetentionState",
+                    "StorageClass",
+                ],
+                "proof": [
+                    "src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs",
+                    "src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs",
+                    "tests/CreatorPromoKitSmoke/Program.cs",
+                    "tests/test_creator_promo_kit_rendering.py",
+                    "tests/test_m116_creator_promo_proof.py",
+                    "tests/test_m116_successor_package_authority.py",
+                    "docs/NEXT90_M116_CREATOR_PROMO_KIT_PROOF_FLOOR.md",
+                    "scripts/ai/materialize_media_release_proof.py",
+                    "scripts/ai/verify_m116_creator_promo_kits.sh",
+                ],
+                "extra_key": "creator_promo_guards",
+                "extra_value": [
+                    "creator promo kit rendering stays render-verified by requiring an approved manifest id and manifest revision id plus sibling-only payloads before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
+                    "parseable JSON creator promo payloads fail closed when required scope fields are missing or mismatched, so JSON strings, arrays, or wrong-sibling objects cannot bypass exact scope matching through text fallback",
+                    "non-JSON creator promo payloads require exact keyed values or delimiter-safe scope tokens, so near-match approved manifest ids and manifest revision ids cannot pass by raw substring collision",
+                    "creator promo kit rendering requires one promo video, one promo poster, and one preview-card sibling before the bundle can render",
+                    "creator promo video siblings require caption refs while every creator promo sibling requires at least one preview ref",
+                    "creator promo rendering rejects duplicate artifact refs inside one approved manifest render request",
+                    "bundle-scoped dedupe keys include approved manifest id, manifest revision id, rendering id, sibling role, category, output format, artifact ref, and caller dedupe key",
+                    "receipt hashes include caption and preview refs so creator promo receipts stay tied to emitted preview and caption siblings",
+                    "receipt hashes use length-prefixed caption and preview ref segments so delimiter-heavy creator promo refs cannot collapse distinct outputs onto one receipt id",
+                    "normalized sibling ordering keeps receipt ids, artifact refs, ready refs, and grouped role, caption, and preview receipt rows stable when callers reorder the same approved manifest siblings",
+                    "case-insensitive caption and preview dedupe selects one canonical ref spelling before receipt hashing and aggregate ref emission so mixed-case duplicate refs stay stable when callers reorder them",
+                    "source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity so replayed approved manifest renders cannot fork stable job ids, receipt ids, ready refs, or grouped role receipts",
+                    "creator promo ready refs preserve per-artifact ref, receipt id, job id, job state, output format, caption refs, preview refs, asset id, asset url, cache ttl, approval state, retention state, and storage class",
+                    "role, caption, and preview receipt groups preserve aggregate job ids, grouped artifact refs, and grouped artifact rows so downstream shelves do not need to reconstruct creator promo evidence from raw artifact receipts",
+                    "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
+                    "creator promo package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
                 ],
             },
             "next90-m113-media-factory-gm-prep-packets": {
+                "title": "Render opposition and GM prep packets from governed source packs",
+                "task": "Produce packet, preview, and optional briefing artifacts for opposition, scenes, and prep-library entries.",
+                "work_task_id": "113.4",
                 "frontier_id": 3813748639,
                 "milestone_id": 113,
+                "wave": "W11",
+                "repo": "chummer6-media-factory",
                 "status": "complete",
+                "landed_commit": "7d5a0167",
                 "completion_action": "verify_closed_package_only",
-                "proof_floor_commit": "TBD_COMMIT",
+                "proof_floor_commit": "7d5a0167",
                 "proof_floor_summary": "Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, and first-class subject receipt groups",
+                "allowed_paths": [
+                    "src",
+                    "tests",
+                    "docs",
+                    "scripts",
+                ],
                 "owned_surfaces": [
                     "gm_prep_packets",
                     "opposition_packet_artifacts",
@@ -527,6 +801,8 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "GM prep packet rendering stays render-verified by requiring a governed source pack id, source pack revision id, packet ref, and source entry id plus sibling-only payloads before media jobs enqueue, and JSON payloads must match those scope fields exactly instead of passing on substring mentions alone",
                     "parseable JSON GM prep payloads fail closed when required scope fields are missing or mismatched, so JSON strings, arrays, or wrong-sibling objects cannot bypass exact scope matching through text fallback",
                     "non-JSON GM prep payloads require exact keyed values or delimiter-safe scope tokens, so near-match source pack ids, packet refs, and source entry ids cannot pass by raw substring collision",
+                    "JSON and keyed text GM prep scope values trim surrounding whitespace before exact scope matching so padded governed payloads stay valid without reopening substring spoof paths",
+                    "GM prep packet rendering fails closed when the request contains null entries or a governed entry drops its required packet or preview artifact before normalization continues",
                     "GM prep packet rendering requires at least one opposition entry and keeps scene and prep-library entries optional within the same governed render request",
                     "GM prep packet entries require packet and preview artifacts while briefing artifacts stay optional per governed entry",
                     "GM prep packet rendering rejects duplicate source entries and duplicate packet refs inside one governed render request",
@@ -537,6 +813,69 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
                     "GM prep packet artifact receipts preserve asset urls, approval state, retention state, and storage class alongside packet, preview, and optional briefing outputs",
                     "rendered timestamps resolve from completed media jobs so later deduped retries cannot rewrite bundle render time with a newer request timestamp",
                     "GM prep packet package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "generated and published proof artifacts require exactly one M113 successor package entry before drift comparison",
+                    "generated proof requires unique M113 proof citations and unique GM prep guard rows before drift comparison so closed-package evidence cannot silently duplicate itself while still matching canonical mirrors",
+                    "generated proof requires unique M113 artifact roles and unique receipt rows before drift comparison so closed-package evidence cannot silently duplicate rendered sibling claims or receipt surfaces while still matching canonical mirrors",
+                    "generated proof requires the exact pinned M113 proof citations, artifact roles, and receipt rows before drift comparison so closed-package evidence cannot quietly add sibling surfaces while still matching canonical mirrors",
+                    "generated and published proof artifacts now pin the exact M113 GM prep guard rows directly on the successor package entry, so repo-local closure proof cannot silently rewrite the closed-package scope rules while still matching on identity alone",
+                    "queue and registry mirrors must match the canonical M113 package and task blocks exactly so repo-local proof cannot drift on status or scoped fields",
+                    "proof citations stay anchored to repo-local src, tests, docs, and scripts paths so closed-package evidence cannot drift into sibling surfaces",
+                    "every pinned M113 proof citation must resolve to a repo-local file before generated or published closure proof can stay green, so closed-package evidence cannot cite deleted surfaces while still matching on strings alone",
+                    "generated and published proof artifacts now pin `landed_commit: 7d5a0167` directly on the M113 successor package entry, so repo-local closure proof cannot drift behind the canonical queue receipt while still reporting `status: complete`.",
+                    "canonical successor queue rows are now complete with `landed_commit: 7d5a0167`, so future slices can close this package only from the landed proof floor.",
+                ],
+            },
+            "next90-m135-media-factory-close-media-contracts-render-jobs-previews-manifests-arc": {
+                "frontier_id": 4720040715,
+                "milestone_id": 135,
+                "status": "complete",
+                "completion_action": "verify_closed_package_only",
+                "proof_floor_commit": "unlanded",
+                "proof_floor_summary": "Close the repo-wide media coverage bundle by pinning contracts, render jobs, previews, manifests, provider adapters, archive posture, and asset lifecycle evidence to one verify-only package entry",
+                "allowed_paths": [
+                    "src",
+                    "tests",
+                    "docs",
+                    "scripts",
+                ],
+                "owned_surfaces": [
+                    "close_media_contracts_render_jobs:media_factory",
+                ],
+                "artifact_roles": [
+                    "DocumentPdf",
+                    "DocumentThumbnailImage",
+                    "PortraitImageVariant",
+                    "NarrativeBriefVideo",
+                    "RouteCinemaResult",
+                    "StructuredRecipePacketBundle",
+                    "CampaignColdOpen",
+                    "BuildExplainCompanionPacketCompanion",
+                    "ExplainPresenterSiblingPresenterVideo",
+                    "InstallAwarePublicConciergePreviewCard",
+                    "ReplayPreviewCard",
+                    "GmPrepOppositionPacket",
+                    "CreatorPromoKitVideo",
+                    "StarterPrimerVideo",
+                ],
+                "receipt_rows": [
+                    "PublicationReadyRefs",
+                    "CaptionRefReceipts",
+                    "PreviewRefReceipts",
+                    "ArtifactReceipts",
+                    "RoleReceiptGroups",
+                    "JobIds",
+                    "AssetUrl",
+                    "ApprovalState",
+                    "RetentionState",
+                    "StorageClass",
+                ],
+                "extra_key": "media_coverage_guards",
+                "extra_value": [
+                    "media coverage closure keeps the contracts assembly marker, render kind inventory, render-job lifecycle, preview receipts, manifest publication proof, provider-adapter posture, and archive retention state pinned to repo-local render ownership only",
+                    "closure coverage package composes the render-verified successor proof floors for structured recipes, campaign briefings, build explain, runsite orientation, install-aware concierge, GM prep packets, replay or exchange previews, creator promo kits, starter artifacts, and explain presenter siblings without reopening runtime ownership boundaries",
+                    "published release proof and artifact publication certification must match the freshly materialized M135 package entry exactly so repo-local closure cannot drift behind stale published snapshots",
+                    "media coverage package authority requires exactly one canonical queue row per mirror and exactly one registry task block",
+                    "proof citations stay anchored to repo-local src, tests, docs, and scripts paths so closed-package evidence cannot drift into sibling surfaces",
                 ],
             },
         }
@@ -544,26 +883,74 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
         for payload in (release, certification):
             packages = payload["successor_packages"]
             self.assertEqual(set(expected_packages), {package["package_id"] for package in packages})
+            self.assertEqual(len(expected_packages), len(packages))
 
             for package in packages:
                 expected = expected_packages[package["package_id"]]
                 self.assertEqual(expected["frontier_id"], package["frontier_id"])
                 self.assertEqual(expected["milestone_id"], package["milestone_id"])
                 self.assertEqual(expected["status"], package["status"])
+                if "landed_commit" in expected:
+                    self.assertEqual(expected["landed_commit"], package["landed_commit"])
                 self.assertEqual(expected["completion_action"], package["completion_action"])
                 self.assertEqual(expected["proof_floor_commit"], package["proof_floor_commit"])
                 self.assertEqual(expected["proof_floor_summary"], package["proof_floor_summary"])
+                if "allowed_paths" in expected:
+                    self.assertEqual(expected["allowed_paths"], package["allowed_paths"])
                 self.assertEqual(expected["owned_surfaces"], package["owned_surfaces"])
                 self.assertEqual(expected["artifact_roles"], package["artifact_roles"])
                 self.assertEqual(expected["receipt_rows"], package["receipt_rows"])
+                if package["package_id"] == "next90-m113-media-factory-gm-prep-packets":
+                    self.assertEqual(expected["proof"], package["proof"])
                 self.assertEqual(expected["extra_value"], package[expected["extra_key"]])
-
-                for proof_path in expected["proof"]:
-                    self.assertIn(proof_path, package["proof"])
+                self.assertEqual(len(package["proof"]), len(set(package["proof"])))
+                self.assertEqual(len(package["artifact_roles"]), len(set(package["artifact_roles"])))
+                self.assertEqual(len(package["receipt_rows"]), len(set(package["receipt_rows"])))
+                self.assertEqual(len(package[expected["extra_key"]]), len(set(package[expected["extra_key"]])))
 
         self.assertEqual(
-            "render jobs, manifests, previews, campaign briefing bundles, runsite orientation bundles, structured recipe bundles, build explain companion bundles, explain presenter sibling bundles, install-aware concierge bundles, GM prep packet bundles, and asset lifecycle",
+            "render jobs, manifests, previews, campaign briefing bundles, starter onboarding bundles, runsite orientation bundles, structured recipe bundles, build explain companion bundles, explain presenter sibling bundles, install-aware concierge bundles, replay/exchange preview bundles, creator promo kit bundles, GM prep packet bundles, and asset lifecycle",
             release["evidence"]["release_surface"],
+        )
+
+    def test_published_m109_package_entry_matches_fresh_materialization(self):
+        published_release = json.loads(
+            (ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json").read_text(encoding="utf-8")
+        )
+        published_certification = json.loads(
+            (ROOT / ".codex-studio/published/ARTIFACT_PUBLICATION_CERTIFICATION.generated.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/ai/materialize_media_release_proof.py",
+                    "--out-dir",
+                    tmp,
+                    "--status",
+                    "passed",
+                ],
+                cwd=ROOT,
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+            generated_release = json.loads((Path(tmp) / "MEDIA_LOCAL_RELEASE_PROOF.generated.json").read_text(encoding="utf-8"))
+            generated_certification = json.loads(
+                (Path(tmp) / "ARTIFACT_PUBLICATION_CERTIFICATION.generated.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(
+            self.assert_single_package_entry(generated_release["successor_packages"], M109_PACKAGE_ID),
+            self.assert_single_package_entry(published_release["successor_packages"], M109_PACKAGE_ID),
+            "published MEDIA_LOCAL_RELEASE_PROOF.generated.json should match the current M109 package entry exactly",
+        )
+        self.assertEqual(
+            self.assert_single_package_entry(generated_certification["successor_packages"], M109_PACKAGE_ID),
+            self.assert_single_package_entry(published_certification["successor_packages"], M109_PACKAGE_ID),
+            "published ARTIFACT_PUBLICATION_CERTIFICATION.generated.json should match the current M109 package entry exactly",
         )
 
 

@@ -2,15 +2,20 @@
 
 ## Public feedback lane
 
-If you want to help without touching premium participation at all, use the public front door:
+If you want to help without touching the optional guided contribution path at all, use the normal public routes:
 
 * file a public bug
 * send lightweight product feedback
 * flag confusing public copy
 * suggest a future lane
 * point at a horizon that sounds more useful than the current list
+* suggest or vote on a public idea when it is not support, account, install, crash, private campaign, or copyrighted rules text
 
-That keeps feedback public and legible instead of making normal humans spelunk through design canon.
+That keeps feedback public and searchable instead of sending normal users into private side channels or project archaeology.
+
+Public idea-board feedback is public. Do not post private logs, account data, campaign spoilers, copyrighted source text, crash dumps, or support requests there. Use Chummer Help for support.
+
+The public idea board is not the support queue, the release checklist, or the final roadmap authority.
 
 ## Private crash lane
 
@@ -30,6 +35,22 @@ Public help copy may offer both:
 * link this copy to your account so we can keep your reports, suggest the right updates, and tell you when your issue is fixed
 
 That is a relationship choice, not a special per-user build.
+
+## Public concierge bounds
+
+When a public concierge widget appears on `/downloads`, `/now`, `/help`, or another public low-risk page:
+
+* the first-party help or release article remains the fixed truth
+* the widget is a preview overlay that helps the user choose a safe next step
+* fallback routes stay visible and must still work when the widget is disabled
+* recovery language must point at the real help, relinking, or escalation path instead of claiming the widget fixed anything itself
+* no claim codes, auth secrets, or private case identifiers belong in the widget
+
+## Public content optimization bounds
+
+Katteb-assisted articles and guide improvements must be reviewed against approved Chummer source packets.
+
+Accepted content changes flow upstream into `chummer6-design` or public-guide source registries before generated guide output changes. Katteb must not invent rules, support answers, unshipped availability, or campaign/world truth.
 
 ## Closure rule
 
@@ -79,5 +100,5 @@ When those lanes become cheaper and safer to operate broadly, the long-run inten
 * Open the public participation page
 * File a public issue
 * Send a private crash report from the recovery flow when Chummer closes unexpectedly
-* Link this copy to your account if you want fix-status follow-up and account-aware support history
+* Link this copy to your account if you want follow-up on fixes and account-aware support history
 * Read current status before promising yourself too much

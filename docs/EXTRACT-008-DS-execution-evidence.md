@@ -2,7 +2,7 @@
 
 Date: 2026-03-10
 
-This evidence file records execution of the DTO boundary split backlog and confirms `Chummer.Media.Contracts` remains render-only.
+This evidence file records execution of the DTO boundary split backlog and confirms `Chummer.Media.Contracts` remains render-verified.
 
 ## DS-01 Contract inventory and ownership classification
 
@@ -217,7 +217,7 @@ No mixed DTO residue was found in `src/Chummer.Media.Contracts`. No split/remova
 
 Revalidation note (2026-04-15):
 - That closure statement was too broad. It covered the canonical render/job/asset families, but it did not inventory the legacy compatibility shim in `src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs`.
-- The compatibility shim still exposes upstream semantics that are out of scope for media-factory-owned render-only contracts, so follow-on backlog units are required.
+- The compatibility shim still exposes upstream semantics that are out of scope for media-factory-owned render-verified contracts, so follow-on backlog units are required.
 
 ## DS-04 Boundary conformance tests
 
@@ -249,7 +249,7 @@ The following public compatibility DTOs still mix render/job/asset lifecycle con
 | `PacketFactoryRequest` | `References` | `forbidden_upstream` | Upstream evidence/reference selection is not a media-owned render/job lifecycle concern. |
 | `PacketFactoryRequest` | `Attachments` | `forbidden_upstream` | Attachment targeting mixes delivery/publication semantics into media contracts. |
 | `PacketAttachmentTargetKind` | `Route`, `Message`, `Export` | `forbidden_upstream` | Target routing semantics belong upstream. |
-| `PacketAttachmentRequest` | `TargetKind`, `TargetId`, `TargetLabel` | `forbidden_upstream` | Delivery/attachment targeting is not render-only ownership. |
+| `PacketAttachmentRequest` | `TargetKind`, `TargetId`, `TargetLabel` | `forbidden_upstream` | Delivery/attachment targeting is not render-verified ownership. |
 | `PacketAttachmentBatchRequest` | `Attachments` | `forbidden_upstream` | Batch attachment semantics remain upstream. |
 | `PacketAttachmentRecord` | `PacketId` | `forbidden_upstream` | Packet identity is upstream artifact/session meaning. |
 | `PacketAttachmentRecord` | `TargetKind`, `TargetId`, `TargetLabel` | `forbidden_upstream` | Attachment/delivery target meaning belongs upstream. |
@@ -297,7 +297,7 @@ Program mapping:
 - Contract set: `media_execution_vnext` (`.codex-design/product/CONTRACT_SETS.yaml`)
 
 Execution-to-gate mapping:
-- `DS-01` + `DS-03` enforce render-only DTO ownership required for `M8` aggregate closure.
+- `DS-01` + `DS-03` enforce render-verified DTO ownership required for `M8` aggregate closure.
 - `DS-02` + `DS-04` provide executable guardrails/tests used as completion truth gates for boundary integrity.
 - `DS-05` maps active generic queue prompts to runnable units so milestone evidence remains explicit rather than implied.
 - `DS-06` + `DS-07` inventory and plan the remaining compatibility-shim split work.

@@ -5,8 +5,8 @@ PR: https://github.com/ArchonMegalon/chummer6-media-factory/pull/2
 
 Findings:
 - [high] src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs [contracts] contracts-render-context-leak-compat
-Public contracts include upstream context fields in render DTOs: `PacketFactoryRequest(... string? SceneId = null ...)` (line 152), `RouteCinemaRequest(string RouteContextId, ..., string SceneId)` (lines 193-196), and `RouteCinemaResult(... string RouteContextId, ..., string SceneId, ...)` (lines 200-203).; Repo boundary docs mark campaign/session context out of scope for `Chummer.Media.Contracts` and require render-only DTO surfaces.
-Expected fix: Remove/migrate upstream context identifiers from the public contracts package (or move these compatibility shapes out of package-public render contracts) so DTOs remain render-only.
+Public contracts include upstream context fields in render DTOs: `PacketFactoryRequest(... string? SceneId = null ...)` (line 152), `RouteCinemaRequest(string RouteContextId, ..., string SceneId)` (lines 193-196), and `RouteCinemaResult(... string RouteContextId, ..., string SceneId, ...)` (lines 200-203).; Repo boundary docs mark campaign/session context out of scope for `Chummer.Media.Contracts` and require render-verified DTO surfaces.
+Expected fix: Remove/migrate upstream context identifiers from the public contracts package (or move these compatibility shapes out of package-public render contracts) so DTOs remain render-verified.
 - [high] src/Chummer.Media.Contracts/Compatibility/RunServices/MediaFactoryContracts.cs [contracts] contracts-approval-state-semantic-drift
 Compatibility lifecycle enum uses `Draft/Approved/Rejected` (lines 11-16) instead of pending semantics expected by repo review policy (`pending/approved/rejected`).; This creates parallel approval semantics in public contracts and risks lifecycle-state drift across contract families.
 Expected fix: Align compatibility approval-state semantics with canonical pending/approved/rejected lifecycle contract meaning, or explicitly map/contain this shape outside canonical public contracts.

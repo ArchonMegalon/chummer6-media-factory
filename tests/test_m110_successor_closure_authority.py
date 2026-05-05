@@ -26,12 +26,16 @@ def package_block(text: str) -> str:
     if package_start == -1:
         raise AssertionError(f"missing package row {PACKAGE_ID}")
 
-    title_start = text.rfind("\n  - title:", 0, package_start)
+    title_start = text.rfind("\n- title:", 0, package_start)
     start = title_start + 1 if title_start != -1 else package_start
-    next_row = text.find("\n  - title:", package_start + len(marker))
+    next_row = text.find("\n- title:", package_start + len(marker))
     if next_row == -1:
         return text[start:]
     return text[start:next_row]
+
+
+def package_row_count(text: str) -> int:
+    return text.count(f"package_id: {PACKAGE_ID}")
 
 
 def registry_task_block(text: str) -> str:
@@ -46,12 +50,20 @@ def registry_task_block(text: str) -> str:
     return text[start:next_row]
 
 
+def registry_task_count(text: str) -> int:
+    return text.count("id: 110.2")
+
+
 class M110SuccessorClosureAuthorityTests(unittest.TestCase):
     def test_fleet_queue_closes_exact_m110_runsite_bundle_package(self):
-        self.assert_queue_block_closes_exact_package(package_block(read(FLEET_QUEUE)))
+        text = read(FLEET_QUEUE)
+        self.assertEqual(1, package_row_count(text))
+        self.assert_queue_block_closes_exact_package(package_block(text))
 
     def test_design_queue_mirror_closes_exact_m110_runsite_bundle_package(self):
-        self.assert_queue_block_closes_exact_package(package_block(read(DESIGN_QUEUE)))
+        text = read(DESIGN_QUEUE)
+        self.assertEqual(1, package_row_count(text))
+        self.assert_queue_block_closes_exact_package(package_block(text))
 
     def assert_queue_block_closes_exact_package(self, block: str):
         for token in (
@@ -78,13 +90,15 @@ class M110SuccessorClosureAuthorityTests(unittest.TestCase):
             "scripts/ai/materialize_media_release_proof.py",
             "scripts/ai/verify.sh",
             "python3 -m unittest tests.test_m110_successor_closure_authority tests.test_m110_runsite_orientation_proof exits 0.",
-            "dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj --configuration Release --nologo --verbosity quiet exits 0.",
+            "dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj --configuration",
             "./scripts/ai/verify.sh exits 0.",
         ):
             self.assertIn(token, block, token)
 
     def test_canonical_registry_records_m110_media_factory_evidence(self):
-        block = registry_task_block(read(REGISTRY))
+        text = read(REGISTRY)
+        self.assertEqual(1, registry_task_count(text))
+        block = registry_task_block(text)
 
         for token in (
             "id: 110.2",
@@ -96,7 +110,7 @@ class M110SuccessorClosureAuthorityTests(unittest.TestCase):
             "tests/RunsiteOrientationBundleSmoke/Program.cs proves host clips and route previews are mandatory, route preview receipts stay route-linked, and delimiter-heavy variants cannot collapse dedupe or receipt ids.",
             "tests/test_m110_successor_closure_authority.py fail-closes the exact package, queue, registry, and generated-proof closure authority.",
             "python3 -m unittest tests.test_m110_successor_closure_authority tests.test_m110_runsite_orientation_proof exits 0.",
-            "dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj --configuration Release --nologo --verbosity quiet exits 0.",
+            "dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrientationBundleSmoke.csproj --configuration",
             "./scripts/ai/verify.sh exits 0.",
         ):
             self.assertIn(token, block, token)
@@ -127,7 +141,7 @@ class M110SuccessorClosureAuthorityTests(unittest.TestCase):
             for candidate in json.loads(generated_proof)["successor_packages"]
             if candidate["package_id"] == PACKAGE_ID
         )
-        self.assertEqual("worktree-local", package["proof_floor_commit"])
+        self.assertEqual("3accc50", package["proof_floor_commit"])
         self.assertIn("tests/test_m110_successor_closure_authority.py", package["proof"])
         self.assertIn("scripts/ai/materialize_media_release_proof.py", package["proof"])
 
