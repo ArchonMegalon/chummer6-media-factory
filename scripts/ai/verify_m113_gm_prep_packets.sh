@@ -25,9 +25,14 @@ python3 scripts/ai/materialize_media_release_proof.py \
 python3 - "$tmp_dir" <<'PY'
 from pathlib import Path
 import json
+import re
 import sys
 
 package_id = "next90-m113-media-factory-gm-prep-packets"
+proof_floor_summary = (
+    "Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, "
+    "and first-class subject receipt groups"
+)
 expected_scalars = {
     "title": "Render opposition and GM prep packets from governed source packs",
     "task": "Produce packet, preview, and optional briefing artifacts for opposition, scenes, and prep-library entries.",
@@ -40,6 +45,9 @@ expected_scalars = {
     "landed_commit": "7d5a0167",
     "completion_action": "verify_closed_package_only",
     "proof_floor_commit": "7d5a0167",
+    # Keep the pinned literal visible in-script for closure-authority checks:
+    # "proof_floor_summary": "Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, and first-class subject receipt groups"
+    "proof_floor_summary": proof_floor_summary,
 }
 expected_allowed_paths = ["src", "tests", "docs", "scripts"]
 expected_owned_surfaces = ["gm_prep_packets", "opposition_packet_artifacts"]
@@ -214,6 +222,43 @@ if published_release != expected_release:
 
 if published_certification != expected_certification:
     raise SystemExit("verify failed: published ARTIFACT_PUBLICATION_CERTIFICATION.generated.json drifted from the current M113 package entry")
+
+package_marker = f"package_id: {package_id}"
+
+def extract_queue_block(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    package_start = text.find(package_marker)
+    if package_start == -1:
+        raise SystemExit(f"verify failed: missing {package_id} queue row in {path}")
+
+    start = text.rfind("\n- title:", 0, package_start)
+    start = package_start if start == -1 else start + 1
+    next_row = text.find("\n- title:", package_start + len(package_marker))
+    return text[start:] if next_row == -1 else text[start:next_row]
+
+def extract_registry_block(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"^(?P<indent>\s*)- id: 113\.4$", text, re.MULTILINE)
+    if match is None:
+        raise SystemExit(f"verify failed: missing M113 registry task block in {path}")
+
+    start = match.start()
+    indent = match.group("indent")
+    next_match = re.search(rf"^\{indent}- id: ", text[match.end():], re.MULTILINE)
+    return text[start:] if next_match is None else text[start:match.end() + next_match.start()]
+
+canonical_queue = extract_queue_block(Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"))
+design_queue = extract_queue_block(Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"))
+repo_local_queue = extract_queue_block(repo_root / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
+if design_queue != canonical_queue:
+    raise SystemExit("verify failed: design queue mirror drifted from the canonical M113 package row")
+if repo_local_queue != canonical_queue:
+    raise SystemExit("verify failed: repo-local queue mirror drifted from the canonical M113 package row")
+
+canonical_registry = extract_registry_block(Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"))
+repo_local_registry = extract_registry_block(repo_root / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
+if repo_local_registry != canonical_registry:
+    raise SystemExit("verify failed: repo-local registry mirror drifted from the canonical M113 task block")
 PY
 
 for commit_name in 7d5a0167 7d5a0167; do

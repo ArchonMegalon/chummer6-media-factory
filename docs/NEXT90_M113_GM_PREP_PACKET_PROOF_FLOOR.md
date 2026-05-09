@@ -5,6 +5,7 @@ Frontier: `3813748639`
 Status: `complete`
 Completion action: `verify_closed_package_only`
 Proof floor commit: `7d5a0167`
+Proof floor summary: `Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, and first-class subject receipt groups`
 Owned surfaces: `gm_prep_packets`, `opposition_packet_artifacts`
 
 This package is implemented repo-locally in `chummer6-media-factory` as a render-only lane for governed opposition, scene, and prep-library entries. The runtime accepts only governed source-pack scoped sibling payloads and emits packet, preview, and optional briefing receipts without becoming campaign, lore, or approval authority.
@@ -13,7 +14,7 @@ Current closure posture:
 
 - `GmPrepPacketBundleService.cs` renders governed opposition, scene, and prep-library entries through media-factory job execution only.
 - `MediaFactoryContracts.cs` defines `GmPrepPacketRenderRequest`, `GmPrepPacketBundleReceipt`, `GmPrepPacketEntryReceipt`, `GmPrepPacketSubjectReceiptGroup`, sibling artifact roles, and first-class packet, preview, briefing, and grouped subject receipt rows.
-- generated repo-local release proof now pins the exact M113 package identity: title `Render opposition and GM prep packets from governed source packs`, task `Produce packet, preview, and optional briefing artifacts for opposition, scenes, and prep-library entries.`, work-task id `113.4`, wave `W11`, repo `chummer6-media-factory`, allowed paths `src/tests/docs/scripts`, owned surfaces, and frontier id `3813748639`.
+- generated repo-local release proof now pins the exact M113 package identity: title `Render opposition and GM prep packets from governed source packs`, task `Produce packet, preview, and optional briefing artifacts for opposition, scenes, and prep-library entries.`, work-task id `113.4`, wave `W11`, repo `chummer6-media-factory`, proof-floor summary `Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, and first-class subject receipt groups`, allowed paths `src/tests/docs/scripts`, owned surfaces, and frontier id `3813748639`.
 - GM prep packet rendering stays render-verified by requiring a `GovernedSourcePackId`, `SourcePackRevisionId`, `PacketRef`, and `SourceEntryId` plus sibling-only payloads before any media job can enqueue.
 - parseable JSON GM prep payloads fail closed when required scope fields are missing or mismatched, so JSON strings, arrays, or wrong-sibling objects cannot bypass exact scope matching through text fallback.
 - non-JSON GM prep payloads require exact keyed values or delimiter-safe scope tokens, so near-match source pack ids, packet refs, and source entry ids cannot pass by raw substring collision.
