@@ -12,6 +12,10 @@ PACKAGE_ID = "next90-m113-media-factory-gm-prep-packets"
 PUBLISHED_RELEASE_PROOF = ROOT / ".codex-studio/published/MEDIA_LOCAL_RELEASE_PROOF.generated.json"
 PUBLISHED_CERTIFICATION = ROOT / ".codex-studio/published/ARTIFACT_PUBLICATION_CERTIFICATION.generated.json"
 PROOF_FLOOR_COMMIT = "7d5a0167"
+PROOF_FLOOR_SUMMARY = (
+    "Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, "
+    "and first-class subject receipt groups"
+)
 ALLOWED_PROOF_PREFIXES = ("src/", "tests/", "docs/", "scripts/")
 WORKER_SAFE_PROOF_SOURCES = (
     "src/Chummer.Media.Factory.Runtime/Assets/GmPrepPacketBundleService.cs",
@@ -150,6 +154,7 @@ class M113GmPrepPacketProofTests(unittest.TestCase):
         self.assertEqual("7d5a0167", package["landed_commit"])
         self.assertEqual("verify_closed_package_only", package["completion_action"])
         self.assertEqual(PROOF_FLOOR_COMMIT, package["proof_floor_commit"])
+        self.assertEqual(PROOF_FLOOR_SUMMARY, package["proof_floor_summary"])
         self.assertEqual(["src", "tests", "docs", "scripts"], package["allowed_paths"])
         self.assertEqual(
             ["gm_prep_packets", "opposition_packet_artifacts"],

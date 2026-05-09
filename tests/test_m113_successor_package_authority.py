@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -11,11 +12,17 @@ ROOT = Path(__file__).resolve().parents[1]
 FLEET_QUEUE = Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
 DESIGN_QUEUE = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
 REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
+REPO_LOCAL_QUEUE = ROOT / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+REPO_LOCAL_REGISTRY = ROOT / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"
 
 PACKAGE_ID = "next90-m113-media-factory-gm-prep-packets"
 FRONTIER_ID = "3813748639"
 LANDED_COMMIT = "7d5a0167"
 PROOF_FLOOR_COMMIT = "7d5a0167"
+PROOF_FLOOR_SUMMARY = (
+    "Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, "
+    "and first-class subject receipt groups"
+)
 VERIFY_SCRIPT = Path("/docker/fleet/repos/chummer-media-factory/scripts/ai/verify_m113_gm_prep_packets.sh")
 VERIFY_ALL_SCRIPT = Path("/docker/fleet/repos/chummer-media-factory/scripts/ai/verify.sh")
 EXPECTED_PROOF = (
@@ -112,15 +119,16 @@ def package_row_count(text: str) -> int:
 
 
 def registry_task_block(text: str) -> str:
-    marker = "id: 113.4"
-    start = text.find(marker)
-    if start == -1:
+    match = re.search(r"^(?P<indent>\s*)- id: 113\.4$", text, re.MULTILINE)
+    if match is None:
         raise AssertionError("missing registry task 113.4")
 
-    next_row = text.find("\n    - id:", start + len(marker))
-    if next_row == -1:
+    start = match.start()
+    indent = match.group("indent")
+    next_match = re.search(rf"^\{indent}- id: ", text[match.end():], re.MULTILINE)
+    if next_match is None:
         return text[start:]
-    return text[start:next_row]
+    return text[start:match.end() + next_match.start()]
 
 
 def registry_task_count(text: str) -> int:
@@ -146,6 +154,7 @@ class M113SuccessorPackageAuthorityTests(unittest.TestCase):
             "\"landed_commit\": \"7d5a0167\"",
             "\"completion_action\": \"verify_closed_package_only\"",
             "\"proof_floor_commit\": \"7d5a0167\"",
+            "\"proof_floor_summary\": \"Pin M113 governed GM prep packet closure with opposition-required entries, optional briefing siblings, and first-class subject receipt groups\"",
             "expected_allowed_paths = [\"src\", \"tests\", \"docs\", \"scripts\"]",
             "expected_owned_surfaces = [\"gm_prep_packets\", \"opposition_packet_artifacts\"]",
             "def require_exact_field(package_name: str, package: dict, field_name: str, expected_value: object) -> None:",
@@ -213,6 +222,31 @@ class M113SuccessorPackageAuthorityTests(unittest.TestCase):
         self.assertEqual(1, package_row_count(read(DESIGN_QUEUE)))
         self.assert_queue_block_closes_exact_package(package_block(read(DESIGN_QUEUE)))
 
+    def test_repo_local_queue_mirror_closes_exact_m113_media_factory_package(self):
+        self.assertEqual(1, package_row_count(read(REPO_LOCAL_QUEUE)))
+        self.assert_queue_block_closes_exact_package(package_block(read(REPO_LOCAL_QUEUE)))
+
+    def test_queue_mirrors_keep_exact_m113_media_factory_package_block(self):
+        fleet_block = package_block(read(FLEET_QUEUE))
+        design_block = package_block(read(DESIGN_QUEUE))
+        repo_block = package_block(read(REPO_LOCAL_QUEUE))
+
+        self.assertEqual(
+            fleet_block,
+            design_block,
+            "design queue mirror should match the canonical fleet M113 package row exactly",
+        )
+        self.assertEqual(
+            fleet_block,
+            repo_block,
+            "repo-local queue mirror should match the canonical fleet M113 package row exactly",
+        )
+
+    def test_all_queue_mirrors_keep_exactly_one_m113_package_row(self):
+        for queue_path in (FLEET_QUEUE, DESIGN_QUEUE, REPO_LOCAL_QUEUE):
+            with self.subTest(queue_path=queue_path):
+                self.assertEqual(1, package_row_count(read(queue_path)))
+
     def assert_queue_block_closes_exact_package(self, block: str):
         for token in (
             "title: Render opposition and GM prep packets from governed source packs",
@@ -258,6 +292,22 @@ class M113SuccessorPackageAuthorityTests(unittest.TestCase):
         self.assertEqual(1, registry_task_count(text))
         block = registry_task_block(text)
 
+        self.assert_registry_block_records_m113_closure(block)
+
+    def test_repo_local_registry_records_m113_media_factory_closure_evidence(self):
+        text = read(REPO_LOCAL_REGISTRY)
+        self.assertEqual(1, registry_task_count(text))
+        self.assert_registry_block_records_m113_closure(registry_task_block(text))
+
+    def test_registry_mirrors_keep_exact_m113_media_factory_task_block(self):
+        self.assertEqual(registry_task_block(read(REGISTRY)), registry_task_block(read(REPO_LOCAL_REGISTRY)))
+
+    def test_all_registry_mirrors_keep_exactly_one_m113_task_block(self):
+        for registry_path in (REGISTRY, REPO_LOCAL_REGISTRY):
+            with self.subTest(registry_path=registry_path):
+                self.assertEqual(1, registry_task_count(read(registry_path)))
+
+    def assert_registry_block_records_m113_closure(self, block: str) -> None:
         for token in (
             "id: 113.4",
             "owner: chummer6-media-factory",
@@ -327,6 +377,7 @@ class M113SuccessorPackageAuthorityTests(unittest.TestCase):
         self.assertEqual(LANDED_COMMIT, package["landed_commit"])
         self.assertEqual("verify_closed_package_only", package["completion_action"])
         self.assertEqual(PROOF_FLOOR_COMMIT, package["proof_floor_commit"])
+        self.assertEqual(PROOF_FLOOR_SUMMARY, package["proof_floor_summary"])
         self.assertIn("tests/test_m113_successor_package_authority.py", package["proof"])
         self.assertEqual(list(EXPECTED_PROOF), package["proof"])
         self.assertEqual(list(EXPECTED_ARTIFACT_ROLES), package["artifact_roles"])
@@ -338,7 +389,9 @@ class M113SuccessorPackageAuthorityTests(unittest.TestCase):
             (
                 package_block(read(FLEET_QUEUE)),
                 package_block(read(DESIGN_QUEUE)),
+                package_block(read(REPO_LOCAL_QUEUE)),
                 registry_task_block(read(REGISTRY)),
+                registry_task_block(read(REPO_LOCAL_REGISTRY)),
                 proof_floor,
                 json.dumps(generated_proof, indent=2, sort_keys=True),
             )
