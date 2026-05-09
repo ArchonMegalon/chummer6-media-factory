@@ -136,7 +136,11 @@ public enum MediaRenderJobType
     ReplayPreviewCard,
     ReplayInspectableSibling,
     ExchangePreviewCard,
-    ExchangeInspectableSibling
+    ExchangeInspectableSibling,
+    ModeratedTestimonialVideo,
+    ModeratedTestimonialAudio,
+    ModeratedTestimonialPreviewCard,
+    ModeratedTestimonialTranscriptCard
 }
 
 public enum MediaRenderJobState
@@ -1712,5 +1716,159 @@ public sealed record CreatorPromoKitRenderReceipt(
     IReadOnlyList<CreatorPromoKitArtifactRefReceipt> ArtifactRefReceipts,
     IReadOnlyList<CreatorPromoCaptionRefReceipt> CaptionRefReceipts,
     IReadOnlyList<CreatorPromoPreviewRefReceipt> PreviewRefReceipts);
+
+public enum ModeratedTestimonialArtifactRole
+{
+    Video,
+    Audio,
+    PreviewCard,
+    TranscriptCard
+}
+
+public sealed record ModeratedTestimonialArtifactRenderRequest(
+    ModeratedTestimonialArtifactRole Role,
+    string Category,
+    string Payload,
+    string OutputFormat,
+    string AssetRef,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string DeduplicationKey,
+    TimeSpan? CacheTtl = null,
+    int MaxBytes = 0,
+    bool RequiresApproval = true,
+    bool PersistOnApproval = true,
+    bool AllowPersistentPinning = true);
+
+public sealed record ModeratedTestimonialRenderRequest(
+    string RenderingId,
+    string PublicationId,
+    string ModerationCaseId,
+    string SourceReceiptId,
+    string ConsentReceiptId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    IReadOnlyList<ModeratedTestimonialArtifactRenderRequest> Artifacts);
+
+public sealed record ModeratedTestimonialArtifactReceipt(
+    string ReceiptId,
+    ModeratedTestimonialArtifactRole Role,
+    string Category,
+    string OutputFormat,
+    string AssetRef,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string JobId,
+    MediaRenderJobState JobState,
+    string ModerationState,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record ModeratedTestimonialArtifactRefReceipt(
+    string Ref,
+    ModeratedTestimonialArtifactRole Role,
+    string Category,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string ModerationState,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record ModeratedTestimonialReadyRef(
+    string Ref,
+    ModeratedTestimonialArtifactRole Role,
+    string Category,
+    string ReceiptId,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string ModerationState,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record ModeratedTestimonialGroupedArtifactReceipt(
+    string ReceiptId,
+    ModeratedTestimonialArtifactRole Role,
+    string Category,
+    string AssetRef,
+    string JobId,
+    MediaRenderJobState JobState,
+    string OutputFormat,
+    string ModerationState,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    string? AssetId = null,
+    string? AssetUrl = null,
+    TimeSpan? CacheTtl = null,
+    AssetApprovalState? ApprovalState = null,
+    AssetRetentionState? RetentionState = null,
+    AssetStorageClass? StorageClass = null);
+
+public sealed record ModeratedTestimonialCaptionRefReceipt(
+    string Ref,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> AssetRefs,
+    IReadOnlyList<ModeratedTestimonialArtifactRole> Roles,
+    IReadOnlyList<ModeratedTestimonialGroupedArtifactReceipt> ArtifactReceipts);
+
+public sealed record ModeratedTestimonialPreviewRefReceipt(
+    string Ref,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> AssetRefs,
+    IReadOnlyList<ModeratedTestimonialArtifactRole> Roles,
+    IReadOnlyList<ModeratedTestimonialGroupedArtifactReceipt> ArtifactReceipts);
+
+public sealed record ModeratedTestimonialRoleReceiptGroup(
+    ModeratedTestimonialArtifactRole Role,
+    IReadOnlyList<string> ReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> AssetRefs,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<ModeratedTestimonialGroupedArtifactReceipt> ArtifactReceipts);
+
+public sealed record ModeratedTestimonialRenderReceipt(
+    string RenderingId,
+    string PublicationId,
+    string ModerationCaseId,
+    string SourceReceiptId,
+    string ConsentReceiptId,
+    string Source,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset RenderedAtUtc,
+    IReadOnlyList<ModeratedTestimonialArtifactReceipt> Artifacts,
+    IReadOnlyList<string> VideoReceiptIds,
+    IReadOnlyList<string> AudioReceiptIds,
+    IReadOnlyList<string> PreviewCardReceiptIds,
+    IReadOnlyList<string> TranscriptCardReceiptIds,
+    IReadOnlyList<string> JobIds,
+    IReadOnlyList<string> AssetRefs,
+    IReadOnlyList<ModeratedTestimonialReadyRef> ReadyRefs,
+    IReadOnlyList<string> CaptionRefs,
+    IReadOnlyList<string> PreviewRefs,
+    IReadOnlyList<ModeratedTestimonialRoleReceiptGroup> RoleReceiptGroups,
+    IReadOnlyList<ModeratedTestimonialArtifactRefReceipt> ArtifactRefReceipts,
+    IReadOnlyList<ModeratedTestimonialCaptionRefReceipt> CaptionRefReceipts,
+    IReadOnlyList<ModeratedTestimonialPreviewRefReceipt> PreviewRefReceipts);
 
 #pragma warning restore CS1591
