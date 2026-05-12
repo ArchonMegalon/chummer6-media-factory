@@ -2,6 +2,30 @@ product: chummer
 surface: chummer.run
 version: 1
 cards:
+  - id: productlift_feedback
+    bucket: supporting_reads
+    title: Public feedback
+    summary: ProductLift-backed public ideas and voting remain a projection of Chummer-owned truth.
+    href: /feedback
+    badge: Public input
+    audience: public
+    image_family: archive_stair
+  - id: productlift_roadmap
+    bucket: supporting_reads
+    title: Public roadmap
+    summary: ProductLift roadmap cards project public direction without becoming roadmap truth.
+    href: /roadmap
+    badge: Projection
+    audience: public
+    image_family: archive_stair
+  - id: productlift_changelog
+    bucket: supporting_reads
+    title: Public changelog
+    summary: ProductLift closeout and changelog projection stay subordinate to Chummer-owned release truth.
+    href: /changelog
+    badge: Closeout
+    audience: public
+    image_family: archive_stair
   - id: product_story
     bucket: start_here
     title: Build
@@ -159,6 +183,24 @@ cards:
     audience: public
     image_family: streetfront
     action_label: See continuity in preview
+  - id: real_package_browser
+    bucket: whats_real_now
+    title: Package browser
+    summary: Public package rails now keep install, rules, artifact, and community package posture on one first-party route family.
+    href: /packages
+    badge: Live now
+    audience: public
+    image_family: prop_cluster
+    action_label: Open package browser
+  - id: real_mobile_projection
+    bucket: whats_real_now
+    title: Mobile and PWA projection
+    summary: The first-party mobile projection keeps installability, reconnect posture, and role-aware entry visible before native shells are complete.
+    href: /mobile
+    badge: Inspectable
+    audience: public
+    image_family: streetfront
+    action_label: Open mobile projection
   - id: real_release_shelf
     bucket: whats_real_now
     title: Preview releases, channels, and notes
@@ -552,20 +594,20 @@ cards:
     audience: public
     image_family: solo_operator
     cta_kind: explainer
-    guest_href: /login?next=/participate/codex
+    guest_href: /auth/google/start?next=%2Fparticipate%2Fcodex
     registered_href: /participate/codex
     action_label: Open guided contribution
   - id: participate_beta
     bucket: participate
     title: Join the beta waitlist
     summary: Raise your hand for follow-up previews and future gated surfaces.
-    href: /account/settings
+    href: /account/participation
     badge: Registered soon
     audience: public
     image_family: dossier_desk
     cta_kind: signup
-    guest_href: /signup?next=/account/settings
-    registered_href: /account/settings
+    guest_href: /signup?next=/account/participation
+    registered_href: /account/participation
     action_label: Join beta waitlist
   - id: release_latest
     bucket: release_shelf
