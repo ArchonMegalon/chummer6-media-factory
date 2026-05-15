@@ -25,8 +25,10 @@ secondary_highlights:
   - Deterministic engine
   - Rules explanations
   - Local-first continuity
+  - Black Ledger turn 1 ran
+  - Public signal board stays first-party
 product_proof_eyebrow: Preview snapshot
-product_proof_intro: Open downloads for the current preview, inspect one visible explanation trail, and see what the posted files and named flows actually show today without reading that snapshot as a finished-product claim, a fallback recommendation, or a substitute for the install shelf.
+product_proof_intro: Open downloads for the current preview, inspect one visible explanation trail, and see what the posted files, named flows, and seeded Black Ledger world already show today without reading that snapshot as a finished-product claim, a fallback recommendation, or a substitute for the install shelf.
 product_proof_primary_label: Open downloads
 product_proof_primary_href: /downloads
 product_proof_secondary_label: Inspect the explanation trail
@@ -234,6 +236,42 @@ public_routes:
     must_exist: true
     placeholder_allowed: false
     placeholder_requirements: bounded play alias only
+  - path: /anarchy
+    title: Shadowrun Anarchy
+    audience: public
+    purpose: dedicated_ruleset_preview
+    requires_auth: false
+    guest_fallback: /anarchy
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: dedicated rules-light route family only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/anarchy")]'
+  - path: /play/anarchy
+    title: Anarchy play shell
+    audience: public
+    purpose: dedicated_ruleset_play_projection
+    requires_auth: false
+    guest_fallback: /play/anarchy
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: rules-light mobile play shell only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/play/anarchy")]'
+  - path: /ledger/anarchy
+    title: Anarchy ledger lane
+    audience: public
+    purpose: dedicated_ruleset_ledger_projection
+    requires_auth: false
+    guest_fallback: /ledger/anarchy
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: receipt-backed Anarchy and Black Ledger integration only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/anarchy")]'
   - path: /session
     title: Legacy session alias
     audience: public
@@ -381,6 +419,21 @@ public_routes:
     must_exist: true
     placeholder_allowed: false
     placeholder_requirements: governed discovery entry only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/participate/karma-forge")]'
+  - path: /karma-forge
+    title: KARMA FORGE alias
+    audience: public
+    purpose: governed_future_signal_entry
+    requires_auth: false
+    guest_fallback: /participate/karma-forge
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: governed discovery alias only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/karma-forge")]'
   - path: /participate/karma-forge/submitted/{submissionId}
     title: KARMA FORGE submitted
     audience: public
@@ -582,6 +635,207 @@ public_routes:
     must_exist: true
     placeholder_allowed: false
     placeholder_requirements: roadmap detail only
+  - path: /ledger
+    title: BLACK LEDGER hub
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only Black Ledger hub
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger")]'
+  - path: /ledger/map
+    title: BLACK LEDGER command map
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/map
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: public-safe command map and list fallback only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/map")]'
+    verification_path: /ledger/map
+  - path: /black-ledger
+    title: BLACK LEDGER alias
+    audience: public
+    purpose: flagship_public_hub_alias
+    requires_auth: false
+    guest_fallback: /ledger
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only Black Ledger alias
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/black-ledger")]'
+  - path: /ledger/stats
+    title: BLACK LEDGER stats
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/stats
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only stat drilldown
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/stats")]'
+  - path: /ledger/factions
+    title: BLACK LEDGER factions
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/factions
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only faction drilldown
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/factions")]'
+  - path: /ledger/factions/{factionId}
+    title: BLACK LEDGER faction profile
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/factions/{factionId}
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only faction profile with command-map context
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/factions/{factionId}")]'
+    verification_path: /ledger/factions/ashline_circle
+  - path: /ledger/packages
+    title: BLACK LEDGER packages
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/packages
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: aggregate-only package drilldown
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/packages")]'
+  - path: /ledger/closeouts
+    title: BLACK LEDGER closeouts
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/closeouts
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: proof-backed closeout drilldown
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/closeouts")]'
+  - path: /ledger/dispatches
+    title: BLACK LEDGER dispatch archive
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/dispatches
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: receipt-backed public-safe dispatch archive only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/dispatches")]'
+  - path: /ledger/dispatches/{dispatchId}
+    title: BLACK LEDGER dispatch detail
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/dispatches/{dispatchId}
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: receipt-backed public-safe dispatch detail only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/dispatches/{dispatchId}")]'
+    verification_path: /ledger/dispatches/ledger_dispatch_emerald-sprawl-prelude_turn_0001
+  - path: /ledger/turns/{turn}
+    title: BLACK LEDGER turn replay
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/turns/{turn}
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: public-safe command replay route only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/turns/{turn}")]'
+    verification_path: /ledger/turns/1
+  - path: /ledger/turns/{turn}/dispatches
+    title: BLACK LEDGER turn dispatch archive
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/turns/{turn}/dispatches
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: receipt-backed public-safe turn dispatch archive only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/turns/{turn}/dispatches")]'
+    verification_path: /ledger/turns/1/dispatches
+  - path: /ledger/factions/{factionId}/dispatches
+    title: BLACK LEDGER faction dispatch archive
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /ledger/factions/{factionId}/dispatches
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: receipt-backed public-safe faction dispatch archive only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/PublicLandingController.cs
+    verification_pattern: '[HttpGet("/ledger/factions/{factionId}/dispatches")]'
+    verification_path: /ledger/factions/ashline-circle/dispatches
+  - path: /api/v1/ledger/worlds/{worldId}/map
+    title: BLACK LEDGER map API
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /api/v1/ledger/worlds/{worldId}/map
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: public-safe seeded map payload only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/LedgerController.cs
+    verification_pattern: '[HttpGet("worlds/{worldId}/map")]'
+    verification_path: /api/v1/ledger/worlds/emerald-sprawl-prelude/map
+  - path: /api/v1/ledger/worlds/{worldId}/map/turns/{turn}
+    title: BLACK LEDGER map turn API
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /api/v1/ledger/worlds/{worldId}/map/turns/{turn}
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: public-safe seeded turn map payload only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/LedgerController.cs
+    verification_pattern: '[HttpGet("worlds/{worldId}/map/turns/{turn:int}")]'
+    verification_path: /api/v1/ledger/worlds/emerald-sprawl-prelude/map/turns/1
+  - path: /api/v1/ledger/worlds/{worldId}/map/tick-delta/{fromTurn}/{toTurn}
+    title: BLACK LEDGER tick delta API
+    audience: public
+    purpose: flagship_public_hub
+    requires_auth: false
+    guest_fallback: /api/v1/ledger/worlds/{worldId}/map/tick-delta/{fromTurn}/{toTurn}
+    must_exist: true
+    placeholder_allowed: false
+    placeholder_requirements: public-safe seeded tick delta payload only
+    verification_mode: controller_contract
+    verification_file: Chummer.Run.Api/Controllers/LedgerController.cs
+    verification_pattern: '[HttpGet("worlds/{worldId}/map/tick-delta/{fromTurn:int}/{toTurn:int}")]'
+    verification_path: /api/v1/ledger/worlds/emerald-sprawl-prelude/map/tick-delta/0/1
   - path: /roadmap/ghostwire
     title: GHOSTWIRE detail
     audience: public
