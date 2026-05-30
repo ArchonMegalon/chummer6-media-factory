@@ -224,6 +224,15 @@ if published_certification != expected_certification:
     raise SystemExit("verify failed: published ARTIFACT_PUBLICATION_CERTIFICATION.generated.json drifted from the current M113 package entry")
 
 package_marker = f"package_id: {package_id}"
+registry_task_marker = "id: 113.4"
+
+def require_exact_occurrence_count(path: Path, marker: str, expected_count: int, label: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    actual_count = text.count(marker)
+    if actual_count != expected_count:
+        raise SystemExit(
+            f"verify failed: expected exactly {expected_count} {label} in {path}, found {actual_count}"
+        )
 
 def extract_queue_block(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
@@ -247,16 +256,28 @@ def extract_registry_block(path: Path) -> str:
     next_match = re.search(rf"^\{indent}- id: ", text[match.end():], re.MULTILINE)
     return text[start:] if next_match is None else text[start:match.end() + next_match.start()]
 
-canonical_queue = extract_queue_block(Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"))
-design_queue = extract_queue_block(Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"))
-repo_local_queue = extract_queue_block(repo_root / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
+canonical_queue_path = Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
+design_queue_path = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
+repo_local_queue_path = repo_root / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+canonical_registry_path = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
+repo_local_registry_path = repo_root / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"
+
+for queue_path in (canonical_queue_path, design_queue_path, repo_local_queue_path):
+    require_exact_occurrence_count(queue_path, package_marker, 1, f"{package_id} queue row")
+
+for registry_path in (canonical_registry_path, repo_local_registry_path):
+    require_exact_occurrence_count(registry_path, registry_task_marker, 1, "M113 registry task block")
+
+canonical_queue = extract_queue_block(canonical_queue_path)
+design_queue = extract_queue_block(design_queue_path)
+repo_local_queue = extract_queue_block(repo_local_queue_path)
 if design_queue != canonical_queue:
     raise SystemExit("verify failed: design queue mirror drifted from the canonical M113 package row")
 if repo_local_queue != canonical_queue:
     raise SystemExit("verify failed: repo-local queue mirror drifted from the canonical M113 package row")
 
-canonical_registry = extract_registry_block(Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"))
-repo_local_registry = extract_registry_block(repo_root / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
+canonical_registry = extract_registry_block(canonical_registry_path)
+repo_local_registry = extract_registry_block(repo_local_registry_path)
 if repo_local_registry != canonical_registry:
     raise SystemExit("verify failed: repo-local registry mirror drifted from the canonical M113 task block")
 PY
