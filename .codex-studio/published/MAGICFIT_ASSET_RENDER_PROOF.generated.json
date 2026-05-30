@@ -1,0 +1,41 @@
+{
+  "generated_at_utc": "2026-05-30T16:22:51Z",
+  "status": "pass",
+  "provider": "MagicFit",
+  "evidence_level": "asset_render_receipt",
+  "legacy_or_stub": false,
+  "provider_adapter_files": [
+    "src/Chummer.Media.Factory.Runtime/Providers/MagicFit/MagicFitProviderAdapter.cs",
+    "src/Chummer.Media.Factory.Runtime/Providers/MagicFit/MagicFitRenderReceipt.cs"
+  ],
+  "assets": [
+    {
+      "asset_id": "black_ledger_video_globe_loop",
+      "provider": "MagicFit",
+      "route": "/ledger/map",
+      "source_manifest": "black-ledger/video-globe",
+      "render_receipt": "magicfit-video-globe-render-v19",
+      "qa": "pass"
+    },
+    {
+      "asset_id": "faction_video_series_public_rail",
+      "provider": "MagicFit",
+      "route": "/ledger/factions",
+      "source_manifest": "black-ledger/factions",
+      "render_receipt": "magicfit-faction-series-render-v19",
+      "qa": "pass"
+    },
+    {
+      "asset_id": "black_ledger_photoreal_newsroom",
+      "provider": "MagicFit",
+      "route": "/ledger/newsroom",
+      "source_manifest": "black-ledger/newsroom",
+      "render_receipt": "magicfit-newsroom-render-v19",
+      "qa": "pass"
+    }
+  ],
+  "privacy": {
+    "private_campaign_data_captured": false,
+    "provider_may_publish": false
+  }
+}

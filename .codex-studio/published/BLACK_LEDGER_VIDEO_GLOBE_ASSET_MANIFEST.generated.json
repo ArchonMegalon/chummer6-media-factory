@@ -1,0 +1,17 @@
+{
+  "generated_at_utc": "2026-05-30T16:22:51Z",
+  "status": "pass",
+  "asset_id": "black_ledger_video_globe_loop",
+  "route": "https://chummer.run/ledger/map",
+  "receipts": [
+    {
+      "asset_id": "black_ledger_video_globe_loop",
+      "provider": "MagicFit",
+      "route": "/ledger/map",
+      "source_manifest": "black-ledger/video-globe",
+      "render_receipt": "magicfit-video-globe-render-v19",
+      "qa": "pass"
+    }
+  ],
+  "public_safety_scan": "pass"
+}
