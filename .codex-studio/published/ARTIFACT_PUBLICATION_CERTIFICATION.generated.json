@@ -4,7 +4,7 @@
     "governance": "publication certification is manifest-, recipe-receipt-, and lifecycle-backed in media-factory outputs",
     "source": "Chummer.Media.Factory.Runtime.Verify"
   },
-  "generated_at": "2026-05-30T09:58:46Z",
+  "generated_at": "2026-06-02T04:04:58Z",
   "lanes": [
     "target.sheet-viewer",
     "target.print-pdf-export",
