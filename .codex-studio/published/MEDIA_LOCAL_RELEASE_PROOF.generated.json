@@ -5,7 +5,7 @@
     "release_surface": "render jobs, manifests, previews, campaign briefing bundles, starter onboarding bundles, runsite orientation bundles, structured recipe bundles, build explain companion bundles, explain presenter sibling bundles, install-aware concierge bundles, replay/exchange preview bundles, creator promo kit bundles, GM prep packet bundles, and asset lifecycle",
     "runtime_verify_project": "Chummer.Media.Factory.Runtime.Verify"
   },
-  "generated_at": "2026-06-02T04:04:58Z",
+  "generated_at": "2026-06-02T06:33:34Z",
   "proof_kind": "media_runtime_release",
   "schema_version": 1,
   "status": "passed",
