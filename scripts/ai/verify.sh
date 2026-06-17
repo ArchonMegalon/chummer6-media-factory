@@ -35,6 +35,9 @@ test -f src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingS
 test -f src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRequestFileService.cs
+test -f src/Chummer.Media.Factory.Runtime/Providers/Soundmadeseen/SoundmadeseenProviderAdapter.cs
+test -f src/Chummer.Media.Factory.Runtime/Providers/UnmixrAI/UnmixrProviderAdapter.cs
+test -f tools/OriginDossierNarrationRequestCli/Chummer.Media.Factory.OriginDossierNarrationRequestCli.csproj
 test -f src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs
@@ -188,6 +191,59 @@ dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.Stru
 dotnet run --project tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/OriginDossierNarrationSmoke/Chummer.Media.Factory.OriginDossierNarrationSmoke.csproj --configuration Release --nologo --verbosity quiet
+tmp_origin_request_dir="$(mktemp -d "${TMPDIR:-/tmp}/origin-dossier-cli.XXXXXX")"
+cat >"${tmp_origin_request_dir}/media-factory-origin-audiobook.request.json" <<'JSON'
+{
+  "renderRequestId": "origin-dossier-cli-check",
+  "artifactKind": "origin_dossier_bundle_audiobook_render_request",
+  "ownerRepo": "chummer6-media-factory",
+  "source": "verify.sh",
+  "approvedAtUtc": "2026-06-17T00:00:00Z",
+  "requestedAtUtc": "2026-06-17T00:00:00Z",
+  "approvedOriginPacketId": "approved-origin-packet-verify",
+  "originRevisionId": "origin-revision-verify",
+  "canonicalBundle": {
+    "bundleDirectory": "/tmp/origin-bundle",
+    "canonMarkdownPath": "/tmp/origin.md",
+    "canonJsonPath": "/tmp/origin.json",
+    "dossierPdfPath": "/tmp/origin.pdf"
+  },
+  "providerLanes": {
+    "default": "Soundmadeseen",
+    "alternate": "Unmixr AI"
+  },
+  "narrationArtifacts": [
+    {
+      "role": "audio",
+      "provider": "Soundmadeseen",
+      "providerState": "promoted",
+      "outputFormat": "mp3",
+      "variant": "default_voice",
+      "companionRef": "origin-dossier://verify/audio/default",
+      "scriptPath": "/tmp/default-script.md",
+      "packetPath": "/tmp/default-packet.json",
+      "captionRefs": ["caption://verify/default.vtt"],
+      "previewRefs": ["preview://verify/shared"]
+    },
+    {
+      "role": "audio",
+      "provider": "Unmixr AI",
+      "providerState": "candidate",
+      "outputFormat": "mp3",
+      "variant": "alternate_voice",
+      "companionRef": "origin-dossier://verify/audio/alternate",
+      "scriptPath": "/tmp/alternate-script.md",
+      "packetPath": "/tmp/alternate-packet.json",
+      "captionRefs": ["caption://verify/default.vtt"],
+      "previewRefs": ["preview://verify/shared"]
+    }
+  ]
+}
+JSON
+CHUMMER_MEDIA_FACTORY_ORIGIN_DOSSIER_REQUEST_PATH="${tmp_origin_request_dir}/media-factory-origin-audiobook.request.json" \
+dotnet run --project tools/OriginDossierNarrationRequestCli/Chummer.Media.Factory.OriginDossierNarrationRequestCli.csproj --configuration Release --nologo --verbosity quiet >/tmp/chummer-media-factory-origin-cli.out
+receipt_path="$(cat /tmp/chummer-media-factory-origin-cli.out)"
+test -f "${receipt_path}"
 bash scripts/ai/verify_m111_install_aware_concierge.sh
 bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m113_gm_prep_packets.sh

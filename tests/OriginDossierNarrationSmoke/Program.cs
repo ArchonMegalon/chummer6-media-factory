@@ -225,6 +225,9 @@ Assert(File.Exists(fileResult.ReceiptPath), "Origin dossier narration request-fi
 Assert(fileResult.Request.Artifacts.Count == 2, "Origin dossier narration request-file rendering should map both audio artifacts.");
 Assert(fileResult.Receipt.PrimaryAudioReceiptIds.Count == 1, "Origin dossier narration request-file rendering should preserve the primary audio lane.");
 Assert(fileResult.Receipt.AlternateAudioReceiptIds.Count == 1, "Origin dossier narration request-file rendering should preserve the alternate audio lane.");
+Assert(fileResult.ProviderReceipts.Count == 2, "Origin dossier narration request-file rendering should execute both provider lanes.");
+Assert(fileResult.ProviderReceipts.Any(static receipt => receipt.Provider == "Soundmadeseen" && receipt.Status == "blocked"), "Origin dossier narration request-file rendering should preserve the default provider execution receipt.");
+Assert(fileResult.ProviderReceipts.Any(static receipt => receipt.Provider == "Unmixr AI" && receipt.Status == "blocked"), "Origin dossier narration request-file rendering should preserve the alternate provider execution receipt.");
 Assert(fileResult.Receipt.Artifacts.Any(static artifact => artifact.Provider == "Soundmadeseen"), "Origin dossier narration request-file rendering should preserve the default provider.");
 Assert(fileResult.Receipt.Artifacts.Any(static artifact => artifact.Provider == "Unmixr AI"), "Origin dossier narration request-file rendering should preserve the alternate provider.");
 var persistedReceipt = JsonDocument.Parse(await File.ReadAllTextAsync(fileResult.ReceiptPath));
@@ -235,6 +238,11 @@ Assert(
 Assert(
     persistedReceipt.RootElement.TryGetProperty("renderReceipt", out _),
     "Origin dossier narration request-file receipt should embed the render receipt payload.");
+Assert(
+    persistedReceipt.RootElement.TryGetProperty("providerReceipts", out var providerReceiptsElement) &&
+    providerReceiptsElement.ValueKind == JsonValueKind.Array &&
+    providerReceiptsElement.GetArrayLength() == 2,
+    "Origin dossier narration request-file receipt should embed both provider execution receipts.");
 
 return;
 

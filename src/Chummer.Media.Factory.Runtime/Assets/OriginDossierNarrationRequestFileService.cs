@@ -16,10 +16,17 @@ public sealed class OriginDossierNarrationRequestFileService : IOriginDossierNar
     private const string ExpectedOwnerRepo = "chummer6-media-factory";
 
     private readonly IOriginDossierNarrationRenderingService _rendering;
+    private readonly ISoundmadeseenProviderAdapter _soundmadeseen;
+    private readonly IUnmixrProviderAdapter _unmixr;
 
-    public OriginDossierNarrationRequestFileService(IOriginDossierNarrationRenderingService rendering)
+    public OriginDossierNarrationRequestFileService(
+        IOriginDossierNarrationRenderingService rendering,
+        ISoundmadeseenProviderAdapter? soundmadeseen = null,
+        IUnmixrProviderAdapter? unmixr = null)
     {
         _rendering = rendering;
+        _soundmadeseen = soundmadeseen ?? new SoundmadeseenProviderAdapter();
+        _unmixr = unmixr ?? new UnmixrProviderAdapter();
     }
 
     public async Task<OriginDossierNarrationRequestFileResult> RenderFromFileAsync(
@@ -40,6 +47,7 @@ public sealed class OriginDossierNarrationRequestFileService : IOriginDossierNar
         var requestDocument = JsonDocument.Parse(await File.ReadAllTextAsync(requestPath, cancellationToken));
         var renderRequest = Parse(requestDocument.RootElement);
         var renderReceipt = await _rendering.RenderAsync(renderRequest, cancellationToken);
+        var providerReceipts = await ExecuteProvidersAsync(renderRequest, cancellationToken);
         var receiptPath = BuildReceiptPath(requestPath);
         var persistedReceipt = new
         {
@@ -48,7 +56,8 @@ public sealed class OriginDossierNarrationRequestFileService : IOriginDossierNar
             requestPath,
             receiptPath,
             renderedAtUtc = renderReceipt.RenderedAtUtc,
-            renderReceipt
+            renderReceipt,
+            providerReceipts
         };
 
         await File.WriteAllTextAsync(
@@ -60,7 +69,70 @@ public sealed class OriginDossierNarrationRequestFileService : IOriginDossierNar
             RequestPath: requestPath,
             ReceiptPath: receiptPath,
             Request: renderRequest,
-            Receipt: renderReceipt);
+            Receipt: renderReceipt,
+            ProviderReceipts: providerReceipts);
+    }
+
+    private async Task<IReadOnlyList<OriginDossierNarrationProviderExecutionReceipt>> ExecuteProvidersAsync(
+        OriginDossierNarrationRenderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var receipts = new List<OriginDossierNarrationProviderExecutionReceipt>(request.Artifacts.Count);
+        foreach (var artifact in request.Artifacts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            switch (artifact.Provider)
+            {
+                case "Soundmadeseen":
+                {
+                    var renderReceipt = await _soundmadeseen.RenderAsync(
+                        new SoundmadeseenRenderRequest(
+                            RequestId: request.RenderingId,
+                            ApprovedOriginPacketId: request.ApprovedOriginPacketId,
+                            OriginRevisionId: request.OriginRevisionId,
+                            ScriptPath: ReadProviderField(artifact.Payload, "scriptPath"),
+                            PacketPath: ReadProviderField(artifact.Payload, "packetPath"),
+                            OutputFormat: artifact.OutputFormat,
+                            VoiceVariant: ReadProviderField(artifact.Payload, "variant"),
+                            RequestedBy: request.Source,
+                            Source: request.Source),
+                        cancellationToken);
+                    receipts.Add(new OriginDossierNarrationProviderExecutionReceipt(
+                        Provider: "Soundmadeseen",
+                        CompanionRef: artifact.CompanionRef,
+                        Status: renderReceipt.Status,
+                        ProviderJobId: renderReceipt.ProviderJobId,
+                        ReceiptPayload: JsonSerializer.SerializeToElement(renderReceipt)));
+                    break;
+                }
+                case "Unmixr AI":
+                {
+                    var renderReceipt = await _unmixr.RenderAsync(
+                        new UnmixrRenderRequest(
+                            RequestId: request.RenderingId,
+                            ApprovedOriginPacketId: request.ApprovedOriginPacketId,
+                            OriginRevisionId: request.OriginRevisionId,
+                            ScriptPath: ReadProviderField(artifact.Payload, "scriptPath"),
+                            PacketPath: ReadProviderField(artifact.Payload, "packetPath"),
+                            OutputFormat: artifact.OutputFormat,
+                            VoiceVariant: ReadProviderField(artifact.Payload, "variant"),
+                            RequestedBy: request.Source,
+                            Source: request.Source),
+                        cancellationToken);
+                    receipts.Add(new OriginDossierNarrationProviderExecutionReceipt(
+                        Provider: "Unmixr AI",
+                        CompanionRef: artifact.CompanionRef,
+                        Status: renderReceipt.Status,
+                        ProviderJobId: renderReceipt.ProviderJobId,
+                        ReceiptPayload: JsonSerializer.SerializeToElement(renderReceipt)));
+                    break;
+                }
+                default:
+                    throw new ArgumentException($"Origin dossier narration provider is unsupported: {artifact.Provider}.", nameof(request));
+            }
+        }
+
+        return receipts;
     }
 
     private static OriginDossierNarrationRenderRequest Parse(JsonElement root)
@@ -176,6 +248,23 @@ public sealed class OriginDossierNarrationRequestFileService : IOriginDossierNar
         return requestPath + ".receipt.json";
     }
 
+    private static string ReadProviderField(string payload, string name)
+    {
+        using var document = JsonDocument.Parse(payload);
+        if (!document.RootElement.TryGetProperty(name, out var property) || property.ValueKind is not JsonValueKind.String)
+        {
+            throw new ArgumentException($"Origin dossier narration provider payload is missing {name}.", nameof(payload));
+        }
+
+        var value = property.GetString()?.Trim() ?? string.Empty;
+        if (value.Length == 0)
+        {
+            throw new ArgumentException($"Origin dossier narration provider payload field {name} is required.", nameof(payload));
+        }
+
+        return value;
+    }
+
     private static JsonElement ReadRequiredProperty(JsonElement element, string name)
     {
         if (!element.TryGetProperty(name, out var value))
@@ -257,4 +346,12 @@ public sealed record OriginDossierNarrationRequestFileResult(
     string RequestPath,
     string ReceiptPath,
     OriginDossierNarrationRenderRequest Request,
-    OriginDossierNarrationRenderReceipt Receipt);
+    OriginDossierNarrationRenderReceipt Receipt,
+    IReadOnlyList<OriginDossierNarrationProviderExecutionReceipt> ProviderReceipts);
+
+public sealed record OriginDossierNarrationProviderExecutionReceipt(
+    string Provider,
+    string CompanionRef,
+    string Status,
+    string ProviderJobId,
+    JsonElement ReceiptPayload);

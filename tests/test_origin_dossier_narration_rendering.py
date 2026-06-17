@@ -90,6 +90,10 @@ class OriginDossierNarrationRenderingTests(unittest.TestCase):
             "JsonSerializer.Serialize",
             "approvedOriginPacketId",
             "originRevisionId",
+            "ExecuteProvidersAsync",
+            "OriginDossierNarrationProviderExecutionReceipt",
+            "ISoundmadeseenProviderAdapter",
+            "IUnmixrProviderAdapter",
         ):
             self.assertIn(token, runtime)
 
@@ -112,6 +116,8 @@ class OriginDossierNarrationRenderingTests(unittest.TestCase):
             "Origin dossier narration request-file rendering should write a receipt beside the request.",
             "Origin dossier narration request-file rendering should preserve the primary audio lane.",
             "Origin dossier narration request-file rendering should preserve the alternate audio lane.",
+            "Origin dossier narration request-file rendering should execute both provider lanes.",
+            "Origin dossier narration request-file receipt should embed both provider execution receipts.",
             "Origin dossier narration request-file receipt should embed the render receipt payload.",
             "Origin dossier narration ready refs must preserve ref, receipt, job, asset id, and asset url.",
             "Origin dossier narration caption receipt rows must preserve grouped providers.",
