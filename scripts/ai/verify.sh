@@ -34,6 +34,7 @@ test -f src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionS
 test -f src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRenderingService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRequestFileService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs

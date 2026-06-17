@@ -1,9 +1,11 @@
 using Chummer.Media.Contracts;
 using Chummer.Run.AI.Services.Assets;
+using System.Text.Json;
 
 var assets = new AssetLifecycleService();
 var jobs = new MediaRenderJobService(assets);
 var narration = new OriginDossierNarrationRenderingService(jobs);
+var requestFiles = new OriginDossierNarrationRequestFileService(narration);
 
 var request = CreateBaseRequest();
 var receipt = await narration.RenderAsync(request);
@@ -160,6 +162,79 @@ try
 catch (ArgumentException ex) when (ex.Message.Contains("approved origin packet id", StringComparison.OrdinalIgnoreCase))
 {
 }
+
+var requestDirectory = Directory.CreateTempSubdirectory("origin-dossier-narration-request");
+var requestPath = Path.Combine(requestDirectory.FullName, "media-factory-origin-audiobook.request.json");
+await File.WriteAllTextAsync(
+    requestPath,
+    JsonSerializer.Serialize(new
+    {
+        renderRequestId = "origin-dossier-audiobook-request-file",
+        artifactKind = "origin_dossier_bundle_audiobook_render_request",
+        ownerRepo = "chummer6-media-factory",
+        source = "chummer-presentation.desktop-alice",
+        approvedAtUtc = DateTimeOffset.UtcNow,
+        requestedAtUtc = DateTimeOffset.UtcNow,
+        approvedOriginPacketId = "approved-origin-packet-001",
+        originRevisionId = "origin-revision-9",
+        canonicalBundle = new
+        {
+            bundleDirectory = requestDirectory.FullName,
+            canonMarkdownPath = "/tmp/origin.md",
+            canonJsonPath = "/tmp/origin.json",
+            dossierPdfPath = "/tmp/origin.pdf"
+        },
+        providerLanes = new
+        {
+            @default = "Soundmadeseen",
+            alternate = "Unmixr AI"
+        },
+        narrationArtifacts = new object[]
+        {
+            new
+            {
+                role = "audio",
+                provider = "Soundmadeseen",
+                providerState = "promoted",
+                outputFormat = "mp3",
+                variant = "default_voice",
+                companionRef = "origin-dossier://packet-001/audio/default",
+                scriptPath = "/tmp/default-script.md",
+                packetPath = "/tmp/default-packet.json",
+                captionRefs = new[] {"caption://packet-001/origin/default.vtt"},
+                previewRefs = new[] {"preview://packet-001/origin/shared"}
+            },
+            new
+            {
+                role = "audio",
+                provider = "Unmixr AI",
+                providerState = "candidate",
+                outputFormat = "mp3",
+                variant = "alternate_voice",
+                companionRef = "origin-dossier://packet-001/audio/alternate",
+                scriptPath = "/tmp/alternate-script.md",
+                packetPath = "/tmp/alternate-packet.json",
+                captionRefs = new[] {"caption://packet-001/origin/default.vtt"},
+                previewRefs = new[] {"preview://packet-001/origin/shared"}
+            }
+        }
+    }, new JsonSerializerOptions { WriteIndented = true }));
+
+var fileResult = await requestFiles.RenderFromFileAsync(requestPath);
+Assert(File.Exists(fileResult.ReceiptPath), "Origin dossier narration request-file rendering should write a receipt beside the request.");
+Assert(fileResult.Request.Artifacts.Count == 2, "Origin dossier narration request-file rendering should map both audio artifacts.");
+Assert(fileResult.Receipt.PrimaryAudioReceiptIds.Count == 1, "Origin dossier narration request-file rendering should preserve the primary audio lane.");
+Assert(fileResult.Receipt.AlternateAudioReceiptIds.Count == 1, "Origin dossier narration request-file rendering should preserve the alternate audio lane.");
+Assert(fileResult.Receipt.Artifacts.Any(static artifact => artifact.Provider == "Soundmadeseen"), "Origin dossier narration request-file rendering should preserve the default provider.");
+Assert(fileResult.Receipt.Artifacts.Any(static artifact => artifact.Provider == "Unmixr AI"), "Origin dossier narration request-file rendering should preserve the alternate provider.");
+var persistedReceipt = JsonDocument.Parse(await File.ReadAllTextAsync(fileResult.ReceiptPath));
+Assert(
+    persistedReceipt.RootElement.TryGetProperty("artifactKind", out var artifactKindElement) &&
+    artifactKindElement.GetString() == "origin_dossier_bundle_audiobook_render_request",
+    "Origin dossier narration request-file receipt should preserve the artifact kind.");
+Assert(
+    persistedReceipt.RootElement.TryGetProperty("renderReceipt", out _),
+    "Origin dossier narration request-file receipt should embed the render receipt payload.");
 
 return;
 

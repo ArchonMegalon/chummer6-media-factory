@@ -70,6 +70,29 @@ class OriginDossierNarrationRenderingTests(unittest.TestCase):
         ):
             self.assertNotIn(token, runtime)
 
+    def test_origin_dossier_request_file_intake_maps_desktop_request_shape(self):
+        runtime = read("src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRequestFileService.cs")
+
+        for token in (
+            "IOriginDossierNarrationRequestFileService",
+            "RenderFromFileAsync",
+            "OriginDossierNarrationRequestFileResult",
+            "origin_dossier_bundle_audiobook_render_request",
+            "chummer6-media-factory",
+            "narrationArtifacts",
+            "Soundmadeseen",
+            "Unmixr AI",
+            "OriginDossierNarrationArtifactRole.CanonicalAudio",
+            "OriginDossierNarrationArtifactRole.AlternateAudio",
+            "BuildReceiptPath",
+            ".request.json",
+            ".receipt.json",
+            "JsonSerializer.Serialize",
+            "approvedOriginPacketId",
+            "originRevisionId",
+        ):
+            self.assertIn(token, runtime)
+
     def test_origin_dossier_smoke_proves_collision_and_scope_guards(self):
         smoke = read("tests/OriginDossierNarrationSmoke/Program.cs")
 
@@ -86,6 +109,10 @@ class OriginDossierNarrationRenderingTests(unittest.TestCase):
             "origin-dossier-narration-json-missing-scope-fields",
             "Origin dossier narration JSON payloads without required scope fields should fail closed instead of falling back to substring matching.",
             "Replay-safe dedupe should keep origin dossier narration jobs stable.",
+            "Origin dossier narration request-file rendering should write a receipt beside the request.",
+            "Origin dossier narration request-file rendering should preserve the primary audio lane.",
+            "Origin dossier narration request-file rendering should preserve the alternate audio lane.",
+            "Origin dossier narration request-file receipt should embed the render receipt payload.",
             "Origin dossier narration ready refs must preserve ref, receipt, job, asset id, and asset url.",
             "Origin dossier narration caption receipt rows must preserve grouped providers.",
             "Origin dossier narration preview receipt rows must preserve grouped providers.",
