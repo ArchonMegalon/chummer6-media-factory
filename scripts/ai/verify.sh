@@ -17,6 +17,7 @@ test -f tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrienta
 test -f tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj
 test -f tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj
 test -f tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj
+test -f tests/OriginDossierNarrationSmoke/Chummer.Media.Factory.OriginDossierNarrationSmoke.csproj
 test -f tests/InstallAwareConciergeSmoke/Chummer.Media.Factory.InstallAwareConciergeSmoke.csproj
 test -f tests/ReplayExchangePreviewSmoke/Chummer.Media.Factory.ReplayExchangePreviewSmoke.csproj
 test -f tests/GmPrepPacketSmoke/Chummer.Media.Factory.GmPrepPacketSmoke.csproj
@@ -32,6 +33,7 @@ test -f src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs
+test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs
@@ -77,6 +79,7 @@ rg -n 'CampaignBriefingBundleReceipt|CampaignBriefingLocaleReceipt|CampaignBrief
 rg -n 'next90-m108-media-factory-campaign-briefing-renders|4459920059|campaign_briefing_bundle_rendering|campaign_artifact_receipts|verify_closed_package_only|proof floor commit|requested-locale ColdOpen|requested-locale MissionBriefing|requested locale as the primary sibling|fallback locales|slot-aware caption and preview sibling ids|length-prefixed locale|approval state, retention state, and storage class|normalized locale-bundle ordering|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'BuildExplainCompanionRenderRequest|BuildExplainCompanionRenderReceipt|BuildExplainCompanionReadyRef|BuildExplainCompanionRoleReceiptGroup|BuildExplainCompanionRefReceipt|BuildExplainCaptionRefReceipt|BuildExplainPreviewRefReceipt|BuildExplainCompanionVideo|BuildExplainCompanionAudio|BuildExplainCompanionPreviewCard|BuildExplainCompanionPacketCompanion' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'ExplainPresenterSiblingRenderRequest|ExplainPresenterSiblingRenderReceipt|ExplainPresenterTextFallbackReceipt|ExplainPresenterSiblingReadyRef|ExplainPresenterSiblingRoleReceiptGroup|ExplainPresenterCompanionRefReceipt|ExplainPresenterCaptionRefReceipt|ExplainPresenterPreviewRefReceipt|ExplainPresenterSiblingAudio|ExplainPresenterSiblingPresenterVideo' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
+rg -n 'OriginDossierNarrationRenderRequest|OriginDossierNarrationRenderReceipt|OriginDossierNarrationReadyRef|OriginDossierNarrationRoleReceiptGroup|OriginDossierNarrationCompanionRefReceipt|OriginDossierNarrationCaptionRefReceipt|OriginDossierNarrationPreviewRefReceipt|OriginDossierCanonicalAudiobookAudio|OriginDossierAlternateAudiobookAudio|PrimaryAudioReceiptIds|AlternateAudioReceiptIds' src >/dev/null
 rg -n 'pre-session-orientation-only-not-tactical-truth|HostClipReceiptIds|RoutePreviewReceiptIds|RoutePreviewArtifactReceipts|RunsiteRoutePreviewArtifactReceipt|RunsiteOrientationArtifactReceipt' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'next90-m110-media-factory-runsite-bundles|5126560638|runsite_orientation_bundle|route_preview:artifact_receipts|pre-session-orientation-only-not-tactical-truth|length-prefixed|category, output format' docs/NEXT90_M110_RUNSITE_ORIENTATION_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'InstallAwareConciergeRenderRequest|InstallAwareConciergeBundleReceipt|InstallAwareConciergeCompanionReadyRef|InstallAwareConciergeRoleReceiptGroup|InstallAwareConciergeCompanionRefReceipt|InstallAwareConciergeCaptionRefReceipt|InstallAwareConciergePreviewRefReceipt|InstallAwareConciergeSiblingNoteReceipt|InstallAwareReleaseExplainerVideo|InstallAwareSupportClosureAudio|InstallAwarePublicConciergePreviewCard' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
@@ -183,6 +186,7 @@ dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.R
 dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj --configuration Release --nologo --verbosity quiet
+dotnet run --project tests/OriginDossierNarrationSmoke/Chummer.Media.Factory.OriginDossierNarrationSmoke.csproj --configuration Release --nologo --verbosity quiet
 bash scripts/ai/verify_m111_install_aware_concierge.sh
 bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m113_gm_prep_packets.sh
