@@ -1,18 +1,18 @@
 product: chummer
 surface: chummer.run
 version: 1
-headline: Shadowrun rules truth, with receipts.
-subhead: Build characters, inspect rulings, and keep sessions moving with explainable
-  math, durable state, and clear proof of what works today.
-proof_line: Public preview, honest status, and inspectable proof for the files, named
-  flows, and recent checks posted today.
+headline: Build Shadowrun characters. Know why the numbers changed.
+subhead: Download Chummer, open or import a character, and keep sessions moving with
+  explainable rules math, durable local state, and clear recovery paths.
+proof_line: Current release builds, install checks, and route evidence are posted
+  so you can verify what works today.
 no_provider_names: true
 no_ltd_names: true
 hero_ctas:
-- label: Open downloads
+- label: Download Chummer
   href: /downloads
   emphasis: primary
-- label: What Works Today
+- label: See what works today
   href: /now
   emphasis: secondary
 guest_shell_actions:
@@ -26,22 +26,20 @@ secondary_highlights:
 - Deterministic engine
 - Rules receipts
 - Local-first continuity
-product_proof_eyebrow: Inspectable preview proof
-product_proof_intro: Open downloads for the current preview, inspect one visible trail,
-  and verify what the posted files and named flows can prove today without reading
-  that proof as a flagship-complete claim, a fallback recommendation, or a substitute
-  for the install shelf.
-product_proof_primary_label: Open downloads
+product_proof_eyebrow: Verifiable preview evidence
+product_proof_intro: Start with the current download, then inspect the evidence trail
+  when you need to confirm what the posted builds, routes, and named flows prove today.
+product_proof_primary_label: Download Chummer
 product_proof_primary_href: /downloads
-product_proof_secondary_label: Inspect the proof trail
+product_proof_secondary_label: Inspect evidence
 product_proof_secondary_href: /now#real-rules-truth
-product_proof_topline_label: Posted preview proof
-product_proof_scope_line: Proof on the public shelf is scoped to the posted files,
-  named flows, and recent checks you can inspect today; it is not a blanket flagship-complete
-  claim and it does not outrank the recommended install route.
-product_flagship_boundary_line: Preview proof, fallback routes, artifact explainers,
-  and packet-detail artifacts can show real progress, but flagship wording is reserved
-  for surfaces that independently clear the flagship acceptance bar.
+product_proof_topline_label: Posted preview evidence
+product_proof_scope_line: Evidence on the public shelf is scoped to the posted files,
+  named flows, and recent checks you can inspect today; downloads remain the primary
+  route for trying Chummer.
+product_flagship_boundary_line: Preview evidence and fallback routes can show real
+  progress, but flagship wording is reserved for surfaces that independently clear
+  the flagship acceptance bar.
 product_proof_result_title: Final pool 9
 product_proof_result_summary: Same inputs, same answer, with the trail, posted-shelf
   posture, and claim boundary still attached.
@@ -123,6 +121,65 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: proof shelf honesty only
+- path: /docs
+  title: Document Portal
+  audience: public
+  purpose: document_portal
+  requires_auth: false
+  guest_fallback: /docs
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: governed document portal only
+- path: /docs/chummer6-quickstart
+  title: Chummer6 Quickstart Guide
+  audience: public
+  purpose: document_detail
+  closeout_proof_binding: fleet.next90_m138_hero_path_closeout_gates
+  requires_auth: false
+  guest_fallback: /docs/chummer6-quickstart
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first safe document route only
+- path: /docs/{slug}/receipts/publication.json
+  title: Document publication receipt
+  audience: public
+  purpose: document_publication_receipt
+  verification_path: /docs/chummer6-quickstart/receipts/publication.json
+  requires_auth: false
+  guest_fallback: /docs
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: candidate viewer publication receipt only
+- path: /docs/{slug}/download.pdf
+  title: Document PDF fallback
+  audience: public
+  purpose: document_pdf_fallback
+  verification_path: /docs/chummer6-quickstart/download.pdf
+  requires_auth: false
+  guest_fallback: /docs
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party PDF fallback only
+- path: /docs/embed/{slug}
+  title: Document embed boundary
+  audience: public
+  purpose: document_embed_boundary
+  verification_path: /docs/embed/chummer6-quickstart
+  requires_auth: false
+  guest_fallback: /docs
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: explicit viewer boundary only
+- path: /docs/category/{category}
+  title: Document category
+  audience: public
+  purpose: document_category
+  verification_path: /docs/category/quickstart
+  requires_auth: false
+  guest_fallback: /docs
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: governed document category only
 - path: /help
   title: Help
   audience: public
@@ -222,6 +279,276 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: public feedback operations lookup only
+- path: /ready
+  title: Ready for Tonight
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /ready
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party session packet and launch-prep surface only
+- path: /play/continuity
+  title: NEXUS-PAN continuity
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /play/continuity
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party continuity and reconnect proof surface only
+- path: /rules
+  title: Knowledge Fabric
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /rules
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party rules explainability surface only
+- path: /jackpoint
+  title: JACKPOINT
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /jackpoint
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party briefing and dossier surface only
+- path: /jackpoint/receipts/briefing-network.json
+  title: JACKPOINT briefing receipt
+  audience: public
+  purpose: proof_receipt
+  requires_auth: false
+  guest_fallback: /jackpoint
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party named briefing network receipt
+- path: /runsites
+  title: RUNSITE
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /runsites
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party runsite pack surface only
+- path: /runsites/receipts/prep-network.json
+  title: RUNSITE prep receipt
+  audience: public
+  purpose: proof_receipt
+  requires_auth: false
+  guest_fallback: /runsites
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party named prep network receipt
+- path: /runbook
+  title: RUNBOOK PRESS
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /runbook
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party primer and campaign-book surface only
+- path: /community
+  title: Community Hub
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /community
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party open-run and organizer community surface only
+- path: /community/receipts/open-run-network.json
+  title: Community Hub open-run receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /community
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in board and typed open-run API contract only
+- path: /creator
+  title: Creator OS
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /creator
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party creator publication surface only
+- path: /creator/receipts/publication-network.json
+  title: Creator OS publication receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /creator
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in publication desk and public publication contract only
+- path: /ghostwire
+  title: GHOSTWIRE
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /ghostwire
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party after-action packet surface only
+- path: /ghostwire/receipts/replay-network.json
+  title: GHOSTWIRE replay-network receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /ghostwire
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party after-action packet contract only
+- path: /run-control
+  title: RUN CONTROL
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /run-control
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party GM operations surface only
+- path: /run-control/receipts/control-network.json
+  title: RUN CONTROL control receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /run-control
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in control desk and typed GM-control contract only
+- path: /onramp
+  title: ONRAMP
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party starter and recovery surface only
+- path: /onramp/receipts/guided-starter.json
+  title: ONRAMP starter receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in starter desk and typed starter/recovery contract only
+- path: /edition-studio
+  title: EDITION STUDIO
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party authored ruleset-head surface only
+- path: /edition-studio/receipts/ruleset-heads.json
+  title: EDITION STUDIO ruleset-head receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in edition desk and typed edition-head contract only
+- path: /quicksilver
+  title: Quicksilver
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /quicksilver
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party expert-speed command surface only
+- path: /quicksilver/receipts/command-network.json
+  title: Quicksilver command-network receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /quicksilver
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in command deck and typed jump-target contract only
+- path: /passport
+  title: Runner Passport
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /passport
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party runner identity and continuity surface only
+- path: /passport/receipts/identity-network.json
+  title: Runner Passport identity-network receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /passport
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in continuity bench and bounded trust receipt contract only
+- path: /anarchy
+  title: Anarchy
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party rules-light ruleset surface only
+- path: /play/anarchy
+  title: Anarchy play shell
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party rules-light mobile continuity shell only
+- path: /ledger/anarchy
+  title: Anarchy consequence lane
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party anarchy lens over Black Ledger dispatch truth only
+- path: /anarchy/export/runner.json
+  title: Anarchy runner export
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party runner export only
+- path: /anarchy/receipts/explain.json
+  title: Anarchy explain receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: receipt-backed Anarchy explain contract only
+- path: /anarchy/receipts/runtime.json
+  title: Anarchy runtime receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /anarchy
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: shipped rules-light lane contract only
 - path: /participate/karma-forge
   title: KARMA FORGE discovery
   audience: public
@@ -231,6 +558,42 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: governed discovery entry only
+- path: /alice
+  title: ALICE compare bench
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /alice
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party build compare entry with bounded public-safe framing and real first-party runtime ownership
+- path: /alice/receipts/build-ghost.json
+  title: ALICE build ghost receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /alice
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: receipt-backed bounded compare contract only
+- path: /table-pulse
+  title: TABLE PULSE split rail
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /table-pulse
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party public route that explains the live and aftermath rail split without collapsing them
+- path: /table-pulse/receipts/live-and-aftermath.json
+  title: TABLE PULSE live and aftermath receipt
+  audience: public
+  purpose: product_surface_receipt
+  requires_auth: false
+  guest_fallback: /table-pulse
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: split-rail contract only
 - path: /participate/karma-forge/submitted/{submissionId}
   title: KARMA FORGE discovery submitted
   audience: public
@@ -267,7 +630,7 @@ public_routes:
   placeholder_allowed: false
   placeholder_requirements: teaser gallery only
 - path: /artifacts/current-preview-build
-  title: Current preview build detail
+  title: Current release build detail
   audience: public
   purpose: artifact_detail
   requires_auth: false
@@ -392,6 +755,46 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: public-safe faction index only
+- path: /ledger/factions/{factionId}
+  title: Black Ledger faction file
+  audience: public
+  purpose: public_faction_file
+  requires_auth: false
+  guest_fallback: /ledger/factions
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: public-safe faction file only
+  verification_path: /ledger/factions/ashline-circle
+- path: /ledger/factions/{factionId}/promo
+  title: Black Ledger faction promo
+  audience: public
+  purpose: public_faction_promo_watch
+  requires_auth: false
+  guest_fallback: /ledger/factions/ashline-circle
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: public-safe faction promo watch page only
+  verification_path: /ledger/factions/ashline-circle/promo
+- path: /ledger/factions/{factionId}/promo.json
+  title: Black Ledger faction promo JSON
+  audience: public
+  purpose: public_faction_promo_packet
+  requires_auth: false
+  guest_fallback: /ledger/factions/ashline-circle/promo
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: public-safe faction promo packet only
+  verification_path: /ledger/factions/ashline-circle/promo.json
+- path: /ledger/factions/{factionId}/promo.vtt
+  title: Black Ledger faction promo captions
+  audience: public
+  purpose: public_faction_promo_support_file
+  requires_auth: false
+  guest_fallback: /ledger/factions/ashline-circle/promo
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: public-safe faction promo captions only
+  verification_path: /ledger/factions/ashline-circle/promo.vtt
 - path: /ledger/newsroom
   title: Black Ledger newsroom redirect
   audience: public
@@ -586,15 +989,6 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: roadmap detail only
-- path: /roadmap/alice
-  title: ALICE detail
-  audience: public
-  purpose: roadmap_detail
-  requires_auth: false
-  guest_fallback: /roadmap/alice
-  must_exist: true
-  placeholder_allowed: false
-  placeholder_requirements: roadmap detail only
 - path: /roadmap/knowledge-fabric
   title: KNOWLEDGE FABRIC detail
   audience: public
@@ -640,6 +1034,24 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: roadmap detail only
+- path: /roadmap/onramp
+  title: ONRAMP detail
+  audience: public
+  purpose: roadmap_detail
+  requires_auth: false
+  guest_fallback: /roadmap/onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: roadmap detail only
+- path: /roadmap/edition-studio
+  title: EDITION STUDIO detail
+  audience: public
+  purpose: roadmap_detail
+  requires_auth: false
+  guest_fallback: /roadmap/edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: roadmap detail only
 - path: /roadmap/community-hub
   title: COMMUNITY HUB detail
   audience: public
@@ -676,6 +1088,24 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: roadmap detail only
+- path: /local-co-processor
+  title: LOCAL CO-PROCESSOR
+  audience: public
+  purpose: horizon_public_lane
+  requires_auth: false
+  guest_fallback: /local-co-processor
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: shipped first-party optional-acceleration lane only
+- path: /local-co-processor/receipts/optional-acceleration.json
+  title: LOCAL CO-PROCESSOR receipt
+  audience: public
+  purpose: horizon_receipt
+  requires_auth: false
+  guest_fallback: /local-co-processor
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: receipt-backed optional-acceleration contract only
 auth_routes:
 - path: /login
   title: Sign in
@@ -813,6 +1243,258 @@ registered_routes:
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: campaign and operator route
+- path: /account/alice
+  title: Account ALICE
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/alice
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in build handoff bench redirect or empty-state route
+- path: /account/alice/{handoffId}
+  title: Account ALICE handoff
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/alice/{handoffId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in build handoff detail route
+- path: /account/community
+  title: Account Community Hub
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/community
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in community board redirect or empty-state route
+- path: /account/creator
+  title: Account Creator OS
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/creator
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in creator publication desk redirect or empty-state route
+- path: /account/creator/{publicationId}
+  title: Account Creator publication
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/creator/{publicationId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in creator publication detail route
+- path: /account/jackpoint
+  title: Account JACKPOINT
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/jackpoint
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in JACKPOINT publication desk redirect or empty-state route
+- path: /account/jackpoint/open
+  title: Account JACKPOINT open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/jackpoint/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in JACKPOINT publication desk redirect route
+- path: /account/jackpoint/{publicationId}
+  title: Account JACKPOINT publication
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/jackpoint/{publicationId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in JACKPOINT publication detail route
+- path: /account/runsites
+  title: Account RUNSITE
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/runsites
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in RUNSITE prep bench redirect or empty-state route
+- path: /account/runsites/open
+  title: Account RUNSITE open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/runsites/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in RUNSITE prep bench redirect route
+- path: /account/runsites/{workspaceId}
+  title: Account RUNSITE workspace
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/runsites/{workspaceId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in RUNSITE workspace prep route
+- path: /account/run-control
+  title: Account RUN CONTROL
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/run-control
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in GM control desk redirect or empty-state route
+- path: /account/run-control/open
+  title: Account RUN CONTROL open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/run-control/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in GM control desk redirect route
+- path: /account/run-control/{runId}
+  title: Account RUN CONTROL run
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/run-control/{runId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in GM control run route
+- path: /account/onramp
+  title: Account ONRAMP
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/onramp
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in starter desk route
+- path: /account/onramp/open
+  title: Account ONRAMP open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/onramp/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in starter desk redirect route
+- path: /account/onramp/starter
+  title: Account ONRAMP starter
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/onramp/starter
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in starter workspace route
+- path: /account/edition-studio
+  title: Account EDITION STUDIO
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/edition-studio
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in edition desk route
+- path: /account/edition-studio/open
+  title: Account EDITION STUDIO open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/edition-studio/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in edition desk redirect route
+- path: /account/edition-studio/{edition}
+  title: Account EDITION STUDIO head
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/edition-studio/{edition}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in edition focus route
+- path: /account/passport
+  title: Account Runner Passport
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/passport
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in runner passport continuity redirect or empty-state route
+- path: /account/passport/open
+  title: Account Runner Passport open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/passport/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in runner passport continuity redirect route
+- path: /account/quicksilver
+  title: Account Quicksilver
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/quicksilver
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in expert-speed command deck route
+- path: /account/quicksilver/open
+  title: Account Quicksilver open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/quicksilver/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in expert-speed command redirect route
+- path: /account/quicksilver/{focus}
+  title: Account Quicksilver focus
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/quicksilver/{focus}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in quick-jump focus route
+- path: /account/local-co-processor
+  title: Account Local Co-Processor
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/local-co-processor
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in optional profile desk route
+- path: /account/local-co-processor/open
+  title: Account Local Co-Processor open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/local-co-processor/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in optional profile redirect route
+- path: /account/local-co-processor/{profile}
+  title: Account Local Co-Processor profile
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/local-co-processor/{profile}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in optional profile route
 - path: /account/settings
   title: Account settings
   audience: registered
@@ -882,9 +1564,9 @@ registered_routes:
 sections:
 - id: hero
   eyebrow: Explainable Shadowrun
-  title: Shadowrun rules truth, with receipts.
+  title: Shadowrun rules clarity for the table.
   intro: Build characters, inspect rulings, and keep sessions moving with explainable
-    math, durable state, and clear proof of what works today.
+    math, durable state, and clear capabilities for tonight's game.
   audience: public
   route: /
 - id: product_proof
