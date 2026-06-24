@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import ipaddress
 import importlib.util
 import json
 import os
@@ -28,6 +29,21 @@ STATE_ROOT = Path(os.environ.get("CHUMMER_MEDIA_FACTORY_STATE_DIR", "/docker/fle
 RECEIPTS_ROOT = STATE_ROOT / "receipts"
 ATTEMPTS_ROOT = STATE_ROOT / "attempts"
 HEALTH_OUT = STATE_ROOT / "guide_provider_health.json"
+DEFAULT_ASSET_DOWNLOAD_ALLOWED_HOSTS = (
+    "api.1min.ai",
+    "*.1min.ai",
+    "api.openai.com",
+    "*.openai.com",
+    "*.openaiusercontent.com",
+    "oaidalleapiprodscus.blob.core.windows.net",
+)
+DEFAULT_ASSET_DOWNLOAD_ALLOWED_MIME_TYPES = (
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "application/octet-stream",
+)
 
 for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
     if str(root) not in sys.path:
@@ -859,9 +875,13 @@ def _collect_asset_urls(value: object) -> list[str]:
         candidate = value.strip()
         lowered = candidate.lower()
         if candidate.startswith("http://") or candidate.startswith("https://"):
-            found.append(candidate)
+            normalized = _normalize_download_asset_url(candidate)
+            if normalized is not None:
+                found.append(normalized)
         elif candidate.startswith("/") and any(token in lowered for token in ("/asset/", "/image/", "/render/", "/download/")):
-            found.append("https://api.1min.ai" + candidate)
+            normalized = _normalize_download_asset_url("https://api.1min.ai" + candidate)
+            if normalized is not None:
+                found.append(normalized)
     elif isinstance(value, dict):
         for key in ("url", "image_url", "download_url", "image", "imageUrl", "asset_url", "assetUrl"):
             if key in value:
@@ -879,6 +899,100 @@ def _collect_asset_urls(value: object) -> list[str]:
         seen.add(candidate)
         deduped.append(candidate)
     return deduped
+
+
+def _allowed_asset_download_hosts() -> tuple[str, ...]:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ASSET_DOWNLOAD_ALLOWED_HOSTS") or "").strip()
+    if not raw:
+        return DEFAULT_ASSET_DOWNLOAD_ALLOWED_HOSTS
+    return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+
+
+def _allowed_asset_download_mime_types() -> tuple[str, ...]:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_ASSET_DOWNLOAD_ALLOWED_MIME_TYPES") or "").strip()
+    if not raw:
+        return DEFAULT_ASSET_DOWNLOAD_ALLOWED_MIME_TYPES
+    return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+
+
+def _max_asset_download_bytes() -> int:
+    raw = str(os.environ.get("CHUMMER_MEDIA_FACTORY_MAX_ASSET_DOWNLOAD_BYTES") or "").strip()
+    try:
+        if raw:
+            return max(1024, min(200 * 1024 * 1024, int(float(raw))))
+    except Exception:
+        pass
+    return 25 * 1024 * 1024
+
+
+def _normalize_download_asset_url(url: str) -> str | None:
+    candidate = str(url or "").strip()
+    if not candidate:
+        return None
+    try:
+        parsed = urllib.parse.urlparse(candidate)
+    except Exception:
+        return None
+    if parsed.scheme.lower() != "https":
+        return None
+    if parsed.username or parsed.password:
+        return None
+    host = (parsed.hostname or "").strip().lower()
+    if not host or not _is_allowed_asset_download_host(host):
+        return None
+    if _is_literal_private_or_local_address(host):
+        return None
+    return urllib.parse.urlunparse((
+        parsed.scheme.lower(),
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        "",
+    ))
+
+
+def _is_allowed_asset_download_host(host: str) -> bool:
+    normalized_host = host.rstrip(".").lower()
+    for allowed in _allowed_asset_download_hosts():
+        pattern = allowed.rstrip(".").lower()
+        if not pattern:
+            continue
+        if pattern.startswith("*."):
+            suffix = pattern[1:]
+            if normalized_host.endswith(suffix) and normalized_host != pattern[2:]:
+                return True
+            continue
+        if normalized_host == pattern:
+            return True
+    return False
+
+
+def _is_literal_private_or_local_address(host: str) -> bool:
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return bool(
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _validate_download_content_type(content_type: str) -> None:
+    media_type = str(content_type or "").split(";", 1)[0].strip().lower()
+    if not media_type:
+        return
+    allowed = _allowed_asset_download_mime_types()
+    if media_type in allowed:
+        return
+    if any(item.endswith("/*") and media_type.startswith(item[:-1]) for item in allowed):
+        return
+    raise RuntimeError(f"asset_content_type_not_allowed:{media_type}")
 
 
 def _onemin_image_payload(*, prompt: str, model: str, size: str, aspect_ratio: str, quality: str) -> dict[str, object]:
@@ -917,11 +1031,33 @@ def _onemin_image_payload(*, prompt: str, model: str, size: str, aspect_ratio: s
 
 
 def _download_asset(url: str, output_path: Path) -> None:
-    request = urllib.request.Request(str(url), headers={"User-Agent": "Chummer-Media-Factory/1.0"})
+    normalized_url = _normalize_download_asset_url(url)
+    if normalized_url is None:
+        raise RuntimeError("asset_url_not_allowed")
+    max_bytes = _max_asset_download_bytes()
+    request = urllib.request.Request(normalized_url, headers={"User-Agent": "Chummer-Media-Factory/1.0"})
+    chunks: list[bytes] = []
+    total = 0
     with urllib.request.urlopen(request, timeout=180) as response:
-        data = response.read()
+        content_length = str(response.headers.get("Content-Length") or "").strip()
+        if content_length:
+            try:
+                if int(content_length) > max_bytes:
+                    raise RuntimeError(f"asset_too_large:{content_length}")
+            except ValueError:
+                raise RuntimeError(f"asset_invalid_content_length:{content_length}") from None
+        _validate_download_content_type(str(response.headers.get("Content-Type") or ""))
+        while True:
+            chunk = response.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise RuntimeError(f"asset_too_large:{total}")
+            chunks.append(chunk)
+    data = b"".join(chunks)
     if not data:
-        raise RuntimeError(f"empty_asset:{url}")
+        raise RuntimeError(f"empty_asset:{normalized_url}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(data)
 
