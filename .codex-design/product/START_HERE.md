@@ -1,88 +1,33 @@
 # Start here
 
-This is the shortest safe entry into Chummer canon.
+Do not read the repo like a manual. Pick the situation that matches you and take the next useful step.
 
-If you only read one file before choosing a deeper lane, read this one.
+## I want to try it
 
-## Fast path by role
+Start with [Download](DOWNLOAD.md), then check [Status](STATUS.md) if you want to know what is available today.
 
-### Public or product reader
+## I am new, rusty, or coming back from Chummer5a
 
-Read:
+Start with the [first session guide](ONRAMP.md), then use [Help](HELP.md) when install, update, or account return gets in the way.
 
-1. `VISION.md`
-2. `PUBLIC_LANDING_MANIFEST.yaml`
-3. `PUBLIC_FEATURE_REGISTRY.yaml`
-4. `PUBLIC_USER_MODEL.md`
-5. `PUBLIC_NAVIGATION.yaml`
-6. `PUBLIC_PROGRESS_PARTS.yaml`
+If you already know Chummer5a and care about migration, read [From Chummer5a to Chummer6](FROM_CHUMMER5A_TO_CHUMMER6.md).
 
-### Repo owner or implementer
+## I want to understand the product
 
-Read:
+Open [What Chummer6 Is](WHAT_CHUMMER6_IS.md). This is starter help, not another grand product shelf. It exists for the overloaded-reader problem: too many names, too many paths, and one tired reader who only needs the next good click.
 
-1. `ARCHITECTURE.md`
-2. `OWNERSHIP_MATRIX.md`
-3. `CONTRACT_SETS.yaml`
-4. `projects/*.md` for your repo
-5. `CAMPAIGN_SPINE_AND_CREW_MODEL.md`
-6. `CHARACTER_LIFECYCLE_AND_LIVING_DOSSIER.md`
-7. `ROAMING_WORKSPACE_AND_ENTITLEMENT_SYNC.md`
+## I am planning the next product wave
 
-### Reviewer or release owner
+Use [Next 12 Biggest Wins](NEXT_12_BIGGEST_WINS_GUIDE.md), then check [Campaign OS gap and change](CAMPAIGN_OS_GAP_AND_CHANGE_GUIDE.md) and [Privacy and retention boundaries](PRIVACY_AND_RETENTION_BOUNDARIES.md) before expanding scope.
 
-Read:
+## I care about campaign play
 
-1. `RELEASE_PIPELINE.md`
-2. `PUBLIC_RELEASE_EXPERIENCE.yaml`
-3. `PUBLIC_DOWNLOADS_POLICY.md`
-4. `PUBLIC_AUTO_UPDATE_POLICY.md`
-5. `PRODUCT_CONTROL_AND_GOVERNOR_LOOP.md`
-6. `SUPPORT_AND_SIGNAL_OODA_LOOP.md`
-7. `FEEDBACK_AND_CRASH_REPORTING_SYSTEM.md`
-8. `FEEDBACK_AND_SIGNAL_OODA_LOOP.md`
-9. `ACCOUNT_AWARE_FRONT_DOOR_CLOSEOUT.md`
-10. `PROGRAM_MILESTONES.yaml`
-11. `GROUP_BLOCKERS.md`
-12. `review/*.md` for the affected repo
+Start with [Runner Passport](RUNNER_PASSPORT.md), [Living World](LIVING_WORLD.md), and [Campaign tools](HORIZONS/README.md).
 
-### Strategy or future-lane reader
+## I want normal app capabilities
 
-Read:
+Use [Features](FEATURES/README.md) for NEXUS-PAN, Run Control, Edition Studio, Community Hub, Ghostwire, Local Co-Processor, and Quicksilver.
 
-1. `HORIZONS.md`
-2. `HORIZON_REGISTRY.yaml`
-3. `CAMPAIGN_SPINE_AND_CREW_MODEL.md`
-4. `BUILD_LAB_PRODUCT_MODEL.md`
-5. `ROAMING_WORKSPACE_AND_ENTITLEMENT_SYNC.md`
-6. `PRODUCT_GOVERNOR_AND_AUTOPILOT_LOOP.md`
-7. `PRODUCT_HEALTH_SCORECARD.yaml`
-8. `USER_JOURNEYS.md`
-9. `EXPERIENCE_SUCCESS_METRICS.md`
-10. `METRICS_AND_SLOS.yaml`
-11. `NEXT_15_BIG_WINS_EXECUTION_PLAN.md`
+## Something is blocking me
 
-## Fast path by question
-
-* What is Chummer? -> `VISION.md`
-* What is real today? -> `PUBLIC_FEATURE_REGISTRY.yaml` and `RELEASE_EVIDENCE_PACK.md`
-* What just closed and what is next? -> `ACCOUNT_AWARE_FRONT_DOOR_CLOSEOUT.md` and `NEXT_15_BIG_WINS_EXECUTION_PLAN.md`
-* What is the product middle between build, play, and publication? -> `CAMPAIGN_SPINE_AND_CREW_MODEL.md` and `CHARACTER_LIFECYCLE_AND_LIVING_DOSSIER.md`
-* How do claimed devices follow me without turning into mystery sync? -> `ROAMING_WORKSPACE_AND_ENTITLEMENT_SYNC.md`
-* What is the public release and install trust surface? -> `PUBLIC_RELEASE_EXPERIENCE.yaml`, `PUBLIC_DOWNLOADS_POLICY.md`, and `PUBLIC_AUTO_UPDATE_POLICY.md`
-* What is Build Lab supposed to become? -> `BUILD_LAB_PRODUCT_MODEL.md`
-* Who owns what? -> `ARCHITECTURE.md` and `OWNERSHIP_MATRIX.md`
-* What contracts exist? -> `CONTRACT_SETS.yaml`
-* What does done look like? -> `METRICS_AND_SLOS.yaml` and `PROGRAM_MILESTONES.yaml`
-* Who decides whether reality means "fix code", "fix docs", "freeze", or "replan"? -> `PRODUCT_GOVERNOR_AND_AUTOPILOT_LOOP.md`
-* What closes the loop from support reality back into canon and release posture? -> `PRODUCT_CONTROL_AND_GOVERNOR_LOOP.md` and `SUPPORT_AND_SIGNAL_OODA_LOOP.md`
-* What do users actually do? -> `USER_JOURNEYS.md` and `journeys/`
-* What does success feel like from the user side? -> `EXPERIENCE_SUCCESS_METRICS.md`
-* What do these words mean? -> `GLOSSARY.md`
-* How do support, bug, feedback, and crash lanes work? -> `FEEDBACK_AND_CRASH_REPORTING_SYSTEM.md`, `FEEDBACK_AND_SIGNAL_OODA_LOOP.md`, and `PUBLIC_HELP_COPY.md`
-
-## Reading discipline
-
-* Start with canon, not generated reports or mirror evidence.
-* Prefer the smallest reading track that answers the question in front of you.
-* If a seam is missing, petition upward instead of inventing local truth.
+Open [Help](HELP.md) first. Use [Contact](CONTACT.md) if the problem is private, account-bound, or still unresolved.

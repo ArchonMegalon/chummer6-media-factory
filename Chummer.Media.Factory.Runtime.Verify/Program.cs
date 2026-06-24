@@ -96,33 +96,36 @@ Assert(restoredJob!.State == MediaRenderJobState.Succeeded, "Succeeded render jo
 var restoredMediaProjection = restoredJobs.GetMediaPipelineProjection();
 Assert(restoredMediaProjection.Idempotency.ReplayCount >= 1, "Restore must preserve media dedupe replay counts.");
 
-await Task.Delay(120);
-var sweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow);
-Assert(sweep.ExpiredAssetCount >= 1, "Retention sweep after restore must expire cache-only assets.");
+var expiredSweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow.AddMinutes(10));
+Assert(expiredSweep.ExpiredAssetCount >= 1, "Retention sweep should expire cache-only entries after TTL.");
+Assert(restoredAssets.Resolve(cacheOnlyAsset.AssetId) is null, "Cache-only assets should be gone after expiry sweep.");
 
-var expiredCacheAsset = restoredAssets.Resolve(cacheOnlyAsset.AssetId);
-Assert(expiredCacheAsset is null, "Expired cache-only assets must not resolve after restore and sweep.");
-
+await Task.Delay(160);
 var expiredJob = restoredJobs.Get(succeededJob.JobId);
 Assert(expiredJob is not null, "Expired render jobs must remain inspectable after restore.");
-Assert(expiredJob!.State == MediaRenderJobState.Expired, "Render-job expiry must still work after restore.");
+Assert(expiredJob!.State == MediaRenderJobState.Expired, "Succeeded render jobs must transition to expired after TTL progression.");
 
-Console.WriteLine("Media factory runtime verification passed.");
+Console.WriteLine("runtime verify ok");
 
 static async Task<MediaRenderJobStatus> WaitForSucceededJobAsync(IMediaRenderJobService jobs, string jobId)
 {
-    for (var attempt = 0; attempt < 100; attempt++)
+    for (var attempt = 0; attempt < 50; attempt++)
     {
-        var job = jobs.Get(jobId);
-        if (job is not null && job.State == MediaRenderJobState.Succeeded)
+        var status = jobs.Get(jobId);
+        if (status?.State == MediaRenderJobState.Succeeded)
         {
-            return job;
+            return status;
+        }
+
+        if (status?.State == MediaRenderJobState.Failed)
+        {
+            throw new InvalidOperationException($"Job {jobId} failed: {status.Error ?? "unknown"}");
         }
 
         await Task.Delay(20);
     }
 
-    throw new InvalidOperationException($"Timed out waiting for media job '{jobId}' to succeed.");
+    throw new TimeoutException($"Job {jobId} did not reach succeeded state in time.");
 }
 
 static void Assert(bool condition, string message)

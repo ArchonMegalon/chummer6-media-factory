@@ -2,7 +2,7 @@
 
 ## Objective
 
-Convert repeated generic uncovered-scope prompts about `Chummer.Media.Contracts` into runnable, evidence-gated tasks that prove the canonical render-only package plane remains real and verifiable in this repo.
+Convert repeated generic uncovered-scope prompts about `Chummer.Media.Contracts` into runnable, evidence-gated tasks that prove the canonical render-verified package plane remains real and verifiable in this repo.
 
 ## Runnable backlog
 
@@ -10,7 +10,7 @@ Convert repeated generic uncovered-scope prompts about `Chummer.Media.Contracts`
 - Create `docs/EXTRACT-001A-canonical-package-plane-evidence.md` with pass/fail checks for:
   - package project presence (`src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj`)
   - canonical package metadata (`PackageId`, `AssemblyName`, `RootNamespace`)
-  - render-only namespace/boundary guardrails
+  - render-verified namespace/boundary guardrails
   - solution inclusion and build participation
 - Evidence: dated artifact with explicit check results and source file links.
 

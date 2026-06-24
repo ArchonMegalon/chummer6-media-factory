@@ -9,7 +9,7 @@ This evidence file maps the shared asset-kernel execution backlog to implemented
 - Milestone: `M1 asset/job kernel`
 - Program mapping: `C1 media factory extraction`
 - Contract set: `media_execution_vnext`
-- Completion gate: `AK-01`..`AK-06` all pass with render-only contract boundaries preserved
+- Completion gate: `AK-01`..`AK-06` all pass with render-verified contract boundaries preserved
 
 ## AK-01 Manifest store wiring
 
@@ -55,8 +55,8 @@ This evidence file maps the shared asset-kernel execution backlog to implemented
 
 ## Verification
 
-- Run `scripts/ai/verify.sh` to validate namespace and render-only guardrails and compile the contract package.
+- Run `scripts/ai/verify.sh` to validate namespace and render-verified guardrails and compile the contract package.
 
 ## Queue slice resolution
 
-Current queue item `Add milestone mapping or executable queue work for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` is satisfied by the existing `AK-01`..`AK-06` execution lane and milestone mapping above, so no additional runnable backlog units are required in this repo for this slice.
+Current queue items `Publish or append runnable backlog for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` and `Add milestone mapping or executable queue work for The asset kernel still needs manifests, binary storage, render jobs, previews, TTL, retention, and lineage before renderer-specific pipelines move here..` are both satisfied by the existing `AK-01`..`AK-06` execution lane and milestone mapping above, so no additional runnable backlog units are required in this repo for this slice.

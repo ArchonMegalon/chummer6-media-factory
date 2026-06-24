@@ -1,15 +1,17 @@
 # RUNBOOK PRESS
 
-## Table pain
+## Explanation video
 
-GMs, creators, and publishers need consistent long-form artifacts such as primers, campaign books, district guides, and convention modules, but current workflows are slow and hard to standardize.
+[Watch the RUNBOOK PRESS 90-second deep dive](https://chummer.run/media/horizons/runbook-press-90s-deepdive.mp4). [Captions](https://chummer.run/media/horizons/runbook-press-90s-deepdive.vtt).
 
-## Bounded product move
+## The problem
 
-Chummer would support governed long-form authoring and publication prep for player-facing and GM-facing books without letting vendor dashboards become the source of truth.
-RUNBOOK PRESS is the long-form publishing lane:
-primers, handbooks, district guides, campaign books, and convention modules belong here.
-It complements JACKPOINT rather than duplicating it.
+GMs, creators, and publishers need consistent long-form books such as primers, campaign books, district guides, and convention modules, but current workflows are slow and hard to standardize.
+
+## What it does now
+
+Chummer helps teams turn approved material into primers, handbooks, district guides, campaign books, and convention modules without forcing creators to juggle a pile of third-party dashboards.
+It complements JACKPOINT instead of duplicating it.
 
 ## Likely owners
 
@@ -23,16 +25,23 @@ It complements JACKPOINT rather than duplicating it.
 * `Paperguide` - cited research support
 * `Documentation.AI` - downstream help/docs projection
 * `MarkupGo` - formatted document rendering
+* `vidBoard` - campaign primer and module explainer video lane
 * `Soundmadeseen` - optional narrated companion assets
 * `Unmixr AI` - candidate voice lane until proven
 
-## Foundations
+## What has to be true first
 
-* approved canonical source packs
+* approved source packs
 * publication manifests
-* format/render adapters
+* format and render adapters
 * editorial approval flows
 
-## Why still a horizon
+## Current shipped posture
 
-Long-form output is only useful when the source pack, approval chain, and publication artifacts stay governed end to end.
+RUNBOOK PRESS is now a shipped first-party long-form publishing lane.
+The public route and proof lane are live, and the publication move should read as a staged artifact factory with real campaign-primer packet and companion video rails rather than as long-range aspiration only.
+
+## Current boundary
+
+Long-form output only matters if the draft, edit trail, and final package stay consistent from first draft to release.
+The shipped contract is the bounded first-party primer and campaign-book lane; deeper editorial and operator flows still need flagship-depth hardening.

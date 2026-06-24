@@ -1,39 +1,25 @@
-# chummer6-media-factory
+# Chummer Media Factory
 
-Render-only media and asset lifecycle service for Chummer6.
+This repo is a presentation and artifact lane. It can publish screenshots, contact sheets, mockups, thumbnails, packaging visuals, and governed media bundles for the broader Chummer fleet.
 
-This repo exists to own:
+It is not a proof authority for product behavior.
 
-- asset and job lifecycle
-- render pipelines
-- storage adapters
-- signed access URLs
-- approval-state persistence for rendered assets
+Use this repo for:
+- release and feature artwork
+- public proof thumbnails and contact sheets
+- creator/publication visual packaging
+- governed screenshot bundles that point back to first-party proof receipts
 
-This repo must not own:
+Do not use this repo alone to claim:
+- public route availability
+- Chummer5A desktop parity
+- SR4, SR5, or SR6 ruleset depth
+- OAuth or account-linking readiness
+- support-case or install-flow closure
 
-- rules math
-- session relay
-- lore retrieval
-- provider routing outside render execution
-- narrative generation policy
+Those claims require matching receipts from the owning repos, typically:
+- `chummer.run-services` for public routes, account flows, and support proofs
+- `chummer-presentation` for Chummer5A visual and workflow parity
+- `chummer-core-engine` for ruleset depth and capability boundaries
 
-Current status: active runtime owner. `Chummer.Media.Contracts` is the canonical render-only contract plane for this repo, and `Chummer.Media.Factory.Runtime` now owns render-job plus asset-lifecycle execution outside `chummer6-hub`.
-
-Current maturity note:
-
-- the boundary is now documented honestly
-- the package plane is real
-- render-job and asset-lifecycle execution now live in this repo and are verified through local build plus cross-repo clean-room checks
-- restore, retention, and replay-safe operator evidence are now exercised through `Chummer.Media.Factory.Runtime.Verify` and `docs/MEDIA_FACTORY_RESTORE_RUNBOOK.md`
-- stable capability and adapter authority are now summarized in `docs/MEDIA_CAPABILITY_SIGNOFF.md`
-
-Operator bridge:
-
-- `scripts/render_guide_asset.py` is the current operator-run bridge that lets upstream Chummer guide refreshes hand image execution to Media Factory instead of talking to provider adapters directly.
-- The bridge is intentionally narrow for now: it owns receipt emission and the render seam, while using EA's executable `1min` image tool under the hood until more adapters move fully into this repo.
-- Provider choice for the live image bridge is controlled inside this repo with `CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND`, and image execution can be failed closed with `CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION=0`.
-- Unsupported backend tokens fail fast, and receipts now capture the actual selected backend plus the controlling env vars.
-- The current family inventory and switch/kill-switch posture are tracked in `docs/MEDIA_ADAPTER_MATRIX.md`.
-
-The package does not define narrative briefs, canon decisions, routing policy, delivery policy, or campaign/session orchestration contracts. Those remain upstream in `chummer6-hub`.
+Every published media bundle should keep a provenance link back to the governing proof receipt or claim-boundary document.

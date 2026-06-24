@@ -6,7 +6,7 @@
 
 ## In scope
 
-- render-only contracts
+- render-verified contracts
 - job queue and dedupe
 - asset persistence and retention
 - document, portrait, and video render pipelines
@@ -24,7 +24,7 @@
 
 - repo builds in isolation
 - verification script runs
-- render-only contract boundaries are documented
+- render-verified contract boundaries are documented
 - no implementation dependency leaks from engine, presentation, play, or run-services
 - restore, retention, and replay-safe media execution drills are runnable from this repo without hub-owned fallback sources
 

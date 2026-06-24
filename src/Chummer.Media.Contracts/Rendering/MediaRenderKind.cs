@@ -1,7 +1,7 @@
 namespace Chummer.Media.Contracts.Rendering;
 
 /// <summary>
-/// Supported render-only output families owned by media-factory.
+/// Supported render-verified output families owned by media-factory.
 /// </summary>
 public enum MediaRenderKind
 {

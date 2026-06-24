@@ -13,7 +13,7 @@ Owns:
 - narrative drafting and script/text authoring
 - approvals policy decisions (who may approve, when, and why)
 - delivery policy decisions (where approved media is sent)
-- submission of render-only requests into `media-factory`
+- submission of render-verified requests into `media-factory`
 
 Must not own:
 - renderer execution workers
@@ -23,7 +23,7 @@ Must not own:
 ### `chummer-media-factory` (this repo)
 
 Owns:
-- render request intake validation for render-only DTOs
+- render request intake validation for render-verified DTOs
 - render job execution, dedupe, retry, provider-run tracking
 - asset manifest persistence, preview linkage, retention state, lineage tracking
 - approval-state persistence fields on rendered assets (`pending`, `approved`, `rejected`, `persisted`)
@@ -65,7 +65,7 @@ Use this list when validating extraction PRs, test plans, and rollout readiness.
 - [ ] Ingress payload uses only `Chummer.Media.Contracts` render/job/asset DTOs.
 - [ ] No narrative-authoring fields, canon/rules payloads, session relay internals, or provider-routing policy fields cross the seam.
 - [ ] Idempotency key ownership is explicit at ingress and mapped to dedupe scope/key in media-factory job records.
-- [ ] Intake validation rejects non-render-only payloads with structured failure envelopes.
+- [ ] Intake validation rejects non-render-verified payloads with structured failure envelopes.
 - [ ] Ownership line is explicit: `run-services` decides _that_ render work should exist; `media-factory` decides _how_ render work executes.
 
 ### B. Approval-state persistence handoff (`run-services` policy -> `media-factory` state)

@@ -14,6 +14,15 @@
 * provider adapters for document/image/video execution
 * signed asset access and media storage discipline
 
+## Package boundary
+
+`chummer6-media-factory` owns `Chummer.Media.Contracts` and may consume:
+
+* `Chummer.Campaign.Contracts` for campaign-linked render context
+* `Chummer.World.Contracts` for approved world-state, newsreel, mission-market, and opposition-packet projections
+
+It must not redefine campaign, world, approval, or rules semantics inside media execution DTOs.
+
 ## Must not own
 
 * campaign or session truth

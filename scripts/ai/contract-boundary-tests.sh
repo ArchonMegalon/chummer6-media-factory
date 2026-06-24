@@ -3,6 +3,7 @@ set -euo pipefail
 
 contracts_root="src/Chummer.Media.Contracts"
 csproj_path="${contracts_root}/Chummer.Media.Contracts.csproj"
+compatibility_contracts_path="${contracts_root}/Compatibility/RunServices/MediaFactoryContracts.cs"
 
 namespace_drift="$(
   rg -n --glob '*.cs' '^namespace ' "${contracts_root}" \
@@ -36,7 +37,7 @@ forbidden_public_identifier_drift="$(
   rg -n --glob '*.cs' '^\s*public\s+.*\b(Campaign(Id|Key|Context)?|Session(Id|Key|Context)?|Scene(Id|Key|Context)?|RouteContext(Id|Key|Context)?|Narrative[A-Za-z0-9_]*|Story[A-Za-z0-9_]*|Lore[A-Za-z0-9_]*|Canon[A-Za-z0-9_]*|Delivery(Policy|Channel|Route|Target|Audience|Decision)?[A-Za-z0-9_]*|Spider[A-Za-z0-9_]*|RuntimeLock[A-Za-z0-9_]*|ProviderRouting[A-Za-z0-9_]*|ProviderRoute[A-Za-z0-9_]*|Rule(Set|s)?[A-Za-z0-9_]*|Relay[A-Za-z0-9_]*)\b' "${contracts_root}" || true
 )"
 if [[ -n "${forbidden_public_identifier_drift}" ]]; then
-  echo "render-only boundary violation in public declarations:"
+  echo "render-verified boundary violation in public declarations:"
   echo "${forbidden_public_identifier_drift}"
   exit 1
 fi
@@ -45,7 +46,7 @@ forbidden_field_identifier_drift="$(
   rg -n --glob '*.cs' '^\s*[A-Za-z_][A-Za-z0-9_<>,\.\?\[\]]*\s+(Campaign(Id|Key|Context)?|Session(Id|Key|Context)?|Scene(Id|Key|Context)?|RouteContext(Id|Key|Context)?|Narrative[A-Za-z0-9_]*|Story[A-Za-z0-9_]*|Lore[A-Za-z0-9_]*|Canon[A-Za-z0-9_]*|Delivery(Policy|Channel|Route|Target|Audience|Decision)?[A-Za-z0-9_]*|Spider[A-Za-z0-9_]*|RuntimeLock[A-Za-z0-9_]*|ProviderRouting[A-Za-z0-9_]*|ProviderRoute[A-Za-z0-9_]*|Rule(Set|s)?[A-Za-z0-9_]*|Relay[A-Za-z0-9_]*)\s*[,)]' "${contracts_root}" || true
 )"
 if [[ -n "${forbidden_field_identifier_drift}" ]]; then
-  echo "render-only boundary violation in contract fields:"
+  echo "render-verified boundary violation in contract fields:"
   echo "${forbidden_field_identifier_drift}"
   exit 1
 fi
@@ -63,5 +64,29 @@ for required_field in ApprovalStatus ApprovedAtUtc RejectedAtUtc PersistedAtUtc;
     exit 1
   fi
 done
+
+quarantined_compatibility_types=(
+  PacketFactoryRequest
+  PacketAttachmentTargetKind
+  PacketAttachmentRequest
+  PacketAttachmentBatchRequest
+  PacketAttachmentRecord
+  PacketFactoryResult
+  RouteCinemaRequest
+  RouteCinemaResult
+)
+
+for quarantined_type in "${quarantined_compatibility_types[@]}"; do
+  if ! rg -U -q "\\[global::System\\.Obsolete\\(\"EXTRACT-008A quarantine:[^\"]*\"\\)\\]\\npublic (sealed record|enum) ${quarantined_type}\\b" "${compatibility_contracts_path}"; then
+    echo "compatibility quarantine violation: ${quarantined_type} must carry an EXTRACT-008A obsolete marker"
+    exit 1
+  fi
+done
+
+if rg -n '^\s*public (sealed record|enum) (PacketFactoryRequest|PacketAttachmentTargetKind|PacketAttachmentRequest|PacketAttachmentBatchRequest|PacketAttachmentRecord|PacketFactoryResult|RouteCinemaRequest|RouteCinemaResult)\b' "${contracts_root}" \
+  | rg -v "${compatibility_contracts_path}:" >/dev/null; then
+  echo "compatibility quarantine violation: mixed DTO residue escaped the compatibility shim"
+  exit 1
+fi
 
 echo "contract boundary tests ok"

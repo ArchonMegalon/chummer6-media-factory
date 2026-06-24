@@ -1,15 +1,17 @@
 # JACKPOINT
 
-## Table pain
+## Explanation video
 
-Players and GMs want dossiers, recaps, primers, and narrated briefings, but most content tools invent details and sever the link back to grounded evidence.
+[Watch the JACKPOINT 90-second deep dive](https://chummer.run/media/horizons/jackpoint-90s-deepdive.mp4). [Captions](https://chummer.run/media/horizons/jackpoint-90s-deepdive.vtt).
 
-## Bounded product move
+## The problem
 
-JACKPOINT is the artifact-studio horizon.
-It covers dossier packets, recap artifacts, narrated briefings, evidence rooms, share cards, and creator packs as bounded outputs tied to Chummer-owned manifests and receipts.
-JACKPOINT is intentionally the short-to-medium-form studio lane.
-It does not replace RUNBOOK PRESS long-form publishing.
+Players and GMs want dossiers, recaps, primers, and narrated briefings, but most content tools either invent details or strip away where the facts came from.
+
+## What it would do
+
+JACKPOINT would turn approved session material into dossiers, recaps, narrated briefings, evidence rooms, share cards, and creator packs.
+It is the short-to-medium-form publishing studio, not a replacement for full books.
 
 ## Likely owners
 
@@ -20,6 +22,7 @@ It does not replace RUNBOOK PRESS long-form publishing.
 ## Key tool posture
 
 * `MarkupGo` - document/render adapter lane
+* `vidBoard` - structured presenter-video and multilingual briefing lane
 * `Soundmadeseen` - narrated recap and briefing media lane
 * `Unmixr AI` - candidate voice lane until proven
 * `PeekShot` - preview/share-card adapter
@@ -28,15 +31,25 @@ It does not replace RUNBOOK PRESS long-form publishing.
 * `Mootion` - bounded video support
 * `First Book ai` - bounded overflow support when the artifact lane needs long-form carryover
 
-## Foundations
+## What has to be true first
 
-* grounded evidence receipts
+* a fact trail that survives formatting
 * approval states
-* registry/media seam clarity
+* registry and media working together cleanly
 * source classification
-* bounded publication workflows
+* reliable publication workflows
 
-## Why still a horizon
+## What is ready now
 
-The artifacts are valuable only if provenance survives formatting, narration, preview generation, and publication.
-Until that chain is reliable, Chummer should not pretend the studio is ready.
+JACKPOINT is now a shipped first-party briefing lane.
+The public rail exposes real dossier and mission-brief packets on markdown and JSON routes plus a named receipt at `/jackpoint/receipts/briefing-network.json`.
+The signed-in rail is no longer generic account spillover; it has a named desk at `/account/jackpoint`, a named redirect lane at `/account/jackpoint/open`, and publication detail routes at `/account/jackpoint/{publicationId}`.
+Typed publication APIs are first-class too:
+
+* `/api/v1/campaign-spine/me/publications`
+* `/api/v1/campaign-spine/me/publications/{publicationId}`
+
+## Boundary
+
+JACKPOINT is a publication-safe briefing and dossier lane.
+It does not claim GM-private spoiler authority on the public rail, and it does not hand publication truth to external narration or asset hosts.

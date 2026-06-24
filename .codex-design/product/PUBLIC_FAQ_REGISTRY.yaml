@@ -3,59 +3,65 @@ version: 1
 purpose: Canonical public FAQ entries for the downstream Chummer6 guide.
 sections:
   - id: using_chummer6
-    title: Using Chummer6
+    title: Questions people actually ask first
     entries:
       - question: Can I actually use this now?
         required: true
-        answer: Yes, with honest caveats. There are usable public surfaces and a real preview installer shelf, but several surfaces are still explicitly marked preview. Read that as real but still moving, not imaginary.
+        answer: "Yes. Chummer6 is still preview software, but the preview is real: there are live downloads, current pages, and clear labels for what is still rough."
       - question: Is it offline-safe?
         required: true
-        answer: That is one of the main promises. Local-first and offline-ready behavior are part of the product story, and the public docs treat surviving bad connectivity as a real requirement.
+        answer: That is one of the core goals. Chummer6 is being built so bad connectivity does not destroy your flow or your work.
       - question: Why would I trust it more than old opaque tool behavior?
         required: true
-        answer: Because the project is pushing toward deterministic outcomes plus readable receipts and provenance. The goal is not only to hand you a number, but to show how the number happened.
+        answer: Because Chummer6 tries to show why a result changed instead of leaving you with a number and no explanation.
       - question: What is preview versus available today?
         required: true
-        answer: Available today means there is a real public surface or build you can touch right now. Preview means the shape is visible and usable, but the support, release, or compatibility story is still moving.
+        answer: Available today means you can open it or download it right now. Preview means you can use it, but parts of the release, compatibility, or support story are still changing.
       - question: What should I show a skeptical GM or player first?
         required: true
-        answer: Start with WHAT_CHUMMER6_IS.md for the product pitch, then NOW/current-status.md for the honest caveats, then PARTS/core.md if the real argument is about trust in the math.
+        answer: Start with [What Chummer6 Is](WHAT_CHUMMER6_IS.md), then [Status](STATUS.md), then [Download](DOWNLOAD.md). If the real argument is about how the math is explained, show them [Core](PARTS/core.md).
   - id: participation_and_preview
-    title: Participation and preview
+    title: When something is weird or broken
     entries:
-      - question: How can I help?
+      - question: How do I report something?
         required: true
-        answer: Start with public bug reports, guide feedback, and future-feature suggestions. If you want to go further, the guided contribution lane exists for opt-in temporary support on top of the free baseline.
-      - question: What is guided contribution?
+        answer: Start with Help or Contact. If you want to help test or shape a fix in public, use the participation page.
+      - question: Can I help with fixes or testing?
         required: true
-        answer: Guided contribution is an opt-in temporary support lane for people who want to lend extra help on top of the free baseline. It is bounded, review-safe, and still not a bypass around governance.
-      - question: Do I need to join guided contribution to help?
+        answer: Yes. The participation page explains hands-on help for people who want to do more than leave feedback. It does not replace normal bug reports.
+      - question: Do I need to join anything to help?
         required: true
-        answer: No. Public bug reports, guide feedback, and future-feature suggestions still matter. Guided contribution is optional and additive, not the price of admission.
-      - question: Should I use the public issue tracker for a crash?
+        answer: No. Normal bug reports, documentation feedback, and feature requests still matter.
+      - question: Should I use the participation page for a crash?
         required: true
-        answer: Use the in-product private crash lane when diagnostics or logs are involved. Public issues stay best for public-safe reproducible bugs, guide feedback, and future-feature suggestions.
+        answer: No. Use the private crash or support path when logs or diagnostics are involved. Use the participation page only for safe public follow-up.
       - question: Why are some things preview-only?
         required: true
-        answer: Because some surfaces are real enough to try while their support, release, or compatibility story is still catching up. Preview means shape can move, not that the product is pretending.
-      - question: Will guided-preview lanes open wider later?
+        answer: Because some parts are good enough to try before every platform, install flow, and support path is equally polished.
+      - question: Will preview access open wider later?
         required: true
-        answer: The long-run intent is broader access, not a permanent paywall. Some early lanes may begin as guided previews while approvals, compatibility work, editorial effort, or support cost remain unusually expensive.
+        answer: That is the goal. Early access may stay narrow while support cost, polish work, or approvals are still unusually high.
       - question: Can I participate privately?
         required: true
         answer: Yes. Public recognition should remain opt-in, and private participation should still be possible even when badges or leaderboards exist.
       - question: What are badges and leaderboards for?
         required: true
-        answer: They are recognition and visibility layers, not authority. They should celebrate verified contribution without replacing review or rules truth.
-  - id: deeper_sources
-    title: If you want the deeper sources
-    entries:
-      - question: Where does the deeper plan live?
+        answer: They are thank-yous, not power. They should celebrate useful help without replacing review or the rules themselves.
+      - question: Would I need a Windows PC to join a run?
         required: true
-        answer: In chummer6-design, which carries the canonical product plan and public-generation rules.
+        answer: No. The intended direction is that browsing runs, applying with a quickstart or approved runner, acknowledging table expectations, and receiving schedule and session details should work without assuming a Windows-only setup.
+      - question: Is Chummer trying to replace Discord or VTTs?
+        required: true
+        answer: No. Chummer should handle rules, applications, scheduling records, and campaign consequences while Discord, Teams, and VTTs stay useful places to talk and play.
+  - id: deeper_sources
+    title: If you want more detail
+    entries:
+      - question: Where should I look after this?
+        required: true
+        answer: Start with Where To Go Deeper. It points to the optional pages without making most readers wade through planning material first.
       - question: Where does the actual code live?
         required: true
-        answer: In the owning code repos. Chummer6 exists so you do not have to reverse-engineer the product story from commit archaeology.
+        answer: In the Chummer repositories. Most people never need them to install Chummer6, use it, or report a problem.
       - question: Where do I propose public-facing changes?
         required: true
-        answer: Use the Chummer6 issue tracker for public guide feedback, bug reports, and future-feature suggestions. That keeps normal users out of the design repo.
+        answer: Start with Help or Contact. Use the participation page when you want hands-on testing or focused public follow-up.
