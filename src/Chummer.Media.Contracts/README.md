@@ -13,7 +13,6 @@ Contract families:
 - runsite orientation bundle receipts (`RunsiteOrientation*`)
 - structured media recipe receipts (`StructuredMediaRecipe*`), including structured publication-ready refs plus first-class role, publication, caption, and preview ref receipt rows with aggregate job and publication coverage
 - build explain companion receipts (`BuildExplainCompanion*`), including approved explain packet-scoped sibling refs plus first-class role, caption, and preview receipt rows with direct asset-url and lifecycle truth for downstream explain shelves
-- origin dossier narration receipts (`OriginDossierNarration*`), including approved origin-packet audio siblings, provider identity, and first-class role, caption, and preview receipt rows for derivative audiobook bundles without canon-generation authority
 - creator promo kit receipts (`CreatorPromoKit*`), including approved manifest-scoped video, poster, and preview-card siblings plus first-class artifact, caption, and preview receipt groups with direct asset-url and lifecycle truth for creator publication shelves
 - moderated testimonial publication receipts (`ModeratedTestimonial*`), including consent-backed, moderation-backed video, audio, transcript-card, and preview-card siblings plus first-class artifact, caption, and preview receipt groups for governed public-proof publication
 - explain presenter sibling receipts (`ExplainPresenter*`), including approved explanation-packet audio or presenter siblings, grounding-scope identity, and first-party text fallback receipts without calculation authority

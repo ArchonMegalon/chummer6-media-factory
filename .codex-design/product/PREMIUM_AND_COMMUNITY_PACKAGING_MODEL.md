@@ -17,7 +17,7 @@ Premium must not buy faction victory, leaderboard rank, rules advantage, safety 
 - Community Hub season tools
 - Table Pulse debrief packs
 - KARMA FORGE creator/community packs
-- invitation-only GM clinics via Lunacal
+- human GM clinics via Lunacal
 - artifact generation quotas
 - public creator/showcase pages
 
@@ -29,7 +29,7 @@ Use:
 - Icanpreneur for interviews
 - MetaSurvey for quant validation
 - ProductLift for public demand
-- Lunacal for invitation-only clinics, creator consults, press/research, and premium review sessions
+- Lunacal for clinics and sales/service calls
 - Emailit for closeout and lifecycle notices
 - Teable for package-review workbench projection
 

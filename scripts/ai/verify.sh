@@ -17,8 +17,6 @@ test -f tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.RunsiteOrienta
 test -f tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj
 test -f tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj
 test -f tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj
-test -f tests/OriginDossierNarrationSmoke/Chummer.Media.Factory.OriginDossierNarrationSmoke.csproj
-test -f tests/OriginDossierVideoSmoke/Chummer.Media.Factory.OriginDossierVideoSmoke.csproj
 test -f tests/InstallAwareConciergeSmoke/Chummer.Media.Factory.InstallAwareConciergeSmoke.csproj
 test -f tests/ReplayExchangePreviewSmoke/Chummer.Media.Factory.ReplayExchangePreviewSmoke.csproj
 test -f tests/GmPrepPacketSmoke/Chummer.Media.Factory.GmPrepPacketSmoke.csproj
@@ -34,14 +32,6 @@ test -f src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/StructuredMediaRecipeExecutionService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs
-test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRenderingService.cs
-test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierNarrationRequestFileService.cs
-test -f src/Chummer.Media.Factory.Runtime/Assets/OriginDossierVideoRequestFileService.cs
-test -f src/Chummer.Media.Factory.Runtime/Providers/Soundmadeseen/SoundmadeseenProviderAdapter.cs
-test -f src/Chummer.Media.Factory.Runtime/Providers/UnmixrAI/UnmixrProviderAdapter.cs
-test -f src/Chummer.Media.Factory.Runtime/Providers/VidBoard/VidBoardProviderAdapter.cs
-test -f tools/OriginDossierNarrationRequestCli/Chummer.Media.Factory.OriginDossierNarrationRequestCli.csproj
-test -f tools/OriginDossierVideoRequestCli/Chummer.Media.Factory.OriginDossierVideoRequestCli.csproj
 test -f src/Chummer.Media.Factory.Runtime/Assets/InstallAwareConciergeBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/ReplayExchangePreviewRenderingService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/CreatorPromoKitRenderingService.cs
@@ -87,8 +77,6 @@ rg -n 'CampaignBriefingBundleReceipt|CampaignBriefingLocaleReceipt|CampaignBrief
 rg -n 'next90-m108-media-factory-campaign-briefing-renders|4459920059|campaign_briefing_bundle_rendering|campaign_artifact_receipts|verify_closed_package_only|proof floor commit|requested-locale ColdOpen|requested-locale MissionBriefing|requested locale as the primary sibling|fallback locales|slot-aware caption and preview sibling ids|length-prefixed locale|approval state, retention state, and storage class|normalized locale-bundle ordering|exactly one canonical queue row per mirror and exactly one registry task block' docs/NEXT90_M108_CAMPAIGN_BRIEFING_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'BuildExplainCompanionRenderRequest|BuildExplainCompanionRenderReceipt|BuildExplainCompanionReadyRef|BuildExplainCompanionRoleReceiptGroup|BuildExplainCompanionRefReceipt|BuildExplainCaptionRefReceipt|BuildExplainPreviewRefReceipt|BuildExplainCompanionVideo|BuildExplainCompanionAudio|BuildExplainCompanionPreviewCard|BuildExplainCompanionPacketCompanion' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'ExplainPresenterSiblingRenderRequest|ExplainPresenterSiblingRenderReceipt|ExplainPresenterTextFallbackReceipt|ExplainPresenterSiblingReadyRef|ExplainPresenterSiblingRoleReceiptGroup|ExplainPresenterCompanionRefReceipt|ExplainPresenterCaptionRefReceipt|ExplainPresenterPreviewRefReceipt|ExplainPresenterSiblingAudio|ExplainPresenterSiblingPresenterVideo' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
-rg -n 'OriginDossierNarrationRenderRequest|OriginDossierNarrationRenderReceipt|OriginDossierNarrationReadyRef|OriginDossierNarrationRoleReceiptGroup|OriginDossierNarrationCompanionRefReceipt|OriginDossierNarrationCaptionRefReceipt|OriginDossierNarrationPreviewRefReceipt|OriginDossierCanonicalAudiobookAudio|OriginDossierAlternateAudiobookAudio|PrimaryAudioReceiptIds|AlternateAudioReceiptIds' src >/dev/null
-rg -n 'OriginDossierVideoRequestFileService|OriginDossierVideoRequestFileResult|VidBoardRenderRequest|VidBoardRenderReceipt|VidBoardDownloadedAssetReceipt|RenderCandidateVideoAsync|ffmpeg|renderedVideoPath' src tests >/dev/null
 rg -n 'pre-session-orientation-only-not-tactical-truth|HostClipReceiptIds|RoutePreviewReceiptIds|RoutePreviewArtifactReceipts|RunsiteRoutePreviewArtifactReceipt|RunsiteOrientationArtifactReceipt' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
 rg -n 'next90-m110-media-factory-runsite-bundles|5126560638|runsite_orientation_bundle|route_preview:artifact_receipts|pre-session-orientation-only-not-tactical-truth|length-prefixed|category, output format' docs/NEXT90_M110_RUNSITE_ORIENTATION_PROOF_FLOOR.md scripts/ai/materialize_media_release_proof.py >/dev/null
 rg -n 'InstallAwareConciergeRenderRequest|InstallAwareConciergeBundleReceipt|InstallAwareConciergeCompanionReadyRef|InstallAwareConciergeRoleReceiptGroup|InstallAwareConciergeCompanionRefReceipt|InstallAwareConciergeCaptionRefReceipt|InstallAwareConciergePreviewRefReceipt|InstallAwareConciergeSiblingNoteReceipt|InstallAwareReleaseExplainerVideo|InstallAwareSupportClosureAudio|InstallAwarePublicConciergePreviewCard' src docs/MEDIA_CAPABILITY_SIGNOFF.md >/dev/null
@@ -195,97 +183,6 @@ dotnet run --project tests/RunsiteOrientationBundleSmoke/Chummer.Media.Factory.R
 dotnet run --project tests/StructuredMediaRecipeSmoke/Chummer.Media.Factory.StructuredMediaRecipeSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/BuildExplainCompanionSmoke/Chummer.Media.Factory.BuildExplainCompanionSmoke.csproj --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/ExplainPresenterSiblingSmoke/Chummer.Media.Factory.ExplainPresenterSiblingSmoke.csproj --configuration Release --nologo --verbosity quiet
-dotnet run --project tests/OriginDossierNarrationSmoke/Chummer.Media.Factory.OriginDossierNarrationSmoke.csproj --configuration Release --nologo --verbosity quiet
-dotnet run --project tests/OriginDossierVideoSmoke/Chummer.Media.Factory.OriginDossierVideoSmoke.csproj --configuration Release --nologo --verbosity quiet
-tmp_origin_request_dir="$(mktemp -d "${TMPDIR:-/tmp}/origin-dossier-cli.XXXXXX")"
-cat >"${tmp_origin_request_dir}/media-factory-origin-audiobook.request.json" <<'JSON'
-{
-  "renderRequestId": "origin-dossier-cli-check",
-  "artifactKind": "origin_dossier_bundle_audiobook_render_request",
-  "ownerRepo": "chummer6-media-factory",
-  "source": "verify.sh",
-  "approvedAtUtc": "2026-06-17T00:00:00Z",
-  "requestedAtUtc": "2026-06-17T00:00:00Z",
-  "approvedOriginPacketId": "approved-origin-packet-verify",
-  "originRevisionId": "origin-revision-verify",
-  "canonicalBundle": {
-    "bundleDirectory": "/tmp/origin-bundle",
-    "canonMarkdownPath": "/tmp/origin.md",
-    "canonJsonPath": "/tmp/origin.json",
-    "dossierPdfPath": "/tmp/origin.pdf"
-  },
-  "providerLanes": {
-    "default": "Soundmadeseen",
-    "alternate": "Unmixr AI"
-  },
-  "narrationArtifacts": [
-    {
-      "role": "audio",
-      "provider": "Soundmadeseen",
-      "providerState": "promoted",
-      "outputFormat": "mp3",
-      "variant": "default_voice",
-      "companionRef": "origin-dossier://verify/audio/default",
-      "scriptPath": "/tmp/default-script.md",
-      "packetPath": "/tmp/default-packet.json",
-      "captionRefs": ["caption://verify/default.vtt"],
-      "previewRefs": ["preview://verify/shared"]
-    },
-    {
-      "role": "audio",
-      "provider": "Unmixr AI",
-      "providerState": "candidate",
-      "outputFormat": "mp3",
-      "variant": "alternate_voice",
-      "companionRef": "origin-dossier://verify/audio/alternate",
-      "scriptPath": "/tmp/alternate-script.md",
-      "packetPath": "/tmp/alternate-packet.json",
-      "captionRefs": ["caption://verify/default.vtt"],
-      "previewRefs": ["preview://verify/shared"]
-    }
-  ]
-}
-JSON
-CHUMMER_MEDIA_FACTORY_ORIGIN_DOSSIER_REQUEST_PATH="${tmp_origin_request_dir}/media-factory-origin-audiobook.request.json" \
-dotnet run --project tools/OriginDossierNarrationRequestCli/Chummer.Media.Factory.OriginDossierNarrationRequestCli.csproj --configuration Release --nologo --verbosity quiet >/tmp/chummer-media-factory-origin-cli.out
-receipt_path="$(cat /tmp/chummer-media-factory-origin-cli.out)"
-test -f "${receipt_path}"
-tmp_origin_video_request_dir="$(mktemp -d "${TMPDIR:-/tmp}/origin-dossier-video-cli.XXXXXX")"
-python3 - <<'PY' "${tmp_origin_video_request_dir}"
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-poster = root / "origin-dossier-video-poster.ppm"
-storyboard = root / "origin-dossier-video.storyboard.md"
-canon = root / "origin-canon.json"
-request = root / "vidboard-origin-dossier.packet.json"
-poster.write_text("P3\n2 2\n255\n38 46 76  123 180 255\n18 22 36  231 241 255\n", encoding="utf-8")
-storyboard.write_text("# Origin Dossier Video\\n", encoding="utf-8")
-canon.write_text(json.dumps({"packetId": "origin-dossier:verify:video", "runtimeFingerprint": "origin-canon:verify-video"}), encoding="utf-8")
-request.write_text(json.dumps({
-    "tool": "vidBoard",
-    "artifactKind": "origin_dossier_video",
-    "source": "verify.sh",
-    "title": "Verify Origin Dossier",
-    "durationTargetSeconds": 1,
-    "posterPath": str(poster),
-    "storyboardPath": str(storyboard),
-    "sourceCanon": {
-        "canonJsonPath": str(canon),
-        "canonMarkdownPath": "/tmp/origin.md",
-        "dossierPdfPath": "/tmp/origin.pdf",
-        "mediaFactoryNarrationReceiptPath": "/tmp/narration.receipt.json"
-    }
-}, indent=2), encoding="utf-8")
-print(request)
-PY
-video_request_path="$(find "${tmp_origin_video_request_dir}" -maxdepth 1 -type f -name 'vidboard-origin-dossier.packet.json' -print -quit)"
-CHUMMER_MEDIA_FACTORY_ORIGIN_DOSSIER_VIDEO_REQUEST_PATH="${video_request_path}" \
-dotnet run --project tools/OriginDossierVideoRequestCli/Chummer.Media.Factory.OriginDossierVideoRequestCli.csproj --configuration Release --nologo --verbosity quiet >/tmp/chummer-media-factory-origin-video-cli.out
-video_receipt_path="$(cat /tmp/chummer-media-factory-origin-video-cli.out)"
-test -f "${video_receipt_path}"
 bash scripts/ai/verify_m111_install_aware_concierge.sh
 bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m113_gm_prep_packets.sh

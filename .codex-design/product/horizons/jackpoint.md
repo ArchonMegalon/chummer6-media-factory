@@ -1,9 +1,5 @@
 # JACKPOINT
 
-## Explanation video
-
-[Watch the JACKPOINT 90-second deep dive](https://chummer.run/media/horizons/jackpoint-90s-deepdive.mp4). [Captions](https://chummer.run/media/horizons/jackpoint-90s-deepdive.vtt).
-
 ## The problem
 
 Players and GMs want dossiers, recaps, primers, and narrated briefings, but most content tools either invent details or strip away where the facts came from.
@@ -39,17 +35,14 @@ It is the short-to-medium-form publishing studio, not a replacement for full boo
 * source classification
 * reliable publication workflows
 
-## What is ready now
+## Current proof posture
 
-JACKPOINT is now a shipped first-party briefing lane.
-The public rail exposes real dossier and mission-brief packets on markdown and JSON routes plus a named receipt at `/jackpoint/receipts/briefing-network.json`.
-The signed-in rail is no longer generic account spillover; it has a named desk at `/account/jackpoint`, a named redirect lane at `/account/jackpoint/open`, and publication detail routes at `/account/jackpoint/{publicationId}`.
-Typed publication APIs are first-class too:
+JACKPOINT is still a horizon, but it is no longer only prose.
+The public artifact registry already carries first-party preview shapes for dossier briefs and mission-brief video lanes so the publication move stays inspectable before the full studio is promoted.
+The signed-in command lane is already live at `https://chummer.run/jackpoint`.
+That lane currently carries first-party briefing packets on real markdown and JSON routes without pretending the whole long-form publishing roadmap is done.
 
-* `/api/v1/campaign-spine/me/publications`
-* `/api/v1/campaign-spine/me/publications/{publicationId}`
+## Why it is not ready yet
 
-## Boundary
-
-JACKPOINT is a publication-safe briefing and dossier lane.
-It does not claim GM-private spoiler authority on the public rail, and it does not hand publication truth to external narration or asset hosts.
+These outputs only matter if the evidence path survives writing, narration, preview generation, and publication.
+Until that chain is reliable, Chummer should not sell the studio as ready.

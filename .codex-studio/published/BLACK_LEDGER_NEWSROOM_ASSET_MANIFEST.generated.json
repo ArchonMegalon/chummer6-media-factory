@@ -1,0 +1,17 @@
+{
+  "generated_at_utc": "2026-05-30T16:22:51Z",
+  "status": "pass",
+  "asset_id": "black_ledger_photoreal_newsroom",
+  "route": "https://chummer.run/ledger/newsroom",
+  "receipts": [
+    {
+      "asset_id": "black_ledger_photoreal_newsroom",
+      "provider": "MagicFit",
+      "route": "/ledger/newsroom",
+      "source_manifest": "black-ledger/newsroom",
+      "render_receipt": "magicfit-newsroom-render-v19",
+      "qa": "pass"
+    }
+  ],
+  "public_safety_scan": "pass"
+}

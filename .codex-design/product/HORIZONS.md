@@ -6,6 +6,8 @@ They exist so public storytelling, deeper guide pages, and future product intent
 
 For the writing, public-guide, and media standard, use `HORIZON_DESIGN_INSTRUCTIONS.md` before changing any horizon doc or generator.
 
+For the writing, public-guide, and media standard, use `HORIZON_DESIGN_INSTRUCTIONS.md` before changing any horizon doc or generator.
+
 ## Rules
 
 * Horizon docs are canon for lane posture, not promises of shipment.
@@ -70,6 +72,7 @@ Read `horizons/README.md` first, then the relevant lane docs. Base product featu
 * `horizons/alice.md`
 * `horizons/karma-forge.md`
 * `horizons/black-ledger.md`
+* `horizons/community-hub.md`
 * `horizons/knowledge-fabric.md`
 * `horizons/jackpoint.md`
 * `horizons/runsite.md`
