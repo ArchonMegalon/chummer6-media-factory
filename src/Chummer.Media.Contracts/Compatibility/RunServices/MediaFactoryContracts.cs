@@ -140,7 +140,9 @@ public enum MediaRenderJobType
     ModeratedTestimonialVideo,
     ModeratedTestimonialAudio,
     ModeratedTestimonialPreviewCard,
-    ModeratedTestimonialTranscriptCard
+    ModeratedTestimonialTranscriptCard,
+    OriginDossierCanonicalAudiobookAudio,
+    OriginDossierAlternateAudiobookAudio
 }
 
 public enum MediaRenderJobState
