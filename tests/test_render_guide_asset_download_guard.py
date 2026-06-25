@@ -51,6 +51,11 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
         os.environ.clear()
         os.environ.update(self._original_env)
 
+    def _allow_public_dns(self) -> None:
+        self.module.socket.getaddrinfo = lambda *args, **kwargs: [
+            (self.module.socket.AF_INET, self.module.socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ]
+
     def test_collect_asset_urls_filters_untrusted_urls(self) -> None:
         payload = {
             "url": "http://api.1min.ai/asset/plain-http.png",
@@ -81,6 +86,7 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
 
     def test_download_asset_enforces_size_and_mime_guards(self) -> None:
         os.environ["CHUMMER_MEDIA_FACTORY_MAX_ASSET_DOWNLOAD_BYTES"] = "4"
+        self._allow_public_dns()
 
         def too_large_urlopen(request, timeout):
             return FakeResponse(b"x" * 1025, {"Content-Type": "image/png"})
@@ -101,6 +107,8 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
                 self.module._download_asset("https://api.1min.ai/asset/page.html", Path(temp) / "page.html")
 
     def test_download_asset_writes_allowed_provider_asset(self) -> None:
+        self._allow_public_dns()
+
         def ok_urlopen(request, timeout):
             self.assertEqual("https://api.1min.ai/asset/ok.png", request.full_url)
             return FakeResponse(b"png-bytes", {"Content-Type": "image/png", "Content-Length": "9"})
@@ -110,6 +118,19 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
             output = Path(temp) / "ok.png"
             self.module._download_asset("https://api.1min.ai/asset/ok.png", output)
             self.assertEqual(b"png-bytes", output.read_bytes())
+
+    def test_download_asset_blocks_allowed_host_that_resolves_private(self) -> None:
+        self.module.socket.getaddrinfo = lambda *args, **kwargs: [
+            (self.module.socket.AF_INET, self.module.socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))
+        ]
+
+        def unexpected_urlopen(request, timeout):
+            raise AssertionError("download should not start after private DNS resolution")
+
+        self.module.urllib.request.urlopen = unexpected_urlopen
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(RuntimeError, "asset_host_resolves_to_private_or_local"):
+                self.module._download_asset("https://api.1min.ai/asset/private.png", Path(temp) / "private.png")
 
     def test_direct_provider_image_response_uses_same_size_guard(self) -> None:
         response = FakeResponse(b"x" * 8, {"Content-Type": "image/png", "Content-Length": "8"})

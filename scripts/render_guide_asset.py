@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import urllib.error
@@ -983,6 +984,21 @@ def _is_literal_private_or_local_address(host: str) -> bool:
     )
 
 
+def _validate_download_asset_host_resolution(host: str) -> None:
+    try:
+        resolved = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise RuntimeError(f"asset_host_resolution_failed:{host}") from exc
+
+    if not resolved:
+        raise RuntimeError(f"asset_host_resolution_failed:{host}")
+
+    for item in resolved:
+        address = item[4][0]
+        if _is_literal_private_or_local_address(address):
+            raise RuntimeError(f"asset_host_resolves_to_private_or_local:{host}")
+
+
 def _validate_download_content_type(content_type: str) -> None:
     media_type = str(content_type or "").split(";", 1)[0].strip().lower()
     if not media_type:
@@ -1060,6 +1076,8 @@ def _download_asset(url: str, output_path: Path) -> None:
     normalized_url = _normalize_download_asset_url(url)
     if normalized_url is None:
         raise RuntimeError("asset_url_not_allowed")
+    parsed = urllib.parse.urlparse(normalized_url)
+    _validate_download_asset_host_resolution(parsed.hostname or "")
     max_bytes = _max_asset_download_bytes()
     request = urllib.request.Request(normalized_url, headers={"User-Agent": "Chummer-Media-Factory/1.0"})
     with urllib.request.urlopen(request, timeout=180) as response:
