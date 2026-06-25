@@ -111,6 +111,12 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
             self.module._download_asset("https://api.1min.ai/asset/ok.png", output)
             self.assertEqual(b"png-bytes", output.read_bytes())
 
+    def test_direct_provider_image_response_uses_same_size_guard(self) -> None:
+        response = FakeResponse(b"x" * 8, {"Content-Type": "image/png", "Content-Length": "8"})
+
+        with self.assertRaisesRegex(RuntimeError, "asset_too_large"):
+            self.module._read_response_bytes_with_limit(response, max_bytes=4, label="asset")
+
 
 if __name__ == "__main__":
     unittest.main()

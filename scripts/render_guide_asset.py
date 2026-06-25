@@ -995,6 +995,32 @@ def _validate_download_content_type(content_type: str) -> None:
     raise RuntimeError(f"asset_content_type_not_allowed:{media_type}")
 
 
+def _read_response_bytes_with_limit(response: object, *, max_bytes: int, label: str) -> bytes:
+    headers = getattr(response, "headers", {}) or {}
+    content_length = str(headers.get("Content-Length") or "").strip()
+    if content_length:
+        try:
+            if int(content_length) > max_bytes:
+                raise RuntimeError(f"{label}_too_large:{content_length}")
+        except ValueError:
+            raise RuntimeError(f"{label}_invalid_content_length:{content_length}") from None
+
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = response.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise RuntimeError(f"{label}_too_large:{total}")
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if not data:
+        raise RuntimeError(f"empty_{label}")
+    return data
+
+
 def _onemin_image_payload(*, prompt: str, model: str, size: str, aspect_ratio: str, quality: str) -> dict[str, object]:
     if _is_flux_schnell_model(model):
         prompt_object: dict[str, object] = {
@@ -1036,28 +1062,9 @@ def _download_asset(url: str, output_path: Path) -> None:
         raise RuntimeError("asset_url_not_allowed")
     max_bytes = _max_asset_download_bytes()
     request = urllib.request.Request(normalized_url, headers={"User-Agent": "Chummer-Media-Factory/1.0"})
-    chunks: list[bytes] = []
-    total = 0
     with urllib.request.urlopen(request, timeout=180) as response:
-        content_length = str(response.headers.get("Content-Length") or "").strip()
-        if content_length:
-            try:
-                if int(content_length) > max_bytes:
-                    raise RuntimeError(f"asset_too_large:{content_length}")
-            except ValueError:
-                raise RuntimeError(f"asset_invalid_content_length:{content_length}") from None
         _validate_download_content_type(str(response.headers.get("Content-Type") or ""))
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > max_bytes:
-                raise RuntimeError(f"asset_too_large:{total}")
-            chunks.append(chunk)
-    data = b"".join(chunks)
-    if not data:
-        raise RuntimeError(f"empty_asset:{normalized_url}")
+        data = _read_response_bytes_with_limit(response, max_bytes=max_bytes, label="asset")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(data)
 
@@ -1396,8 +1403,12 @@ def render_asset(
                     )
                     try:
                         with urllib.request.urlopen(request, timeout=_onemin_timeout_seconds()) as response:
-                            data = response.read()
                             content_type = str(response.headers.get("Content-Type") or "").lower()
+                            data = _read_response_bytes_with_limit(
+                                response,
+                                max_bytes=_max_asset_download_bytes(),
+                                label="asset",
+                            )
                     except urllib.error.HTTPError as exc:
                         body = exc.read().decode("utf-8", errors="replace").strip()
                         errors.append(f"{current_slot_name}:{model}:{size}:http_{exc.code}:{body[:180]}")
