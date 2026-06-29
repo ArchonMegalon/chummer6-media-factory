@@ -16,10 +16,10 @@ hero_ctas:
   href: /now
   emphasis: secondary
 guest_shell_actions:
-- label: Sign in
+- label: Open Chummer
   href: /login?next=/home
   emphasis: secondary
-- label: Create account
+- label: Claim your copy
   href: /signup?next=/home
   emphasis: primary
 secondary_highlights:
@@ -241,15 +241,15 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: public progress report only
-- path: /partizipate
+- path: /participate
   title: Participate
   audience: public
   purpose: first_party_public_board
   requires_auth: false
-  guest_fallback: /partizipate
+  guest_fallback: /participate
   must_exist: true
   placeholder_allowed: false
-  placeholder_requirements: ProductLift-backed feedback, roadmap, and shipped-closeout board rendered in first-party Chummer chrome with compact dark presentation, visible filters/vote signals, private-support routing to Help, and no third-party brand feel
+  placeholder_requirements: public requests, roadmap movement, and shipped-update follow-up rendered in first-party Chummer chrome with compact dark presentation, private-support routing to Help, and no third-party brand feel
 - path: /feedback
   title: Feedback
   audience: public
@@ -304,6 +304,15 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party rules explainability surface only
+- path: /rules/explanations
+  title: Rules explanation
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /rules/explanations
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party rules explanation detail only
 - path: /jackpoint
   title: JACKPOINT
   audience: public
@@ -313,10 +322,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party briefing and dossier surface only
-- path: /jackpoint/receipts/briefing-network.json
-  title: JACKPOINT briefing receipt
+- path: /jackpoint/briefing-network
+  title: JACKPOINT briefing details
   audience: public
-  purpose: proof_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /jackpoint
   must_exist: true
@@ -331,10 +340,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party runsite pack surface only
-- path: /runsites/receipts/prep-network.json
-  title: RUNSITE prep receipt
+- path: /runsites/prep-network
+  title: RUNSITE prep details
   audience: public
-  purpose: proof_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /runsites
   must_exist: true
@@ -349,6 +358,15 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party primer and campaign-book surface only
+- path: /runbook/primer-network
+  title: RUNBOOK PRESS primer network
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /runbook
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party primer and campaign-book packet only
 - path: /community
   title: Community Hub
   audience: public
@@ -358,10 +376,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party open-run and organizer community surface only
-- path: /community/receipts/open-run-network.json
-  title: Community Hub open-run receipt
+- path: /community/open-run-network
+  title: Community Hub open-run details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /community
   must_exist: true
@@ -376,10 +394,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party creator publication surface only
-- path: /creator/receipts/publication-network.json
-  title: Creator OS publication receipt
+- path: /creator/publication-network
+  title: Creator OS publication details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /creator
   must_exist: true
@@ -394,10 +412,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party after-action packet surface only
-- path: /ghostwire/receipts/replay-network.json
-  title: GHOSTWIRE replay-network receipt
+- path: /ghostwire/replay-network
+  title: GHOSTWIRE replay details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /ghostwire
   must_exist: true
@@ -412,10 +430,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party GM operations surface only
-- path: /run-control/receipts/control-network.json
-  title: RUN CONTROL control receipt
+- path: /run-control/control-network
+  title: RUN CONTROL control details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /run-control
   must_exist: true
@@ -430,6 +448,15 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party starter and recovery surface only
+- path: /onramp/guided-starter
+  title: ONRAMP starter details
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in starter desk and typed starter/recovery contract only
 - path: /onramp/receipts/guided-starter.json
   title: ONRAMP starter receipt
   audience: public
@@ -438,7 +465,27 @@ public_routes:
   guest_fallback: /onramp
   must_exist: true
   placeholder_allowed: false
-  placeholder_requirements: named signed-in starter desk and typed starter/recovery contract only
+  placeholder_requirements: JSON receipt for the public starter and recovery lane
+- path: /onramp/packets/{packetId}.md
+  title: ONRAMP packet markdown
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: markdown packet for known starter or recovery lane IDs only
+  verification_path: /onramp/packets/starter_lane.md
+- path: /onramp/packets/{packetId}.json
+  title: ONRAMP packet JSON
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /onramp
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: JSON packet for known starter or recovery lane IDs only
+  verification_path: /onramp/packets/starter_lane.json
 - path: /edition-studio
   title: EDITION STUDIO
   audience: public
@@ -448,15 +495,44 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party authored ruleset-head surface only
+- path: /edition-studio/ruleset-heads
+  title: EDITION STUDIO ruleset details
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in edition desk and typed edition-head contract only
 - path: /edition-studio/receipts/ruleset-heads.json
-  title: EDITION STUDIO ruleset-head receipt
+  title: EDITION STUDIO ruleset receipt
   audience: public
   purpose: product_surface_receipt
   requires_auth: false
   guest_fallback: /edition-studio
   must_exist: true
   placeholder_allowed: false
-  placeholder_requirements: named signed-in edition desk and typed edition-head contract only
+  placeholder_requirements: JSON receipt for public edition-head status
+- path: /edition-studio/packets/{packetId}.md
+  title: EDITION STUDIO packet markdown
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: markdown packet for known edition-head IDs only
+  verification_path: /edition-studio/packets/sr5_head.md
+- path: /edition-studio/packets/{packetId}.json
+  title: EDITION STUDIO packet JSON
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /edition-studio
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: JSON packet for known edition-head IDs only
+  verification_path: /edition-studio/packets/sr5_head.json
 - path: /quicksilver
   title: Quicksilver
   audience: public
@@ -466,15 +542,44 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party expert-speed command surface only
+- path: /quicksilver/command-network
+  title: Quicksilver command details
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /quicksilver
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: named signed-in command deck and typed jump-target contract only
 - path: /quicksilver/receipts/command-network.json
-  title: Quicksilver command-network receipt
+  title: Quicksilver command receipt
   audience: public
   purpose: product_surface_receipt
   requires_auth: false
   guest_fallback: /quicksilver
   must_exist: true
   placeholder_allowed: false
-  placeholder_requirements: named signed-in command deck and typed jump-target contract only
+  placeholder_requirements: JSON receipt for public command-deck status
+- path: /quicksilver/packets/{packetId}.md
+  title: Quicksilver packet markdown
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /quicksilver
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: markdown packet for known command-deck or jump-target IDs only
+  verification_path: /quicksilver/packets/command_deck.md
+- path: /quicksilver/packets/{packetId}.json
+  title: Quicksilver packet JSON
+  audience: public
+  purpose: product_surface_packet
+  requires_auth: false
+  guest_fallback: /quicksilver
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: JSON packet for known command-deck or jump-target IDs only
+  verification_path: /quicksilver/packets/command_deck.json
 - path: /passport
   title: Runner Passport
   audience: public
@@ -484,10 +589,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party runner identity and continuity surface only
-- path: /passport/receipts/identity-network.json
-  title: Runner Passport identity-network receipt
+- path: /passport/identity-network
+  title: Runner Passport identity details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /passport
   must_exist: true
@@ -529,19 +634,19 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: first-party runner export only
-- path: /anarchy/receipts/explain.json
-  title: Anarchy explain receipt
+- path: /anarchy/explain
+  title: Anarchy explain details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /anarchy
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: receipt-backed Anarchy explain contract only
-- path: /anarchy/receipts/runtime.json
-  title: Anarchy runtime receipt
+- path: /anarchy/runtime
+  title: Anarchy runtime details
   audience: public
-  purpose: product_surface_receipt
+  purpose: product_surface_detail
   requires_auth: false
   guest_fallback: /anarchy
   must_exist: true
@@ -556,6 +661,15 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: governed discovery entry only
+- path: /participate/karma-forge/discovery-network
+  title: KARMA FORGE discovery network
+  audience: public
+  purpose: governed_future_signal_detail
+  requires_auth: false
+  guest_fallback: /participate/karma-forge
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: governed discovery packet only
 - path: /alice
   title: ALICE compare bench
   audience: public
@@ -592,6 +706,42 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: split-rail contract only
+- path: /propertyquarry
+  title: PROPERTYQUARRY
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /propertyquarry
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party property scouting and location board surface only
+- path: /propertyquarry/property-network
+  title: PROPERTYQUARRY property network
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /propertyquarry
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party property scouting packet only
+- path: /origin-dossier
+  title: ORIGIN DOSSIER
+  audience: public
+  purpose: product_surface
+  requires_auth: false
+  guest_fallback: /origin-dossier
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party origin story and dossier surface only
+- path: /origin-dossier/story-network
+  title: ORIGIN DOSSIER story network
+  audience: public
+  purpose: product_surface_detail
+  requires_auth: false
+  guest_fallback: /origin-dossier
+  must_exist: true
+  placeholder_allowed: false
+  placeholder_requirements: first-party origin story packet only
 - path: /participate/karma-forge/submitted/{submissionId}
   title: KARMA FORGE discovery submitted
   audience: public
@@ -663,15 +813,6 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: static markdown instructions only
-- path: /artifacts/explanation-receipt-trail
-  title: Explanation receipt trail detail
-  audience: public
-  purpose: artifact_detail
-  requires_auth: false
-  guest_fallback: /artifacts/explanation-receipt-trail
-  must_exist: true
-  placeholder_allowed: false
-  placeholder_requirements: artifact detail only
 - path: /artifacts/runsite-pack
   title: Runsite pack detail
   audience: public
@@ -1096,10 +1237,10 @@ public_routes:
   must_exist: true
   placeholder_allowed: false
   placeholder_requirements: shipped first-party optional-acceleration lane only
-- path: /local-co-processor/receipts/optional-acceleration.json
-  title: LOCAL CO-PROCESSOR receipt
+- path: /local-co-processor/optional-acceleration
+  title: LOCAL CO-PROCESSOR acceleration details
   audience: public
-  purpose: horizon_receipt
+  purpose: horizon_detail
   requires_auth: false
   guest_fallback: /local-co-processor
   must_exist: true
@@ -1107,7 +1248,7 @@ public_routes:
   placeholder_requirements: receipt-backed optional-acceleration contract only
 auth_routes:
 - path: /login
-  title: Sign in
+  title: Open Chummer
   audience: public
   purpose: guest_auth_entry
   requires_auth: false
@@ -1116,7 +1257,7 @@ auth_routes:
   placeholder_allowed: false
   placeholder_requirements: first-wave auth entry
 - path: /signup
-  title: Create account
+  title: Claim your copy
   audience: public
   purpose: guest_auth_entry
   requires_auth: false
@@ -1184,7 +1325,7 @@ registered_routes:
   audience: registered
   purpose: signed_in_dashboard
   requires_auth: true
-  guest_fallback: /login?next=/home/access
+  guest_fallback: /account/access
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: signed-in access focus
@@ -1193,7 +1334,7 @@ registered_routes:
   audience: registered
   purpose: signed_in_dashboard
   requires_auth: true
-  guest_fallback: /login?next=/home/work
+  guest_fallback: /account/work
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: signed-in work focus
@@ -1211,7 +1352,7 @@ registered_routes:
   audience: registered
   purpose: profile_and_preferences
   requires_auth: true
-  guest_fallback: /login?next=/account
+  guest_fallback: /account/access
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: profile and linked-identity shell
@@ -1260,6 +1401,33 @@ registered_routes:
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: signed-in build handoff detail route
+- path: /account/propertyquarry
+  title: Account PROPERTYQUARRY
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/propertyquarry
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in property desk redirect or empty-state route
+- path: /account/propertyquarry/open
+  title: Account PROPERTYQUARRY open
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/propertyquarry/open
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in property desk open route
+- path: /account/propertyquarry/{propertyId}
+  title: Account PROPERTYQUARRY property
+  audience: registered
+  purpose: signed_in_horizon
+  requires_auth: true
+  guest_fallback: /login?next=/account/propertyquarry/{propertyId}
+  must_exist: true
+  placeholder_allowed: true
+  placeholder_requirements: signed-in property workspace detail route
 - path: /account/community
   title: Account Community Hub
   audience: registered
@@ -1518,7 +1686,7 @@ registered_routes:
   audience: registered
   purpose: profile_and_preferences
   requires_auth: true
-  guest_fallback: /login?next=/account/advanced
+  guest_fallback: /account/settings
   must_exist: true
   placeholder_allowed: true
   placeholder_requirements: advanced account diagnostics route
