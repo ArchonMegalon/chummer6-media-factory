@@ -21,10 +21,28 @@ jobs:
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.103
+      - name: Bootstrap exact ripgrep verifier dependency
+        shell: bash
+        run: |
+          rg_archive="${RUNNER_TEMP}/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
+          rg_bin="${RUNNER_TEMP}/ripgrep-bin"
+          curl --fail --location --silent --show-error \
+            https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz \
+            --output "${rg_archive}"
+          echo "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e  ${rg_archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${rg_bin}"
+          tar --extract --gzip --file "${rg_archive}" \
+            --directory "${rg_bin}" --strip-components=1 \
+            ripgrep-14.1.1-x86_64-unknown-linux-musl/rg
+          chmod 0755 "${rg_bin}/rg"
+          test "$("${rg_bin}/rg" --version | head -n 1)" = "ripgrep 14.1.1"
+          echo "${rg_bin}" >> "${GITHUB_PATH}"
       - name: Verify exact clean checkout
         shell: bash
         run: |
           test "$(dotnet --version)" = "10.0.103"
+          test "$(rg --version | head -n 1)" = "ripgrep 14.1.1"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           test -z "$(git status --porcelain --untracked-files=all)"
       - name: Run the full package-independent repository verification
