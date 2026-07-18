@@ -23,5 +23,11 @@ Those claims require matching receipts from the owning repos, typically:
 - `chummer-core-engine` for ruleset depth and capability boundaries
 
 Every published media bundle must use `PublicMediaAssetProjection`, which binds the
-exact Registry snapshot, manifest, decision, and provenance bytes by portable refs
-and SHA-256 digests. Provider-private execution evidence stays internal.
+exact Registry `CURRENT.json`, full v2 snapshot, manifest, decision, and provenance
+bytes by content-addressed refs and SHA-256 digests. It also requires a curated,
+approved, persisted, non-purged public asset lifecycle. Provider-private execution
+evidence stays internal.
+
+Fresh-checkout builds bootstrap the sole external runtime contract from the exact
+Registry owner commit in `eng/package-plane.lock.json`; ambient sibling repositories
+and mutable package feeds are not release inputs.

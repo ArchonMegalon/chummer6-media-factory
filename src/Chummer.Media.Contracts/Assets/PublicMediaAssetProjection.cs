@@ -9,6 +9,8 @@ public sealed record MediaReleaseAuthorityBinding(
     string RegistryRepository,
     string RegistryCommit,
     string ReleaseVersion,
+    string CurrentRef,
+    string CurrentSha256,
     string AuthoritySnapshotRef,
     string AuthoritySnapshotSha256,
     string ManifestRef,
@@ -18,6 +20,17 @@ public sealed record MediaReleaseAuthorityBinding(
     string ReleaseDecisionStatus,
     string ProvenanceRef,
     string ProvenanceSha256);
+
+/// <summary>
+/// Explicit curation decision binding one asset to one governed authority snapshot.
+/// This is separate from provider execution evidence and cannot promote a release.
+/// </summary>
+public sealed record MediaPublicEligibility(
+    string Contract,
+    bool CuratedForPublicRelease,
+    string CuratedBy,
+    DateTimeOffset CuratedAtUtc,
+    string AuthoritySnapshotSha256);
 
 /// <summary>
 /// The only release-facing projection of a media manifest. Creation fails closed
@@ -32,6 +45,9 @@ public sealed class PublicMediaAssetProjection
     /// <summary>The sole repository authorized to issue release snapshots.</summary>
     public const string RequiredRegistryRepository = "ArchonMegalon/chummer6-hub-registry";
 
+    /// <summary>The curation contract required before an asset can enter a public projection.</summary>
+    public const string RequiredEligibilityContract = "chummer.media.public-eligibility/v1";
+
     private static readonly string[] ForbiddenLocalPathFragments =
     [
         "/tmp/",
@@ -44,10 +60,12 @@ public sealed class PublicMediaAssetProjection
 
     private PublicMediaAssetProjection(
         MediaAssetManifest manifest,
-        MediaReleaseAuthorityBinding authority)
+        MediaReleaseAuthorityBinding authority,
+        MediaPublicEligibility eligibility)
     {
         Manifest = manifest;
         Authority = authority;
+        Eligibility = eligibility;
     }
 
     /// <summary>The exact rendered-asset manifest being projected.</summary>
@@ -56,17 +74,34 @@ public sealed class PublicMediaAssetProjection
     /// <summary>The immutable Registry and provenance identity for the projection.</summary>
     public MediaReleaseAuthorityBinding Authority { get; }
 
+    /// <summary>The explicit public-curation decision bound to this exact snapshot.</summary>
+    public MediaPublicEligibility Eligibility { get; }
+
     /// <summary>
     /// Creates a release-facing projection after validating portable immutable authority.
     /// </summary>
     public static PublicMediaAssetProjection Create(
         MediaAssetManifest manifest,
-        MediaReleaseAuthorityBinding authority)
+        MediaReleaseAuthorityBinding authority,
+        MediaPublicEligibility eligibility)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(authority);
+        ArgumentNullException.ThrowIfNull(eligibility);
 
         RequireText(manifest.AssetId, nameof(manifest.AssetId));
+        RequireText(manifest.CatalogKey, nameof(manifest.CatalogKey));
+        RequireText(manifest.RenderJobId, nameof(manifest.RenderJobId));
+        if (!Enum.IsDefined(manifest.RenderKind))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(manifest.RenderKind),
+                "Public media must use one recognized render kind.");
+        }
+
+        RequireText(manifest.StorageBucket, nameof(manifest.StorageBucket));
+        RequireStorageObjectKey(manifest.StorageObjectKey);
+        RequireContentType(manifest.ContentType);
         if (manifest.ContentLengthBytes <= 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -74,7 +109,28 @@ public sealed class PublicMediaAssetProjection
                 "Public media bytes must have a positive length.");
         }
 
+        if (!string.Equals(
+                eligibility.Contract,
+                RequiredEligibilityContract,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Eligibility contract must be {RequiredEligibilityContract}.",
+                nameof(eligibility));
+        }
+
+        if (!eligibility.CuratedForPublicRelease)
+        {
+            throw new ArgumentException(
+                "Only an explicitly curated asset is eligible for a public projection.",
+                nameof(eligibility));
+        }
+
+        RequireText(eligibility.CuratedBy, nameof(eligibility.CuratedBy));
+        RequireUtcTimestamp(eligibility.CuratedAtUtc, nameof(eligibility.CuratedAtUtc));
         RequireSha256(manifest.ContentHash, nameof(manifest.ContentHash));
+        ValidateLifecycle(manifest, eligibility);
+        ValidateLineage(manifest);
         if (!string.Equals(
                 authority.AuthorityContract,
                 RequiredAuthorityContract,
@@ -97,17 +153,31 @@ public sealed class PublicMediaAssetProjection
 
         RequireHex(authority.RegistryCommit, 40, nameof(authority.RegistryCommit));
         RequireReleaseVersion(authority.ReleaseVersion);
+        RequirePortableAuthorityRef(authority.CurrentRef, nameof(authority.CurrentRef));
+        if (!string.Equals(
+                authority.CurrentRef,
+                "registry://release-evidence/CURRENT.json",
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "CurrentRef must identify Registry CURRENT.json; CurrentSha256 pins its exact bytes.",
+                nameof(authority));
+        }
+
+        RequireSha256(authority.CurrentSha256, nameof(authority.CurrentSha256));
+        RequireSha256(authority.AuthoritySnapshotSha256, nameof(authority.AuthoritySnapshotSha256));
         RequirePortableAuthorityRef(authority.AuthoritySnapshotRef, nameof(authority.AuthoritySnapshotRef));
         RequireExactReleaseRef(
             authority.AuthoritySnapshotRef,
             authority.ReleaseVersion,
+            authority.AuthoritySnapshotSha256,
             "SNAPSHOT.json",
             nameof(authority.AuthoritySnapshotRef));
-        RequireSha256(authority.AuthoritySnapshotSha256, nameof(authority.AuthoritySnapshotSha256));
         RequirePortableAuthorityRef(authority.ManifestRef, nameof(authority.ManifestRef));
         RequireExactReleaseRef(
             authority.ManifestRef,
             authority.ReleaseVersion,
+            authority.AuthoritySnapshotSha256,
             "RELEASE_CHANNEL.json",
             nameof(authority.ManifestRef));
         RequireSha256(authority.ManifestSha256, nameof(authority.ManifestSha256));
@@ -115,6 +185,7 @@ public sealed class PublicMediaAssetProjection
         RequireExactReleaseRef(
             authority.ReleaseDecisionRef,
             authority.ReleaseVersion,
+            authority.AuthoritySnapshotSha256,
             "RELEASE_DECISION.json",
             nameof(authority.ReleaseDecisionRef));
         RequireSha256(authority.ReleaseDecisionSha256, nameof(authority.ReleaseDecisionSha256));
@@ -127,20 +198,30 @@ public sealed class PublicMediaAssetProjection
         }
 
         RequirePortableAuthorityRef(authority.ProvenanceRef, nameof(authority.ProvenanceRef));
-        var expectedProvenancePrefix =
-            $"release-evidence://release-evidence/{authority.ReleaseVersion}/provenance/";
-        if (!authority.ProvenanceRef.StartsWith(expectedProvenancePrefix, StringComparison.Ordinal)
-            || !authority.ProvenanceRef.EndsWith(".json", StringComparison.Ordinal)
-            || authority.ProvenanceRef.Length == expectedProvenancePrefix.Length + ".json".Length)
+        RequireSha256(authority.ProvenanceSha256, nameof(authority.ProvenanceSha256));
+        var expectedProvenanceRef =
+            "release-evidence://media-factory/snapshots/"
+            + $"{authority.ReleaseVersion}/{authority.AuthoritySnapshotSha256}/"
+            + $"decisions/{authority.ReleaseDecisionSha256}/"
+            + $"provenance/{authority.ProvenanceSha256}.json";
+        if (!string.Equals(authority.ProvenanceRef, expectedProvenanceRef, StringComparison.Ordinal))
         {
             throw new ArgumentException(
-                "ProvenanceRef must name a release-scoped immutable provenance JSON record.",
+                "ProvenanceRef must be content-addressed beneath the governed snapshot and decision.",
                 nameof(authority));
         }
 
-        RequireSha256(authority.ProvenanceSha256, nameof(authority.ProvenanceSha256));
+        if (!string.Equals(
+                eligibility.AuthoritySnapshotSha256,
+                authority.AuthoritySnapshotSha256,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Public eligibility must bind the exact governed authority snapshot.",
+                nameof(eligibility));
+        }
 
-        return new PublicMediaAssetProjection(manifest, authority);
+        return new PublicMediaAssetProjection(manifest, authority, eligibility);
     }
 
     private static void RequireText(string value, string name)
@@ -156,15 +237,124 @@ public sealed class PublicMediaAssetProjection
     private static void RequireExactReleaseRef(
         string value,
         string releaseVersion,
+        string snapshotSha256,
         string fileName,
         string name)
     {
-        var expected = $"registry://release-evidence/{releaseVersion}/{fileName}";
+        var expected =
+            $"registry://release-evidence/snapshots/{releaseVersion}/{snapshotSha256}/{fileName}";
         if (!string.Equals(value, expected, StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 $"{name} must be the canonical release-evidence reference {expected}.",
                 name);
+        }
+    }
+
+    private static void ValidateLifecycle(
+        MediaAssetManifest manifest,
+        MediaPublicEligibility eligibility)
+    {
+        ArgumentNullException.ThrowIfNull(manifest.Lifecycle);
+        var lifecycle = manifest.Lifecycle;
+        RequireUtcTimestamp(lifecycle.CreatedAtUtc, nameof(lifecycle.CreatedAtUtc));
+        if (lifecycle.ApprovalStatus != AssetApprovalStatus.Approved
+            || lifecycle.ApprovedAtUtc is not { } approvedAtUtc
+            || lifecycle.PersistedAtUtc is not { } persistedAtUtc
+            || lifecycle.RejectedAtUtc is not null
+            || lifecycle.PurgedAtUtc is not null)
+        {
+            throw new ArgumentException(
+                "Public media requires an approved, persisted, non-rejected, non-purged lifecycle.",
+                nameof(manifest));
+        }
+
+        RequireUtcTimestamp(approvedAtUtc, nameof(lifecycle.ApprovedAtUtc));
+        RequireUtcTimestamp(persistedAtUtc, nameof(lifecycle.PersistedAtUtc));
+        if (approvedAtUtc < lifecycle.CreatedAtUtc
+            || persistedAtUtc < lifecycle.CreatedAtUtc
+            || eligibility.CuratedAtUtc < approvedAtUtc
+            || eligibility.CuratedAtUtc < persistedAtUtc
+            || lifecycle.ExpiresAtUtc is { } expiresAtUtc
+                && expiresAtUtc <= eligibility.CuratedAtUtc)
+        {
+            throw new ArgumentException(
+                "Public media lifecycle and curation timestamps are incomplete, expired, or out of order.",
+                nameof(manifest));
+        }
+
+        if (lifecycle.ExpiresAtUtc is { } expiration)
+        {
+            RequireUtcTimestamp(expiration, nameof(lifecycle.ExpiresAtUtc));
+        }
+    }
+
+    private static void ValidateLineage(MediaAssetManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest.DerivedAssetIds);
+        var derived = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assetId in manifest.DerivedAssetIds)
+        {
+            RequireText(assetId, nameof(manifest.DerivedAssetIds));
+            if (!derived.Add(assetId) || string.Equals(assetId, manifest.AssetId, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "Derived asset ids must be unique and cannot contain the projected asset.",
+                    nameof(manifest));
+            }
+        }
+
+        if (manifest.PreviewAssetId is { } previewAssetId)
+        {
+            RequireText(previewAssetId, nameof(manifest.PreviewAssetId));
+        }
+
+        if (manifest.ParentAssetId is { } parentAssetId)
+        {
+            RequireText(parentAssetId, nameof(manifest.ParentAssetId));
+            if (string.Equals(parentAssetId, manifest.AssetId, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "A public asset cannot be its own parent.",
+                    nameof(manifest));
+            }
+        }
+    }
+
+    private static void RequireStorageObjectKey(string value)
+    {
+        RequireText(value, nameof(MediaAssetManifest.StorageObjectKey));
+        if (value.StartsWith("/", StringComparison.Ordinal)
+            || value.Contains('\\')
+            || value.Any(char.IsControl)
+            || value.Split('/').Any(static segment => segment is "" or "." or ".."))
+        {
+            throw new ArgumentException(
+                "StorageObjectKey must be a portable canonical object key without traversal.",
+                nameof(MediaAssetManifest.StorageObjectKey));
+        }
+    }
+
+    private static void RequireContentType(string value)
+    {
+        RequireText(value, nameof(MediaAssetManifest.ContentType));
+        var slash = value.IndexOf('/');
+        if (slash <= 0
+            || slash == value.Length - 1
+            || slash != value.LastIndexOf('/')
+            || value.Any(char.IsWhiteSpace))
+        {
+            throw new ArgumentException(
+                "ContentType must be one canonical media type.",
+                nameof(MediaAssetManifest.ContentType));
+        }
+    }
+
+    private static void RequireUtcTimestamp(DateTimeOffset value, string name)
+    {
+        if (value == default || value.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException($"{name} must be a non-default UTC timestamp.", name);
         }
     }
 

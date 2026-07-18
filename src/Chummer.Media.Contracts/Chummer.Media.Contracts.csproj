@@ -1,4 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk"
+         TreatAsLocalProperty="ChummerMediaApprovedPackageLicenseExpression">
 
   <PropertyGroup>
     <PackageId>Chummer.Media.Contracts</PackageId>
@@ -12,8 +13,11 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ChummerMediaPackagePublishing Condition="'$(ChummerMediaPackagePublishing)' == ''">false</ChummerMediaPackagePublishing>
-    <IsPackable>$(ChummerMediaPackagePublishing)</IsPackable>
-    <PackageLicenseExpression Condition="'$(ChummerMediaPackagePublishing)' == 'true'">$(ChummerMediaPackageLicenseExpression)</PackageLicenseExpression>
+    <!-- Owner-controlled policy. A reviewed change must set this before packages can exist. -->
+    <ChummerMediaApprovedPackageLicenseExpression></ChummerMediaApprovedPackageLicenseExpression>
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+    <IsPackable Condition="'$(ChummerMediaPackagePublishing)' == 'true' and '$(ChummerMediaApprovedPackageLicenseExpression)' != ''">true</IsPackable>
+    <PackageLicenseExpression Condition="'$(ChummerMediaPackagePublishing)' == 'true' and '$(ChummerMediaApprovedPackageLicenseExpression)' != ''">$(ChummerMediaApprovedPackageLicenseExpression)</PackageLicenseExpression>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -26,9 +30,11 @@
   </ItemGroup>
 
   <Target Name="RequireApprovedMediaPackageLicense" BeforeTargets="PrepareForBuild;GenerateNuspec;Pack"
-          Condition="'$(ChummerMediaPackagePublishing)' == 'true'">
-    <Error Condition="'$(ChummerMediaPackageLicenseExpression)' == ''"
-           Text="Chummer.Media.Contracts publication is blocked until the owner supplies ChummerMediaPackageLicenseExpression and explicitly enables ChummerMediaPackagePublishing=true." />
+          Condition="'$(IsPackable)' == 'true' or '$(ChummerMediaPackagePublishing)' == 'true'">
+    <Error Condition="'$(IsPackable)' == 'true' and '$(ChummerMediaPackagePublishing)' != 'true'"
+           Text="Chummer.Media.Contracts IsPackable=true is blocked without explicit ChummerMediaPackagePublishing=true authorization." />
+    <Error Condition="'$(ChummerMediaApprovedPackageLicenseExpression)' == ''"
+           Text="Chummer.Media.Contracts publication is blocked until an approved license expression is checked into the owner-controlled package policy." />
   </Target>
 
 </Project>

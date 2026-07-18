@@ -1,0 +1,7 @@
+{
+  "contract": "chummer.media.external-release-authority-schema-lock/v1",
+  "repository": "ArchonMegalon/chummer6-hub-registry",
+  "commit": "4a312798a10cb7ae97c77731450e24fe6a74d963",
+  "path": "contracts/release-authority-v2.schema.json",
+  "sha256": "cbdad3c9ce8e9e0c0e37374771f99aad8957cd51dd4d2447425aea2d00ba5fb0"
+}

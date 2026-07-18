@@ -1,0 +1,22 @@
+{
+  "contract": "chummer.media.package-plane-lock/v1",
+  "dotnetSdkVersion": "10.0.103",
+  "feedDirectory": ".tmp/package-feed",
+  "packages": [
+    {
+      "repository": "ArchonMegalon/chummer6-hub-registry",
+      "repositoryUrl": "https://github.com/ArchonMegalon/chummer6-hub-registry.git",
+      "commit": "4a312798a10cb7ae97c77731450e24fe6a74d963",
+      "project": "Chummer.Hub.Registry.Contracts/Chummer.Hub.Registry.Contracts.csproj",
+      "packageId": "Chummer.Hub.Registry.Contracts",
+      "version": "0.0.0-packageplane.20260718.1",
+      "nupkgName": "Chummer.Hub.Registry.Contracts.0.0.0-packageplane.20260718.1.nupkg",
+      "assemblyPath": "lib/net10.0/Chummer.Hub.Registry.Contracts.dll",
+      "assemblySha256": "f30f09e04933cd94c537effac0d6ebee7913f73fb6ed174cfed55e9a05d5fc36",
+      "licensePath": "LICENSE",
+      "licenseSha256": "2ecaed15e0f77335d19138e3a98b82779714a4483c45d356a75053f9d33de0e4",
+      "normalizedNupkgSha256": "5e0ef5eee7fca31d99d0a89fa587187b43846a834a293dc00f30438d1e0cc31c",
+      "normalizedNupkgSha512": "0d5958d2f8082f5a5f8f90661d05e54ccef024c1c903a3cedd55de64441459e2aca1095b48719c59ea42e8de1fff5230091d9beecaddb2e70ee6c2ded398f435"
+    }
+  ]
+}

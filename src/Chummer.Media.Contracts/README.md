@@ -19,8 +19,9 @@ Contract families:
 - install-aware concierge bundle receipts (`InstallAwareConcierge*`), including release explainer, support closure, and public concierge siblings plus first-class aggregate caption/preview/sibling-note refs and grouped caption, preview, and sibling-note receipt rows
 - replay/exchange preview receipts (`ReplayExchangePreview*`), including recap, replay, and exchange preview-card plus inspectable sibling receipts with first-class bundle, kind, caption, and preview grouping for portable artifact shelves
 - media asset manifest and lifecycle state (`Assets/*`), with an explicit public
-  projection that requires immutable Registry snapshot, manifest, decision, and
-  provenance digests without carrying provider-private evidence
+  projection that requires actual Registry `CURRENT.json`, a full immutable v2
+  generation, content-addressed provenance, explicit public curation, and a complete
+  approved/persisted lifecycle without carrying provider-private evidence
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)
 - preview and thumbnail linkage (`Kernel/PreviewLinkContracts.cs`)
@@ -44,7 +45,7 @@ Out of scope:
 - route, map, or tactical truth
 - rules/canon authoring and provider-routing policy
 
-Package publication is disabled by default. The owning program must approve and
-supply an explicit license expression before setting
-`ChummerMediaPackagePublishing=true`; local builds and project-reference consumers
-do not widen that distribution authority.
+Package publication is disabled by default. The owner must first check an approved
+license expression into the project policy and then explicitly set
+`ChummerMediaPackagePublishing=true`. Command-line `IsPackable` or license-property
+overrides cannot widen that distribution authority.

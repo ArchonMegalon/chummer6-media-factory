@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Chummer.Hub.Registry.Contracts": {
+        "type": "Direct",
+        "requested": "[0.0.0-packageplane.20260718.1, )",
+        "resolved": "0.0.0-packageplane.20260718.1",
+        "contentHash": "DVlY0vgIL1pfj5BmHQXlTM7wJMHJA6PO3VXeZEQUWeKsoQlbSHGcWepC6N4f/1IwCR2b7srdsucO5sLe05j0NQ=="
+      },
+      "chummer.media.contracts": {
+        "type": "Project"
+      }
+    }
+  }
+}

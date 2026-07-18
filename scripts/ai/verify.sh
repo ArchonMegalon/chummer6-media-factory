@@ -25,6 +25,16 @@ test -f tests/CreatorPromoKitSmoke/Chummer.Media.Factory.CreatorPromoKitSmoke.cs
 test -f src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj
 test -f src/Chummer.Media.Contracts/ContractsAssemblyMarker.cs
 test -f src/Chummer.Media.Contracts/README.md
+test -f eng/contracts/release-authority-v2.schema.json
+test -f eng/release-authority-schema.lock.json
+test -f eng/design-mirror.lock.json
+test -f eng/historical-proof-anchors.lock.json
+test -f eng/package-plane.lock.json
+test -f eng/NuGet.RegistryBootstrap.Config
+test -f NuGet.Config
+test -f scripts/ai/bootstrap_media_package_feed.py
+test -f scripts/ai/verify_historical_proof_anchors.py
+test -f src/Chummer.Media.Factory.Runtime/packages.lock.json
 test -f src/Chummer.Media.Factory.Runtime/Assets/AssetLifecycleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/CampaignBriefingBundleService.cs
 test -f src/Chummer.Media.Factory.Runtime/Assets/GmPrepPacketBundleService.cs
@@ -93,6 +103,11 @@ rg -n 'artifact category, output format, and publication ref|duplicate publicati
 rg -n 'next90-m109-media-factory-build-explain-bundles|build_explain_companion_rendering|explain_artifact_receipts|BuildExplainCompanionRenderingService|BuildExplainCompanionRenderReceipt|build explain companion receipts stay render-verified|approved explain packet id and explain packet revision id|duplicate companion refs inside one approved explain packet|case-insensitive or padded build explain companion ref validation did not fail|stable when callers reorder build explain siblings|top-level request whitespace changes|request-level .* normalize surrounding whitespace|source or requested timestamp drift|source and requested timestamp metadata stay outside bundle-scoped dedupe and receipt identity|length-prefixed dedupe and receipt hashing' docs/NEXT90_M109_BUILD_EXPLAIN_COMPANION_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md src/Chummer.Media.Factory.Runtime/Assets/BuildExplainCompanionRenderingService.cs tests/BuildExplainCompanionSmoke/Program.cs >/dev/null
 rg -n 'next90-m145-media-factory-explain-presenter-siblings|explain_presenter_siblings:media_factory|ExplainPresenterSiblingRenderingService|ExplainPresenterSiblingRenderReceipt|first-party text fallback|approved explanation packet id|grounding scope ref|duplicate companion refs inside one approved explanation packet|top-level request whitespace changes|source or requested timestamp drift|length-prefixed caption, preview, and text-fallback segments' docs/NEXT90_M145_EXPLAIN_PRESENTER_SIBLINGS_PROOF_FLOOR.md docs/MEDIA_CAPABILITY_SIGNOFF.md src/Chummer.Media.Factory.Runtime/Assets/ExplainPresenterSiblingRenderingService.cs tests/ExplainPresenterSiblingSmoke/Program.cs >/dev/null
 rg -n 'ProjectReference Include="\.\.\\Chummer\.Media\.Contracts\\Chummer\.Media\.Contracts\.csproj"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
+rg -n 'PackageReference Include="Chummer\.Hub\.Registry\.Contracts"' src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj >/dev/null
+if rg -n 'chummercomplete|chummer\.run-services|chummer-hub-registry.*ProjectReference' src -g '*.csproj' >/dev/null; then
+  echo "verify failed: media-factory release build contains an ambient sibling reference"
+  exit 1
+fi
 if rg -n 'ChummerCampaignContractsPackageId|ChummerCampaignContractsPackageVersion|ChummerLocalCampaignContractsProject' Directory.Build.props >/dev/null; then
   echo "verify failed: campaign-contract package wiring must not exist in media-factory"
   exit 1
@@ -108,10 +123,10 @@ if rg -n 'namespace Chummer\.Campaign\.Contracts' src Chummer.Media.Factory.Runt
   exit 1
 fi
 
+python3 scripts/ai/verify_historical_proof_anchors.py >/dev/null
 python3 -m py_compile scripts/render_guide_asset.py scripts/ai/materialize_media_release_proof.py
 python3 -m py_compile scripts/ai/verify_design_mirror.py
 python3 -m unittest discover -s tests
-python3 scripts/ai/verify_design_mirror.py --repair >/dev/null
 python3 scripts/ai/verify_design_mirror.py >/dev/null
 python3 scripts/render_guide_asset.py --prompt "media factory dry run" --output /tmp/chummer-media-factory-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"backend_selection_env": "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND"|"backend_enable_env": "CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION"|"backend_provider": "onemin"|"manager_allow_reserve": true|"manager_allow_reserve_env": "CHUMMER_MEDIA_FACTORY_ONEMIN_ALLOW_RESERVE"' >/dev/null
 CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION=0 python3 scripts/render_guide_asset.py --prompt "media factory disabled dry run" --output /tmp/chummer-media-factory-disabled-dry-run.png --width 1600 --height 900 --dry-run | rg -n '"image_execution_enabled": false|"backend_provider": "disabled"' >/dev/null
@@ -147,54 +162,61 @@ assert registry.get("providers") == {}
 PY
 rm -rf "${health_state_dir}"
 
+python3 scripts/ai/bootstrap_media_package_feed.py --dotnet "$(command -v dotnet)" >/dev/null
+dotnet restore Chummer.Media.Factory.slnx --locked-mode --configfile NuGet.Config --nologo --verbosity quiet
+dotnet build Chummer.Media.Factory.slnx --no-restore --configuration Release --nologo --verbosity quiet
+
 bash scripts/ai/verify_m109_build_explain_companion.sh
 bash scripts/ai/verify_m145_explain_presenter_siblings.sh
 bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m119_starter_artifacts.sh
 bash scripts/ai/contract-boundary-tests.sh
 
-run_contracts_csproj="/docker/chummercomplete/chummer.run-services/Chummer.Run.Contracts/Chummer.Run.Contracts.csproj"
-if [[ -f "${run_contracts_csproj}" ]]; then
-  # Warm the upstream contract graph once so transitive ref assemblies are ready
-  # before this repo builds against the external run-services contract seam.
-  dotnet build "${run_contracts_csproj}" --configuration Release --nologo --verbosity quiet
-fi
+pack_output_root="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-contracts-pack.XXXXXX")"
+trap 'rm -rf "$pack_output_root"' EXIT
 
-dotnet restore Chummer.Media.Factory.slnx --nologo --verbosity quiet
-dotnet build Chummer.Media.Factory.slnx --no-restore --configuration Release --nologo --verbosity quiet
-pack_output_dir="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-contracts-pack.XXXXXX")"
-trap 'rm -rf "$pack_output_dir"' EXIT
+assert_no_package_bytes() {
+  if find "$1" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
+    echo "verify failed: blocked package path emitted .nupkg bytes"
+    exit 1
+  fi
+}
+
+expect_pack_blocked() {
+  local label="$1"
+  shift
+  local output_dir="${pack_output_root}/${label}"
+  mkdir -p "${output_dir}"
+  if dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
+    --no-restore --configuration Release --output "${output_dir}" \
+    --nologo --verbosity quiet "$@"; then
+    echo "verify failed: adversarial package path ${label} unexpectedly succeeded"
+    exit 1
+  fi
+  assert_no_package_bytes "${output_dir}"
+}
+
+default_pack_dir="${pack_output_root}/default"
+mkdir -p "${default_pack_dir}"
 
 dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
   --no-restore \
   --configuration Release \
-  --output "$pack_output_dir" \
+  --output "$default_pack_dir" \
   --nologo \
   --verbosity quiet
-
-if find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
-  echo "verify failed: unlicensed default pack emitted a .nupkg artifact"
-  exit 1
-fi
-
-if dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
-  --no-restore \
-  --configuration Release \
-  --output "$pack_output_dir" \
-  --nologo \
-  --verbosity quiet \
-  -p:ChummerMediaPackagePublishing=true; then
-  echo "verify failed: unlicensed package publication unexpectedly succeeded"
-  exit 1
-fi
-
-if find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
-  echo "verify failed: license gate emitted package bytes before failing"
-  exit 1
-fi
+assert_no_package_bytes "$default_pack_dir"
+expect_pack_blocked direct-is-packable -p:IsPackable=true
+expect_pack_blocked publishing-without-license -p:ChummerMediaPackagePublishing=true
+expect_pack_blocked forged-license \
+  -p:IsPackable=true \
+  -p:ChummerMediaPackagePublishing=true \
+  -p:ChummerMediaApprovedPackageLicenseExpression=MIT \
+  -p:PackageLicenseExpression=MIT
 
 python3 -m unittest \
   tests/test_release_snapshot_compatibility.py \
+  tests/test_media_package_plane.py \
   tests/test_governed_spatial_freeze.py
 dotnet run --project tests/MediaPublicationAuthoritySmoke/Chummer.Media.PublicationAuthoritySmoke.csproj --no-build --configuration Release --nologo --verbosity quiet
 
