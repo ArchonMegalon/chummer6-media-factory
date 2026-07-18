@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+report_verification_failure() {
+  local status="$?"
+  printf 'verify failed at line %s: %s\n' "${BASH_LINENO[0]}" "${BASH_COMMAND}" >&2
+  exit "${status}"
+}
+
+trap report_verification_failure ERR
 
 export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-/tmp/chummer-media-factory-dotnet}"
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
