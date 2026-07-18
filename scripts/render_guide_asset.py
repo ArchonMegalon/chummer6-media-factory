@@ -518,7 +518,7 @@ def _selected_backend() -> str:
         return "openai_edits"
     if backend in {"disabled", "off", "none"}:
         return "disabled"
-    return backend
+    raise RuntimeError(f"media_factory:unsupported_backend:{backend}")
 
 
 def _openai_api_key() -> str:
@@ -1286,9 +1286,6 @@ def render_asset(
             )
             _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
             raise
-
-    if backend_provider != "onemin":
-        raise RuntimeError(f"media_factory:unsupported_backend:{backend_provider}")
 
     reservation_request_id = f"media-factory-image-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{width}x{height}"
     reservation = _reserve_onemin_image_slot(

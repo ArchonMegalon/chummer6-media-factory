@@ -103,6 +103,39 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_unsupported_backend_fails_before_state_initialization(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            unusable_state_path = Path(temp) / "state-is-a-file"
+            unusable_state_path.write_text("not a directory", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    str(ROOT / "scripts" / "render_guide_asset.py"),
+                    "--prompt",
+                    "unsupported backend",
+                    "--output",
+                    str(Path(temp) / "output.png"),
+                    "--width",
+                    "16",
+                    "--height",
+                    "9",
+                ],
+                cwd=temp,
+                env={
+                    "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND": "bogus",
+                    "CHUMMER_MEDIA_FACTORY_STATE_DIR": str(unusable_state_path),
+                    "EA_ROOT": str(Path(temp) / "missing-ea"),
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("media_factory:unsupported_backend:bogus", result.stderr)
+        self.assertNotIn("NotADirectoryError", result.stderr)
+
     def test_private_literal_hosts_stay_blocked_even_if_configured(self) -> None:
         os.environ["CHUMMER_MEDIA_FACTORY_ASSET_DOWNLOAD_ALLOWED_HOSTS"] = "127.0.0.1,api.1min.ai"
 
