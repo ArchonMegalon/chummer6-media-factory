@@ -23,7 +23,7 @@ from time import monotonic
 
 
 MEDIA_FACTORY_ROOT = Path(__file__).resolve().parents[1]
-EA_ROOT = Path("/docker/EA")
+EA_ROOT = Path(os.environ.get("EA_ROOT", "/docker/EA"))
 EA_APP_ROOT = EA_ROOT / "ea"
 EA_SCRIPTS_ROOT = EA_ROOT / "scripts"
 STATE_ROOT = Path(os.environ.get("CHUMMER_MEDIA_FACTORY_STATE_DIR", "/docker/fleet/state/chummer6/media-factory"))
@@ -50,7 +50,21 @@ for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
 
-from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
+try:
+    from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
+except ModuleNotFoundError as exc:
+    if exc.name != "chummer6_runtime_config":
+        raise
+
+    def load_local_env() -> dict[str, str]:
+        """Return no operator overrides when the optional EA runtime is absent."""
+
+        return {}
+
+    def load_runtime_overrides() -> dict[str, str]:
+        """Return no policy overrides when the optional EA runtime is absent."""
+
+        return {}
 
 
 _ONEMIN_SLOT_HINTS_CACHE: dict[str, dict[str, object]] | None = None

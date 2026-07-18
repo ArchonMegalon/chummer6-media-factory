@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -74,6 +76,32 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
             ],
             self.module._collect_asset_urls(payload),
         )
+
+    def test_imports_without_optional_ea_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    (
+                        "import importlib.util, pathlib; "
+                        f"path = pathlib.Path({str(ROOT / 'scripts' / 'render_guide_asset.py')!r}); "
+                        "spec = importlib.util.spec_from_file_location('clean_import', path); "
+                        "module = importlib.util.module_from_spec(spec); "
+                        "spec.loader.exec_module(module); "
+                        "assert module.load_local_env() == {}; "
+                        "assert module.load_runtime_overrides() == {}"
+                    ),
+                ],
+                cwd=temp,
+                env={"EA_ROOT": str(Path(temp) / "missing-ea")},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_private_literal_hosts_stay_blocked_even_if_configured(self) -> None:
         os.environ["CHUMMER_MEDIA_FACTORY_ASSET_DOWNLOAD_ALLOWED_HOSTS"] = "127.0.0.1,api.1min.ai"
