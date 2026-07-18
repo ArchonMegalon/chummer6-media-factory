@@ -34,13 +34,15 @@ jobs:
           tar --extract --gzip --file "${rg_archive}" \
             --directory "${RUNNER_TEMP}" --no-same-owner
           chmod 0755 "${rg_bin}/rg"
-          test "$("${rg_bin}/rg" --version | head -n 1)" = "ripgrep 14.1.1"
+          rg_version="$("${rg_bin}/rg" --version)"
+          test "${rg_version%%$'\n'*}" = "ripgrep 14.1.1 (rev 4649aa9700)"
           echo "${rg_bin}" >> "${GITHUB_PATH}"
       - name: Verify exact clean checkout
         shell: bash
         run: |
           test "$(dotnet --version)" = "10.0.103"
-          test "$(rg --version | head -n 1)" = "ripgrep 14.1.1"
+          rg_version="$(rg --version)"
+          test "${rg_version%%$'\n'*}" = "ripgrep 14.1.1 (rev 4649aa9700)"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           test -z "$(git status --porcelain --untracked-files=all)"
       - name: Run the full package-independent repository verification
