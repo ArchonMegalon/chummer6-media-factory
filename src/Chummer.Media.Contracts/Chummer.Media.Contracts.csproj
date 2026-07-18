@@ -8,8 +8,12 @@
     <PackageTags>chummer;media;contracts;render-verified;dto</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/ArchonMegalon/chummer6-media-factory.git</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IsPackable>true</IsPackable>
+    <ChummerMediaPackagePublishing Condition="'$(ChummerMediaPackagePublishing)' == ''">false</ChummerMediaPackagePublishing>
+    <IsPackable>$(ChummerMediaPackagePublishing)</IsPackable>
+    <PackageLicenseExpression Condition="'$(ChummerMediaPackagePublishing)' == 'true'">$(ChummerMediaPackageLicenseExpression)</PackageLicenseExpression>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -20,5 +24,11 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <Target Name="RequireApprovedMediaPackageLicense" BeforeTargets="PrepareForBuild;GenerateNuspec;Pack"
+          Condition="'$(ChummerMediaPackagePublishing)' == 'true'">
+    <Error Condition="'$(ChummerMediaPackageLicenseExpression)' == ''"
+           Text="Chummer.Media.Contracts publication is blocked until the owner supplies ChummerMediaPackageLicenseExpression and explicitly enables ChummerMediaPackagePublishing=true." />
+  </Target>
 
 </Project>

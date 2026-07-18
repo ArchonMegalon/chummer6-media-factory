@@ -18,7 +18,9 @@ Contract families:
 - explain presenter sibling receipts (`ExplainPresenter*`), including approved explanation-packet audio or presenter siblings, grounding-scope identity, and first-party text fallback receipts without calculation authority
 - install-aware concierge bundle receipts (`InstallAwareConcierge*`), including release explainer, support closure, and public concierge siblings plus first-class aggregate caption/preview/sibling-note refs and grouped caption, preview, and sibling-note receipt rows
 - replay/exchange preview receipts (`ReplayExchangePreview*`), including recap, replay, and exchange preview-card plus inspectable sibling receipts with first-class bundle, kind, caption, and preview grouping for portable artifact shelves
-- media asset manifest and lifecycle state (`Assets/*`)
+- media asset manifest and lifecycle state (`Assets/*`), with an explicit public
+  projection that requires immutable Registry snapshot, manifest, decision, and
+  provenance digests without carrying provider-private evidence
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)
 - preview and thumbnail linkage (`Kernel/PreviewLinkContracts.cs`)
@@ -41,3 +43,8 @@ Out of scope:
 - approval policy and delivery policy
 - route, map, or tactical truth
 - rules/canon authoring and provider-routing policy
+
+Package publication is disabled by default. The owning program must approve and
+supply an explicit license expression before setting
+`ChummerMediaPackagePublishing=true`; local builds and project-reference consumers
+do not widen that distribution authority.

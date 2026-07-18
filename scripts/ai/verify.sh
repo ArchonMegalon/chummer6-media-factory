@@ -172,10 +172,31 @@ dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
   --nologo \
   --verbosity quiet
 
-if ! find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
-  echo "verify failed: dotnet pack produced no .nupkg artifact"
+if find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
+  echo "verify failed: unlicensed default pack emitted a .nupkg artifact"
   exit 1
 fi
+
+if dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
+  --no-restore \
+  --configuration Release \
+  --output "$pack_output_dir" \
+  --nologo \
+  --verbosity quiet \
+  -p:ChummerMediaPackagePublishing=true; then
+  echo "verify failed: unlicensed package publication unexpectedly succeeded"
+  exit 1
+fi
+
+if find "$pack_output_dir" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
+  echo "verify failed: license gate emitted package bytes before failing"
+  exit 1
+fi
+
+python3 -m unittest \
+  tests/test_release_snapshot_compatibility.py \
+  tests/test_governed_spatial_freeze.py
+dotnet run --project tests/MediaPublicationAuthoritySmoke/Chummer.Media.PublicationAuthoritySmoke.csproj --no-build --configuration Release --nologo --verbosity quiet
 
 dotnet run --project Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verify.csproj --no-build --configuration Release --nologo --verbosity quiet
 dotnet run --project tests/CampaignBriefingBundleSmoke/Chummer.Media.Factory.CampaignBriefingBundleSmoke.csproj --configuration Release --nologo --verbosity quiet

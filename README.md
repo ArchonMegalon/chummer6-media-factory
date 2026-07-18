@@ -22,4 +22,6 @@ Those claims require matching receipts from the owning repos, typically:
 - `chummer-presentation` for Chummer5A visual and workflow parity
 - `chummer-core-engine` for ruleset depth and capability boundaries
 
-Every published media bundle should keep a provenance link back to the governing proof receipt or claim-boundary document.
+Every published media bundle must use `PublicMediaAssetProjection`, which binds the
+exact Registry snapshot, manifest, decision, and provenance bytes by portable refs
+and SHA-256 digests. Provider-private execution evidence stays internal.
