@@ -170,9 +170,9 @@ def normalize_nupkg(source: Path, destination: Path) -> None:
         relationships, encoding="utf-8", xml_declaration=True
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(
-        destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
-    ) as archive:
+    # Store canonical entries without DEFLATE. Compressed bytes can vary across
+    # Python/zlib builds even when every input byte and ZIP header is identical.
+    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
         for name in sorted(entries):
             if (
                 name.startswith("/")
@@ -181,10 +181,10 @@ def normalize_nupkg(source: Path, destination: Path) -> None:
             ):
                 raise PackagePlaneError(f"owner package contains unsafe entry {name}")
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3
             info.external_attr = 0o100644 << 16
-            archive.writestr(info, entries[name], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+            archive.writestr(info, entries[name], compress_type=zipfile.ZIP_STORED)
 
 
 def validate_nupkg(path: Path, package: dict[str, Any]) -> None:

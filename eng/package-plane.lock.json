@@ -15,8 +15,8 @@
       "assemblySha256": "f30f09e04933cd94c537effac0d6ebee7913f73fb6ed174cfed55e9a05d5fc36",
       "licensePath": "LICENSE",
       "licenseSha256": "2ecaed15e0f77335d19138e3a98b82779714a4483c45d356a75053f9d33de0e4",
-      "normalizedNupkgSha256": "5e0ef5eee7fca31d99d0a89fa587187b43846a834a293dc00f30438d1e0cc31c",
-      "normalizedNupkgSha512": "0d5958d2f8082f5a5f8f90661d05e54ccef024c1c903a3cedd55de64441459e2aca1095b48719c59ea42e8de1fff5230091d9beecaddb2e70ee6c2ded398f435"
+      "normalizedNupkgSha256": "89c002f4a8cf2b4f1c7d7453151f563462c20a3fb47066d4f6fa3e1ae95f5ce0",
+      "normalizedNupkgSha512": "8e3c9fd7264714b516c4bf3c7199f8b24290a0446075090c5d739c2f403087362f4d18bd9e2dfd4d5cfb2508c2891ce1a89d8776413d8e94489ffe213b843c08"
     }
   ]
 }

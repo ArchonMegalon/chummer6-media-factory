@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import importlib.util
 import json
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 
@@ -14,6 +17,16 @@ RUNTIME_PROJECT = (
 )
 PACKAGE_LOCK = ROOT / "src/Chummer.Media.Factory.Runtime/packages.lock.json"
 NUGET_CONFIG = ROOT / "NuGet.Config"
+BOOTSTRAP = ROOT / "scripts/ai/bootstrap_media_package_feed.py"
+
+
+def load_bootstrap_module():
+    spec = importlib.util.spec_from_file_location("media_package_bootstrap_test", BOOTSTRAP)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load package bootstrap")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class MediaPackagePlaneTests(unittest.TestCase):
@@ -64,6 +77,45 @@ class MediaPackagePlaneTests(unittest.TestCase):
         self.assertEqual(1, len(mappings))
         patterns = mappings[0].findall("./package")
         self.assertEqual(["Chummer.Hub.Registry.Contracts"], [p.attrib["pattern"] for p in patterns])
+
+    def test_package_normalization_is_independent_of_source_zip_compression(self) -> None:
+        module = load_bootstrap_module()
+        relationships = b"""<?xml version="1.0" encoding="utf-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/package.nuspec" Id="random-manifest" />
+  <Relationship Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/package/services/metadata/core-properties/random.psmdcp" Id="random-core" />
+</Relationships>"""
+        entries = {
+            "_rels/.rels": relationships,
+            "package.nuspec": b"package metadata",
+            "package/services/metadata/core-properties/random.psmdcp": b"core metadata",
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            temp_root = Path(temp)
+            normalized_paths = []
+            for compression_level in (1, 9):
+                source = temp_root / f"source-{compression_level}.nupkg"
+                normalized = temp_root / f"normalized-{compression_level}.nupkg"
+                with zipfile.ZipFile(
+                    source,
+                    "w",
+                    compression=zipfile.ZIP_DEFLATED,
+                    compresslevel=compression_level,
+                ) as archive:
+                    for name, content in entries.items():
+                        archive.writestr(name, content)
+                module.normalize_nupkg(source, normalized)
+                normalized_paths.append(normalized)
+
+            self.assertEqual(normalized_paths[0].read_bytes(), normalized_paths[1].read_bytes())
+            with zipfile.ZipFile(normalized_paths[0], "r") as archive:
+                self.assertTrue(archive.infolist())
+                self.assertTrue(
+                    all(info.compress_type == zipfile.ZIP_STORED for info in archive.infolist())
+                )
+                self.assertTrue(
+                    all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in archive.infolist())
+                )
 
 
 if __name__ == "__main__":
