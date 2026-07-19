@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 from pathlib import Path
 from typing import Any, Dict
 
-UTC = dt.timezone.utc
+DETERMINISTIC_GENERATED_AT = "2026-06-29T04:58:30Z"
 M108_CAMPAIGN_BRIEFING_PACKAGE = {
     "package_id": "next90-m108-media-factory-campaign-briefing-renders",
     "frontier_id": 4459920059,
@@ -928,10 +927,6 @@ M135_MEDIA_COVERAGE_PACKAGE = {
 }
 
 
-def iso_now() -> str:
-    return dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Materialize media-factory local release proof and artifact publication certification receipts."
@@ -947,12 +942,27 @@ def parse_args() -> argparse.Namespace:
         choices=["pass", "passed", "ready", "fail", "failed", "blocked"],
         help="Proof status to publish.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Compare deterministic bytes with the checked-in receipts without writing.",
+    )
     return parser.parse_args()
 
 
 def write_json(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def check_json(path: Path, payload: Dict[str, Any]) -> None:
+    expected = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    try:
+        observed = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"generated receipt is missing or unreadable: {path}: {exc}") from exc
+    if observed != expected:
+        raise ValueError(f"generated receipt drift: {path}")
 
 
 def require_unique_successor_package_ids(packages: list[Dict[str, Any]], contract_name: str) -> None:
@@ -970,7 +980,7 @@ def require_unique_successor_package_ids(packages: list[Dict[str, Any]], contrac
 
 def main() -> int:
     args = parse_args()
-    generated_at = iso_now()
+    generated_at = DETERMINISTIC_GENERATED_AT
     out_dir = Path(args.out_dir)
     normalized_status = str(args.status).strip().lower()
 
@@ -1044,10 +1054,14 @@ def main() -> int:
         artifact_publication_certification["contract_name"],
     )
 
-    write_json(out_dir / "MEDIA_LOCAL_RELEASE_PROOF.generated.json", media_release_proof)
-    write_json(out_dir / "ARTIFACT_PUBLICATION_CERTIFICATION.generated.json", artifact_publication_certification)
-    print(f"wrote {out_dir / 'MEDIA_LOCAL_RELEASE_PROOF.generated.json'}")
-    print(f"wrote {out_dir / 'ARTIFACT_PUBLICATION_CERTIFICATION.generated.json'}")
+    outputs = {
+        out_dir / "MEDIA_LOCAL_RELEASE_PROOF.generated.json": media_release_proof,
+        out_dir / "ARTIFACT_PUBLICATION_CERTIFICATION.generated.json": artifact_publication_certification,
+    }
+    operation = check_json if args.check else write_json
+    for path, payload in outputs.items():
+        operation(path, payload)
+        print(f"{'checked' if args.check else 'wrote'} {path}")
     return 0
 
 

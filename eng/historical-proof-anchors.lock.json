@@ -1,0 +1,15 @@
+{
+  "contract": "chummer.media.historical-proof-anchors-lock/v1",
+  "repository": "ArchonMegalon/chummer6-media-factory",
+  "repositoryUrl": "https://github.com/ArchonMegalon/chummer6-media-factory.git",
+  "commits": [
+    {
+      "name": "m111-m113-proof-floor",
+      "gitObjectPath": "eng/historical-proof-anchors/7d5a016772a6f97243797ff86ce4c3c40473711a.commit",
+      "gitObjectSha1": "7d5a016772a6f97243797ff86ce4c3c40473711a",
+      "payloadSha256": "0089e3dd42a4fb72794a15dd1781545aefcb7520bebbaf9fb5f38ffc1b4d7cd0",
+      "treeSha1": "28f9770b9191190dddc8e9c6cf5fb2a59b93e78a",
+      "parentSha1": "1bb18ac166dee02d4d1a14c1982e5b094e30611d"
+    }
+  ]
+}

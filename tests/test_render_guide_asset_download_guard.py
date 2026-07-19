@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -74,6 +76,107 @@ class RenderGuideAssetDownloadGuardTests(unittest.TestCase):
             ],
             self.module._collect_asset_urls(payload),
         )
+
+    def test_imports_without_optional_ea_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    (
+                        "import importlib.util, pathlib; "
+                        f"path = pathlib.Path({str(ROOT / 'scripts' / 'render_guide_asset.py')!r}); "
+                        "spec = importlib.util.spec_from_file_location('clean_import', path); "
+                        "module = importlib.util.module_from_spec(spec); "
+                        "spec.loader.exec_module(module); "
+                        "assert module.load_local_env() == {}; "
+                        "assert module.load_runtime_overrides() == {}"
+                    ),
+                ],
+                cwd=temp,
+                env={"EA_ROOT": str(Path(temp) / "missing-ea")},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_unsupported_backend_fails_before_state_initialization(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            unusable_state_path = Path(temp) / "state-is-a-file"
+            unusable_state_path.write_text("not a directory", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    str(ROOT / "scripts" / "render_guide_asset.py"),
+                    "--prompt",
+                    "unsupported backend",
+                    "--output",
+                    str(Path(temp) / "output.png"),
+                    "--width",
+                    "16",
+                    "--height",
+                    "9",
+                ],
+                cwd=temp,
+                env={
+                    "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND": "bogus",
+                    "CHUMMER_MEDIA_FACTORY_STATE_DIR": str(unusable_state_path),
+                    "EA_ROOT": str(Path(temp) / "missing-ea"),
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("media_factory:unsupported_backend:bogus", result.stderr)
+        self.assertNotIn("NotADirectoryError", result.stderr)
+
+    def test_openai_reference_preconditions_fail_before_state_initialization(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_root = Path(temp)
+            unusable_state_path = temp_root / "state-is-a-file"
+            unusable_state_path.write_text("not a directory", encoding="utf-8")
+            base_command = [
+                sys.executable,
+                "-I",
+                str(ROOT / "scripts" / "render_guide_asset.py"),
+                "--prompt",
+                "openai edit precondition",
+                "--output",
+                str(temp_root / "output.png"),
+                "--width",
+                "16",
+                "--height",
+                "9",
+            ]
+            environment = {
+                "CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND": "openai_edits",
+                "CHUMMER_MEDIA_FACTORY_STATE_DIR": str(unusable_state_path),
+                "EA_ROOT": str(temp_root / "missing-ea"),
+                "OPENAI_API_KEY": "test-only-key",
+            }
+            cases = (
+                ([], "media_factory:missing_reference_image"),
+                (["--reference-image", str(temp_root)], f"media_factory:invalid_reference_image:{temp_root}"),
+            )
+            for extra_arguments, expected_error in cases:
+                with self.subTest(expected_error=expected_error):
+                    result = subprocess.run(
+                        [*base_command, *extra_arguments],
+                        cwd=temp,
+                        env=environment,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn(expected_error, result.stderr)
+                    self.assertNotIn("NotADirectoryError", result.stderr)
 
     def test_private_literal_hosts_stay_blocked_even_if_configured(self) -> None:
         os.environ["CHUMMER_MEDIA_FACTORY_ASSET_DOWNLOAD_ALLOWED_HOSTS"] = "127.0.0.1,api.1min.ai"

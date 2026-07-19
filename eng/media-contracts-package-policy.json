@@ -1,0 +1,8 @@
+{
+  "approvedLicense": null,
+  "authorized": false,
+  "contract": "chummer.media.contract-package-policy/v1",
+  "packageId": "Chummer.Media.Contracts",
+  "project": "src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj",
+  "reason": "Package publication remains blocked until the program-level license boundary is approved."
+}

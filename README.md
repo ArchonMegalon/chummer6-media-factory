@@ -22,4 +22,15 @@ Those claims require matching receipts from the owning repos, typically:
 - `chummer-presentation` for Chummer5A visual and workflow parity
 - `chummer-core-engine` for ruleset depth and capability boundaries
 
-Every published media bundle should keep a provenance link back to the governing proof receipt or claim-boundary document.
+Every published media bundle must use `PublicMediaAssetProjection`, which binds the
+exact Registry `CURRENT.json`, full v2 snapshot, manifest, decision, and provenance
+bytes by content-addressed refs and SHA-256 digests. It also requires a curated,
+approved, persisted, non-purged public asset lifecycle, with curation and provenance
+agreeing on the exact asset id, content SHA-256, and canonical media-manifest SHA-256.
+Provider-private execution evidence stays internal.
+
+Fresh-checkout builds bootstrap the sole external runtime contract from the exact
+Registry owner commit in `eng/package-plane.lock.json`; ambient sibling repositories
+and mutable package feeds are not release inputs. The official .NET SDK archive is
+digest-pinned, and its complete extracted inventory is authenticated before the first
+`dotnet` execution.

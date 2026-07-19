@@ -30,6 +30,63 @@ class MaterializeMediaReleaseProofTests(unittest.TestCase):
         ):
             self.assertIn(token, script)
 
+    def test_materializer_is_byte_deterministic_and_check_mode_never_writes(self):
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            command = [
+                sys.executable,
+                "scripts/ai/materialize_media_release_proof.py",
+                "--status",
+                "passed",
+            ]
+            subprocess.run([*command, "--out-dir", first], cwd=ROOT, check=True)
+            subprocess.run([*command, "--out-dir", second], cwd=ROOT, check=True)
+            names = (
+                "MEDIA_LOCAL_RELEASE_PROOF.generated.json",
+                "ARTIFACT_PUBLICATION_CERTIFICATION.generated.json",
+            )
+            for name in names:
+                first_path = Path(first) / name
+                second_path = Path(second) / name
+                self.assertEqual(first_path.read_bytes(), second_path.read_bytes())
+                self.assertEqual(
+                    "2026-06-29T04:58:30Z",
+                    json.loads(first_path.read_text(encoding="utf-8"))["generated_at"],
+                )
+            before = {name: (Path(first) / name).read_bytes() for name in names}
+            subprocess.run(
+                [*command, "--out-dir", first, "--check"], cwd=ROOT, check=True
+            )
+            self.assertEqual(
+                before,
+                {name: (Path(first) / name).read_bytes() for name in names},
+            )
+
+    def test_check_mode_detects_drift_without_repairing_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            command = [
+                sys.executable,
+                "scripts/ai/materialize_media_release_proof.py",
+                "--out-dir",
+                temporary,
+                "--status",
+                "passed",
+            ]
+            subprocess.run(command, cwd=ROOT, check=True)
+            receipt = Path(temporary) / "MEDIA_LOCAL_RELEASE_PROOF.generated.json"
+            receipt.write_bytes(receipt.read_bytes() + b"\n")
+            drifted = receipt.read_bytes()
+            completed = subprocess.run(
+                [*command, "--check"],
+                cwd=ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            self.assertNotEqual(0, completed.returncode)
+            self.assertIn("generated receipt drift", completed.stdout)
+            self.assertEqual(drifted, receipt.read_bytes())
+
     def test_generated_receipts_pin_successor_package_closure(self):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(

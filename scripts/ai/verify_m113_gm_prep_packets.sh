@@ -7,6 +7,9 @@ cd "$repo_root"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+python3 scripts/ai/verify_design_mirror.py >/dev/null
+python3 scripts/ai/verify_historical_proof_anchors.py >/dev/null
+
 python3 -m unittest \
   tests.test_m113_successor_package_authority \
   tests.test_m113_gm_prep_packet_proof \
@@ -256,38 +259,18 @@ def extract_registry_block(path: Path) -> str:
     next_match = re.search(rf"^\{indent}- id: ", text[match.end():], re.MULTILINE)
     return text[start:] if next_match is None else text[start:match.end() + next_match.start()]
 
-canonical_queue_path = Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
-design_queue_path = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
 repo_local_queue_path = repo_root / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
-canonical_registry_path = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
 repo_local_registry_path = repo_root / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"
 
-for queue_path in (canonical_queue_path, design_queue_path, repo_local_queue_path):
-    require_exact_occurrence_count(queue_path, package_marker, 1, f"{package_id} queue row")
-
-for registry_path in (canonical_registry_path, repo_local_registry_path):
-    require_exact_occurrence_count(registry_path, registry_task_marker, 1, "M113 registry task block")
-
-canonical_queue = extract_queue_block(canonical_queue_path)
-design_queue = extract_queue_block(design_queue_path)
-repo_local_queue = extract_queue_block(repo_local_queue_path)
-if design_queue != canonical_queue:
-    raise SystemExit("verify failed: design queue mirror drifted from the canonical M113 package row")
-if repo_local_queue != canonical_queue:
-    raise SystemExit("verify failed: repo-local queue mirror drifted from the canonical M113 package row")
-
-canonical_registry = extract_registry_block(canonical_registry_path)
-repo_local_registry = extract_registry_block(repo_local_registry_path)
-if repo_local_registry != canonical_registry:
-    raise SystemExit("verify failed: repo-local registry mirror drifted from the canonical M113 task block")
+require_exact_occurrence_count(
+    repo_local_queue_path, package_marker, 1, f"{package_id} queue row"
+)
+require_exact_occurrence_count(
+    repo_local_registry_path, registry_task_marker, 1, "M113 registry task block"
+)
+extract_queue_block(repo_local_queue_path)
+extract_registry_block(repo_local_registry_path)
 PY
-
-for commit_name in 7d5a0167 7d5a0167; do
-  if ! git rev-parse --verify "${commit_name}^{commit}" >/dev/null 2>&1; then
-    echo "verify failed: pinned M113 commit anchor ${commit_name} does not resolve locally" >&2
-    exit 1
-  fi
-done
 
 if ! rg -n 'bash scripts/ai/verify_m113_gm_prep_packets\.sh' scripts/ai/verify.sh >/dev/null; then
   echo "verify failed: scripts/ai/verify.sh must call bash scripts/ai/verify_m113_gm_prep_packets.sh" >&2

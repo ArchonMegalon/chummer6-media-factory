@@ -1,0 +1,67 @@
+name: Media Factory PR controls
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  full-fresh-checkout-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Acquire the digest-locked official .NET SDK archive
+        shell: bash
+        run: |
+          media_dotnet_archive="${RUNNER_TEMP}/dotnet-sdk-10.0.103-linux-x64.tar.gz"
+          media_dotnet_root="${RUNNER_TEMP}/chummer-media-dotnet"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.103/dotnet-sdk-10.0.103-linux-x64.tar.gz \
+            --output "${media_dotnet_archive}"
+          echo "84dc1f3150ec2800fa38efdbe4d65a855026d68f745c3fe06f522e87e993af0f  ${media_dotnet_archive}" \
+            | sha256sum --check --strict
+          mkdir -m 0700 "${media_dotnet_root}"
+          tar --extract --gzip --file "${media_dotnet_archive}" \
+            --directory "${media_dotnet_root}" --no-same-owner
+          chmod -R a-w "${media_dotnet_root}"
+          echo "${media_dotnet_root}" >> "${GITHUB_PATH}"
+          echo "DOTNET_ROOT=${media_dotnet_root}" >> "${GITHUB_ENV}"
+          echo "CHUMMER_DOTNET_ARCHIVE=${media_dotnet_archive}" >> "${GITHUB_ENV}"
+      - name: Bootstrap exact ripgrep verifier dependency
+        shell: bash
+        run: |
+          rg_archive="${RUNNER_TEMP}/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
+          rg_bin="${RUNNER_TEMP}/ripgrep-14.1.1-x86_64-unknown-linux-musl"
+          curl --fail --location --silent --show-error \
+            https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz \
+            --output "${rg_archive}"
+          echo "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e  ${rg_archive}" \
+            | sha256sum --check --strict
+          tar --extract --gzip --file "${rg_archive}" \
+            --directory "${RUNNER_TEMP}" --no-same-owner
+          chmod 0755 "${rg_bin}/rg"
+          rg_version="$("${rg_bin}/rg" --version)"
+          test "${rg_version%%$'\n'*}" = "ripgrep 14.1.1 (rev 4649aa9700)"
+          echo "${rg_bin}" >> "${GITHUB_PATH}"
+      - name: Verify exact clean checkout
+        shell: bash
+        run: |
+          rg_version="$(rg --version)"
+          test "${rg_version%%$'\n'*}" = "ripgrep 14.1.1 (rev 4649aa9700)"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - name: Run the full package-independent repository verification
+        shell: bash
+        run: bash scripts/ai/verify.sh
+      - name: Audit exact contract dependencies for known vulnerabilities
+        shell: bash
+        run: >-
+          dotnet list src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj
+          package --vulnerable --include-transitive --no-restore
