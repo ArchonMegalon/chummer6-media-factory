@@ -1,10 +1,12 @@
 {
-  "contract": "chummer.media.package-plane-lock/v2",
+  "contract": "chummer.media.package-plane-lock/v3",
   "dotnetSdkVersion": "10.0.103",
   "dotnetRuntimeVersion": "10.0.3",
-  "dotnetInstall": {
-    "url": "https://dot.net/v1/dotnet-install.sh",
-    "sha256": "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
+  "dotnetArchive": {
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.103/dotnet-sdk-10.0.103-linux-x64.tar.gz",
+    "sha256": "84dc1f3150ec2800fa38efdbe4d65a855026d68f745c3fe06f522e87e993af0f",
+    "operatingSystem": "linux",
+    "architecture": "x64"
   },
   "toolchainSha256": {
     "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
@@ -12,9 +14,9 @@
     "msbuild": "cc96c3846ae171984d29ba572ef6f22d273c675cd745c59dc7225fd5cd69610b",
     "nugetPackaging": "980fd0205cf99d02e52664ea82c678dcd32232b59d96e277b774d4743e7496b1"
   },
-  "buildRecipe": {
-    "path": "scripts/ai/bootstrap_media_package_feed.py",
-    "sha256": "1812437d00a47be573157b8a571f387a85edd251843812f9f31c5d646e93cf49"
+  "buildInputs": {
+    "scripts/ai/bootstrap_media_package_feed.py": "cbfebf6d78d1726a864c739874480bef641567350df42fea110973826b4c228a",
+    "eng/NuGet.RegistryBootstrap.Config": "5256a7e3e07d2c5c94f7a1e6c45f39aab011c659c5e2d53e452dea525ce04575"
   },
   "feedDirectory": ".tmp/package-feed",
   "packages": [

@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import re
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -22,7 +24,11 @@ SCHEMA_CONTRACT = "chummer.media.external-release-authority-schema-lock/v1"
 SCHEMA_COMMIT = "4a312798a10cb7ae97c77731450e24fe6a74d963"
 SCHEMA_PATH = "contracts/release-authority-v2.schema.json"
 SCHEMA_SHA256 = "cbdad3c9ce8e9e0c0e37374771f99aad8957cd51dd4d2447425aea2d00ba5fb0"
-PROVENANCE_CONTRACT = "chummer.media.release-provenance/v1"
+PROVENANCE_CONTRACT = "chummer.media.release-provenance/v2"
+ACQUISITION_CONTRACT = "chummer.media.registry-authority-acquisition/v1"
+ACQUISITION_MODE = "authenticated-immutable-source-replay"
+MEDIA_MANIFEST_DIGEST_CONTRACT = "chummer.media.asset-manifest-digest/v1"
+ELIGIBILITY_CONTRACT = "chummer.media.public-eligibility/v2"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 RELEASE_VERSION = re.compile(r"^[A-Za-z0-9._+-]{1,128}$")
@@ -51,6 +57,9 @@ BINDING_KEYS = {
     "releaseDecisionStatus",
     "provenanceRef",
     "provenanceSha256",
+    "assetId",
+    "assetContentSha256",
+    "canonicalMediaManifestSha256",
 }
 PROVENANCE_KEYS = {
     "contract",
@@ -61,6 +70,54 @@ PROVENANCE_KEYS = {
     "authoritySnapshotSha256",
     "manifestSha256",
     "releaseDecisionSha256",
+    "assetId",
+    "assetContentSha256",
+    "canonicalMediaManifestSha256",
+}
+ACQUISITION_KEYS = {
+    "contract",
+    "authenticationMode",
+    "source",
+    "registryRepository",
+    "registryCommit",
+    "currentRef",
+    "currentSha256",
+    "fixture",
+    "releaseEvidenceEligible",
+}
+MEDIA_MANIFEST_KEYS = {
+    "assetId",
+    "catalogKey",
+    "renderJobId",
+    "renderKind",
+    "storageBucket",
+    "storageObjectKey",
+    "contentType",
+    "contentLengthBytes",
+    "contentHash",
+    "previewAssetId",
+    "parentAssetId",
+    "lifecycle",
+    "derivedAssetIds",
+}
+MEDIA_LIFECYCLE_KEYS = {
+    "approvalStatus",
+    "createdAtUtc",
+    "approvedAtUtc",
+    "rejectedAtUtc",
+    "persistedAtUtc",
+    "expiresAtUtc",
+    "purgedAtUtc",
+}
+ELIGIBILITY_KEYS = {
+    "contract",
+    "curatedForPublicRelease",
+    "curatedBy",
+    "curatedAtUtc",
+    "authoritySnapshotSha256",
+    "assetId",
+    "assetContentSha256",
+    "canonicalMediaManifestSha256",
 }
 PREVIEW_DECISION_KEYS = {
     "contractName",
@@ -214,6 +271,119 @@ def require_integer(value: Any, label: str, minimum: int) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
         raise CompatibilityError(f"{label} must be an integer >= {minimum}")
     return value
+
+
+def require_nullable_text(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    return require_text(value, label)
+
+
+def canonical_timestamp(value: Any, label: str) -> str:
+    value = require_text(value, label)
+    if not value.endswith("Z"):
+        raise CompatibilityError(f"{label} must be a UTC timestamp")
+    try:
+        parsed = dt.datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise CompatibilityError(f"{label} must be a UTC timestamp") from exc
+    if parsed.utcoffset() != dt.timedelta(0):
+        raise CompatibilityError(f"{label} must be a UTC timestamp")
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+
+
+def canonical_nullable_timestamp(value: Any, label: str) -> str | None:
+    return None if value is None else canonical_timestamp(value, label)
+
+
+def _append_manifest_segment(digest: Any, value: str | None) -> None:
+    if value is None:
+        digest.update(b"\x00")
+        return
+    encoded = value.encode("utf-8")
+    digest.update(b"\x01")
+    digest.update(len(encoded).to_bytes(4, "big", signed=False))
+    digest.update(encoded)
+
+
+def canonical_media_manifest_sha256(payload: dict[str, Any]) -> str:
+    """Compute the exact cross-language media-manifest digest contract."""
+    require_exact_keys(payload, MEDIA_MANIFEST_KEYS, "media asset manifest")
+    lifecycle = payload["lifecycle"]
+    if not isinstance(lifecycle, dict):
+        raise CompatibilityError("media asset lifecycle must be an object")
+    require_exact_keys(lifecycle, MEDIA_LIFECYCLE_KEYS, "media asset lifecycle")
+    render_kind = require_integer(payload["renderKind"], "renderKind", 0)
+    approval_status = require_integer(
+        lifecycle["approvalStatus"], "approvalStatus", 0
+    )
+    if render_kind not in {0, 1, 2} or approval_status not in {0, 1, 2}:
+        raise CompatibilityError("media manifest enum value is invalid")
+    content_length = require_integer(
+        payload["contentLengthBytes"], "contentLengthBytes", 1
+    )
+    content_hash = require_sha(payload["contentHash"], "contentHash")
+    derived = payload["derivedAssetIds"]
+    if not isinstance(derived, list):
+        raise CompatibilityError("derivedAssetIds must be an array")
+    derived_ids = [require_text(item, "derivedAssetIds item") for item in derived]
+    if len(derived_ids) != len(set(derived_ids)):
+        raise CompatibilityError("derivedAssetIds must be unique")
+    values: list[str | None] = [
+        MEDIA_MANIFEST_DIGEST_CONTRACT,
+        require_text(payload["assetId"], "assetId"),
+        require_text(payload["catalogKey"], "catalogKey"),
+        require_text(payload["renderJobId"], "renderJobId"),
+        str(render_kind),
+        require_text(payload["storageBucket"], "storageBucket"),
+        require_text(payload["storageObjectKey"], "storageObjectKey"),
+        require_text(payload["contentType"], "contentType"),
+        str(content_length),
+        content_hash,
+        require_nullable_text(payload["previewAssetId"], "previewAssetId"),
+        require_nullable_text(payload["parentAssetId"], "parentAssetId"),
+        str(approval_status),
+        canonical_timestamp(lifecycle["createdAtUtc"], "createdAtUtc"),
+        canonical_nullable_timestamp(lifecycle["approvedAtUtc"], "approvedAtUtc"),
+        canonical_nullable_timestamp(lifecycle["rejectedAtUtc"], "rejectedAtUtc"),
+        canonical_nullable_timestamp(lifecycle["persistedAtUtc"], "persistedAtUtc"),
+        canonical_nullable_timestamp(lifecycle["expiresAtUtc"], "expiresAtUtc"),
+        canonical_nullable_timestamp(lifecycle["purgedAtUtc"], "purgedAtUtc"),
+        str(len(derived_ids)),
+        *sorted(derived_ids),
+    ]
+    digest = hashlib.sha256()
+    for value in values:
+        _append_manifest_segment(digest, value)
+    return digest.hexdigest()
+
+
+def validate_eligibility(
+    eligibility: dict[str, Any],
+    *,
+    snapshot_sha256: str,
+    asset_id: str,
+    content_sha256: str,
+    canonical_manifest_sha256: str,
+) -> None:
+    require_exact_keys(eligibility, ELIGIBILITY_KEYS, "media public eligibility")
+    expected = {
+        "contract": ELIGIBILITY_CONTRACT,
+        "curatedForPublicRelease": True,
+        "authoritySnapshotSha256": snapshot_sha256,
+        "assetId": asset_id,
+        "assetContentSha256": content_sha256,
+        "canonicalMediaManifestSha256": canonical_manifest_sha256,
+    }
+    for key, value in expected.items():
+        if eligibility.get(key) != value:
+            raise CompatibilityError(
+                f"media public eligibility {key} diverges from the exact asset"
+            )
+    require_text(eligibility["curatedBy"], "media public eligibility curatedBy")
+    canonical_timestamp(
+        eligibility["curatedAtUtc"], "media public eligibility curatedAtUtc"
+    )
 
 
 def require_identifier_list(value: Any, label: str, *, sorted_values: bool) -> list[str]:
@@ -450,6 +620,85 @@ def validate_current(current: dict[str, Any]) -> dict[str, Any]:
     return current
 
 
+def validate_acquisition_receipt(
+    receipt: dict[str, Any],
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    require_exact_keys(receipt, ACQUISITION_KEYS, "authority acquisition receipt")
+    if (
+        receipt["contract"] != ACQUISITION_CONTRACT
+        or receipt["authenticationMode"] != ACQUISITION_MODE
+        or receipt["registryRepository"] != REGISTRY_REPOSITORY
+        or receipt["currentRef"] != "registry://release-evidence/CURRENT.json"
+    ):
+        raise CompatibilityError("authority acquisition receipt contract is invalid")
+    commit = require_sha(receipt["registryCommit"], "acquisition registryCommit", SHA40)
+    current_sha256 = require_sha(
+        receipt["currentSha256"], "acquisition currentSha256"
+    )
+    source = require_ref(receipt["source"], "authority acquisition source")
+    expected_source = (
+        "https://raw.githubusercontent.com/"
+        f"{REGISTRY_REPOSITORY}/{commit}/release-evidence/CURRENT.json"
+    )
+    if source != expected_source:
+        raise CompatibilityError(
+            "authority acquisition source is not the immutable Registry commit path"
+        )
+    if not isinstance(receipt["fixture"], bool) or not isinstance(
+        receipt["releaseEvidenceEligible"], bool
+    ):
+        raise CompatibilityError("authority acquisition eligibility flags must be booleans")
+    if mode == "release":
+        if receipt["fixture"] or not receipt["releaseEvidenceEligible"]:
+            raise CompatibilityError(
+                "release mode requires an evidence-eligible nonfixture authority acquisition"
+            )
+    elif not receipt["fixture"] or receipt["releaseEvidenceEligible"]:
+        raise CompatibilityError(
+            "fixture acquisition receipts must remain evidence-ineligible"
+        )
+    return receipt
+
+
+def authenticate_acquisition_source(
+    receipt: dict[str, Any], current_path: Path
+) -> None:
+    """Replay acquisition from the immutable TLS-authenticated Registry source."""
+    source = str(receipt["source"])
+    try:
+        request = urllib.request.Request(
+            source,
+            headers={"User-Agent": "chummer-media-release-authority/1"},
+        )
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if response.geturl() != source:
+                raise CompatibilityError(
+                    "authority acquisition source redirected away from the immutable pin"
+                )
+            downloaded = response.read(1024 * 1024 + 1)
+    except CompatibilityError:
+        raise
+    except OSError as exc:
+        raise CompatibilityError(
+            f"unable to authenticate Registry authority acquisition: {exc}"
+        ) from exc
+    if len(downloaded) > 1024 * 1024:
+        raise CompatibilityError("authenticated CURRENT.json exceeds the bounded size")
+    try:
+        local_bytes = current_path.read_bytes()
+    except OSError as exc:
+        raise CompatibilityError(f"unable to read CURRENT.json: {exc}") from exc
+    if (
+        downloaded != local_bytes
+        or hashlib.sha256(downloaded).hexdigest() != receipt["currentSha256"]
+    ):
+        raise CompatibilityError(
+            "authenticated Registry source bytes diverge from supplied CURRENT.json"
+        )
+
+
 def validate_preview_decision(decision: dict[str, Any], snapshot: dict[str, Any]) -> None:
     require_exact_keys(decision, PREVIEW_DECISION_KEYS, "preview release decision")
     if decision["contractName"] != "chummer.preview-release-decision/v1":
@@ -561,6 +810,9 @@ def validate_provenance(
     snapshot_digest: str,
     manifest_digest: str,
     decision_digest: str,
+    asset_id: str,
+    asset_content_sha256: str,
+    canonical_media_manifest_sha256: str,
 ) -> None:
     require_exact_keys(provenance, PROVENANCE_KEYS, "media release provenance")
     expected = {
@@ -572,6 +824,9 @@ def validate_provenance(
         "authoritySnapshotSha256": snapshot_digest,
         "manifestSha256": manifest_digest,
         "releaseDecisionSha256": decision_digest,
+        "assetId": asset_id,
+        "assetContentSha256": asset_content_sha256,
+        "canonicalMediaManifestSha256": canonical_media_manifest_sha256,
     }
     if provenance != expected:
         raise CompatibilityError("media provenance is not anchored to CURRENT/snapshot/manifest/decision")
@@ -583,22 +838,30 @@ def verify(
     schema_path: Path = DEFAULT_SCHEMA,
     schema_lock_path: Path = DEFAULT_SCHEMA_LOCK,
     current_path: Path,
-    expected_current_sha256: str,
+    acquisition_receipt_path: Path,
     snapshot_path: Path,
     manifest_path: Path,
     decision_path: Path,
     provenance_path: Path,
     binding_path: Path,
+    media_manifest_path: Path,
+    eligibility_path: Path,
 ) -> dict[str, Any]:
     if mode not in {"fixture", "release"}:
         raise CompatibilityError("mode must be fixture or release")
     schema_handoff = verify_schema_handoff(schema_path, schema_lock_path)
-    expected_current_sha256 = require_sha(
-        expected_current_sha256, "expected CURRENT.json SHA256"
+    acquisition_digest = sha256(acquisition_receipt_path)
+    acquisition = validate_acquisition_receipt(
+        load_json(acquisition_receipt_path, "authority acquisition receipt"),
+        mode=mode,
     )
     current_digest = sha256(current_path)
-    if current_digest != expected_current_sha256:
-        raise CompatibilityError("CURRENT.json bytes do not match the explicit authority digest")
+    if current_digest != acquisition["currentSha256"]:
+        raise CompatibilityError(
+            "CURRENT.json bytes do not match the independently authenticated acquisition"
+        )
+    if mode == "release":
+        authenticate_acquisition_source(acquisition, current_path)
     current = validate_current(load_json(current_path, "CURRENT.json"))
     snapshot_digest = sha256(snapshot_path)
     if current["snapshotSha256"] != snapshot_digest:
@@ -608,12 +871,18 @@ def verify(
         schema_handoff["snapshotKeys"],
         schema_handoff["artifactKeys"],
     )
+    if acquisition["registryCommit"] != snapshot["registryCommit"]:
+        raise CompatibilityError(
+            "authenticated acquisition issuer commit diverges from the authority snapshot"
+        )
     manifest_digest = sha256(manifest_path)
     decision_digest = sha256(decision_path)
     provenance_digest = sha256(provenance_path)
     decision = load_json(decision_path, "release decision")
     provenance = load_json(provenance_path, "media release provenance")
     binding = load_json(binding_path, "media release binding")
+    media_manifest = load_json(media_manifest_path, "media asset manifest")
+    eligibility = load_json(eligibility_path, "media public eligibility")
     require_exact_keys(binding, BINDING_KEYS, "media release binding")
     if current["releaseVersion"] != snapshot["releaseVersion"]:
         raise CompatibilityError("CURRENT.json releaseVersion diverges from the authority snapshot")
@@ -625,6 +894,18 @@ def verify(
         raise CompatibilityError("manifest bytes diverge from the authority snapshot")
     if snapshot["releaseDecisionSha256"] != decision_digest:
         raise CompatibilityError("decision bytes diverge from the authority snapshot")
+    asset_id = require_text(media_manifest.get("assetId"), "media manifest assetId")
+    asset_content_sha256 = require_sha(
+        media_manifest.get("contentHash"), "media manifest contentHash"
+    )
+    canonical_manifest_sha256 = canonical_media_manifest_sha256(media_manifest)
+    validate_eligibility(
+        eligibility,
+        snapshot_sha256=snapshot_digest,
+        asset_id=asset_id,
+        content_sha256=asset_content_sha256,
+        canonical_manifest_sha256=canonical_manifest_sha256,
+    )
     validate_decision(decision, snapshot)
     validate_provenance(
         provenance,
@@ -633,6 +914,9 @@ def verify(
         snapshot_digest=snapshot_digest,
         manifest_digest=manifest_digest,
         decision_digest=decision_digest,
+        asset_id=asset_id,
+        asset_content_sha256=asset_content_sha256,
+        canonical_media_manifest_sha256=canonical_manifest_sha256,
     )
     expected_binding = {
         "authorityContract": AUTHORITY_CONTRACT,
@@ -645,6 +929,9 @@ def verify(
         "releaseDecisionSha256": decision_digest,
         "releaseDecisionStatus": snapshot["releaseDecisionStatus"],
         "provenanceSha256": provenance_digest,
+        "assetId": asset_id,
+        "assetContentSha256": asset_content_sha256,
+        "canonicalMediaManifestSha256": canonical_manifest_sha256,
     }
     for key, expected in expected_binding.items():
         if binding.get(key) != expected:
@@ -669,6 +956,8 @@ def verify(
         "provenanceRef": (
             "release-evidence://media-factory/snapshots/"
             f"{release_version}/{snapshot_digest}/decisions/{decision_digest}/"
+            f"assets/{asset_id}/{asset_content_sha256}/"
+            f"manifests/{canonical_manifest_sha256}/"
             f"provenance/{provenance_digest}.json"
         ),
     }
@@ -685,7 +974,7 @@ def verify(
     ):
         raise CompatibilityError("release mode cannot consume fixture authority")
     return {
-        "contract": "chummer.media.release-snapshot-compatibility/v2",
+        "contract": "chummer.media.release-snapshot-compatibility/v3",
         "status": "pass",
         "mode": mode,
         "releaseEvidenceEligible": mode == "release",
@@ -694,12 +983,17 @@ def verify(
         "schemaRepository": REGISTRY_REPOSITORY,
         "schemaCommit": SCHEMA_COMMIT,
         "schemaSha256": SCHEMA_SHA256,
+        "authorityAcquisitionSha256": acquisition_digest,
+        "authorityAcquisitionSource": acquisition["source"],
         "currentSha256": current_digest,
         "authoritySnapshotSha256": snapshot_digest,
         "manifestSha256": manifest_digest,
         "releaseDecisionSha256": decision_digest,
         "releaseDecisionStatus": snapshot["releaseDecisionStatus"],
         "provenanceSha256": provenance_digest,
+        "assetId": asset_id,
+        "assetContentSha256": asset_content_sha256,
+        "canonicalMediaManifestSha256": canonical_manifest_sha256,
     }
 
 
@@ -709,12 +1003,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA)
     parser.add_argument("--schema-lock", type=Path, default=DEFAULT_SCHEMA_LOCK)
     parser.add_argument("--current", required=True, type=Path)
-    parser.add_argument("--current-sha256", required=True)
+    parser.add_argument("--acquisition-receipt", required=True, type=Path)
     parser.add_argument("--snapshot", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--decision", required=True, type=Path)
     parser.add_argument("--provenance", required=True, type=Path)
     parser.add_argument("--binding", required=True, type=Path)
+    parser.add_argument("--media-manifest", required=True, type=Path)
+    parser.add_argument("--eligibility", required=True, type=Path)
     return parser.parse_args()
 
 
@@ -725,12 +1021,14 @@ def main() -> int:
         schema_path=args.schema,
         schema_lock_path=args.schema_lock,
         current_path=args.current,
-        expected_current_sha256=args.current_sha256,
+        acquisition_receipt_path=args.acquisition_receipt,
         snapshot_path=args.snapshot,
         manifest_path=args.manifest,
         decision_path=args.decision,
         provenance_path=args.provenance,
         binding_path=args.binding,
+        media_manifest_path=args.media_manifest,
+        eligibility_path=args.eligibility,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

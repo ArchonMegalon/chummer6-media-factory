@@ -30,6 +30,7 @@ var manifest = new MediaAssetManifest(
         null,
         null),
     DerivedAssetIds: []);
+var canonicalManifestSha256 = MediaAssetManifestDigest.ComputeSha256(manifest);
 var authority = new MediaReleaseAuthorityBinding(
     AuthorityContract: PublicMediaAssetProjection.RequiredAuthorityContract,
     RegistryRepository: PublicMediaAssetProjection.RequiredRegistryRepository,
@@ -44,19 +45,31 @@ var authority = new MediaReleaseAuthorityBinding(
     ReleaseDecisionRef: $"registry://release-evidence/snapshots/run-20260718-preview/{ShaB}/RELEASE_DECISION.json",
     ReleaseDecisionSha256: ShaD,
     ReleaseDecisionStatus: "review_required",
-    ProvenanceRef: $"release-evidence://media-factory/snapshots/run-20260718-preview/{ShaB}/decisions/{ShaD}/provenance/{ShaA}.json",
-    ProvenanceSha256: ShaA);
+    ProvenanceRef: $"release-evidence://media-factory/snapshots/run-20260718-preview/{ShaB}/decisions/{ShaD}/assets/{manifest.AssetId}/{manifest.ContentHash}/manifests/{canonicalManifestSha256}/provenance/{ShaA}.json",
+    ProvenanceSha256: ShaA,
+    AssetId: manifest.AssetId,
+    AssetContentSha256: manifest.ContentHash,
+    MediaManifestCanonicalSha256: canonicalManifestSha256);
 var eligibility = new MediaPublicEligibility(
     Contract: PublicMediaAssetProjection.RequiredEligibilityContract,
     CuratedForPublicRelease: true,
     CuratedBy: "media-release-curator",
     CuratedAtUtc: now,
-    AuthoritySnapshotSha256: ShaB);
+    AuthoritySnapshotSha256: ShaB,
+    AssetId: manifest.AssetId,
+    AssetContentSha256: manifest.ContentHash,
+    MediaManifestCanonicalSha256: canonicalManifestSha256);
 
 var projection = PublicMediaAssetProjection.Create(manifest, authority, eligibility);
 Assert(ReferenceEquals(manifest, projection.Manifest), "Projection must preserve the exact manifest.");
 Assert(ReferenceEquals(authority, projection.Authority), "Projection must preserve the exact authority binding.");
 Assert(ReferenceEquals(eligibility, projection.Eligibility), "Projection must preserve exact public eligibility.");
+Assert(
+    canonicalManifestSha256 == MediaAssetManifestDigest.ComputeSha256(manifest),
+    "Canonical media-manifest hashing must be deterministic.");
+Assert(
+    canonicalManifestSha256 == "6b6a51b3b345d7a3734697ce66499e7ebc3001fb19f57d847347c10c6b2e0671",
+    "C# and Python must share the exact canonical media-manifest vector.");
 
 ExpectFailure(
     () => PublicMediaAssetProjection.Create(manifest, authority with { ManifestSha256 = "ABC" }, eligibility),
@@ -137,6 +150,30 @@ ExpectFailure(
         },
         eligibility),
     "Authority refs that omit the bound snapshot digest must fail closed.");
+ExpectFailure(
+    () => PublicMediaAssetProjection.Create(
+        manifest with { AssetId = "asset-substitution" },
+        authority,
+        eligibility),
+    "Asset-id substitution must fail even when content bytes are unchanged.");
+ExpectFailure(
+    () => PublicMediaAssetProjection.Create(
+        manifest with { ContentHash = ShaE },
+        authority,
+        eligibility),
+    "Content substitution must fail even when authority bytes are unchanged.");
+ExpectFailure(
+    () => PublicMediaAssetProjection.Create(
+        manifest,
+        authority with { MediaManifestCanonicalSha256 = ShaE },
+        eligibility),
+    "Canonical manifest substitution must fail closed.");
+ExpectFailure(
+    () => PublicMediaAssetProjection.Create(
+        manifest,
+        authority,
+        eligibility with { AssetId = "asset-substitution" }),
+    "Curation cannot substitute another asset under the same release authority.");
 
 Console.WriteLine("media-publication-authority: ok");
 

@@ -1,5 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk"
-         TreatAsLocalProperty="ChummerMediaApprovedPackageLicenseExpression">
+>
 
   <PropertyGroup>
     <PackageId>Chummer.Media.Contracts</PackageId>
@@ -12,12 +12,10 @@
     <RepositoryUrl>https://github.com/ArchonMegalon/chummer6-media-factory.git</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <ChummerMediaPackagePublishing Condition="'$(ChummerMediaPackagePublishing)' == ''">false</ChummerMediaPackagePublishing>
-    <!-- Owner-controlled policy. A reviewed change must set this before packages can exist. -->
-    <ChummerMediaApprovedPackageLicenseExpression></ChummerMediaApprovedPackageLicenseExpression>
-    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
-    <IsPackable Condition="'$(ChummerMediaPackagePublishing)' == 'true' and '$(ChummerMediaApprovedPackageLicenseExpression)' != ''">true</IsPackable>
-    <PackageLicenseExpression Condition="'$(ChummerMediaPackagePublishing)' == 'true' and '$(ChummerMediaApprovedPackageLicenseExpression)' != ''">$(ChummerMediaApprovedPackageLicenseExpression)</PackageLicenseExpression>
+    <!-- Package authorization is intentionally outside MSBuild. The checked-in
+         external policy currently blocks publication, so this project never
+         authorizes package bytes through command-line properties or imports. -->
+    <IsPackable>false</IsPackable>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -29,12 +27,10 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <Target Name="RequireApprovedMediaPackageLicense" BeforeTargets="PrepareForBuild;GenerateNuspec;Pack"
-          Condition="'$(IsPackable)' == 'true' or '$(ChummerMediaPackagePublishing)' == 'true'">
-    <Error Condition="'$(IsPackable)' == 'true' and '$(ChummerMediaPackagePublishing)' != 'true'"
-           Text="Chummer.Media.Contracts IsPackable=true is blocked without explicit ChummerMediaPackagePublishing=true authorization." />
-    <Error Condition="'$(ChummerMediaApprovedPackageLicenseExpression)' == ''"
-           Text="Chummer.Media.Contracts publication is blocked until an approved license expression is checked into the owner-controlled package policy." />
+  <Target Name="RejectDirectMediaContractsPackageProduction"
+          BeforeTargets="GenerateNuspec;Pack"
+          Condition="'$(IsPackable)' == 'true'">
+    <Error Text="Direct MSBuild package production is forbidden. Package licensing is authorized and final nupkg bytes are validated only by the external media-contract package policy lane." />
   </Target>
 
 </Project>

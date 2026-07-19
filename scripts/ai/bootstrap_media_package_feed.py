@@ -7,13 +7,16 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
-import shutil
+import stat
 import subprocess
+import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
-from pathlib import Path
+from contextlib import contextmanager
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 
@@ -24,15 +27,14 @@ LOCK_KEYS = {
     "contract",
     "dotnetSdkVersion",
     "dotnetRuntimeVersion",
-    "dotnetInstall",
+    "dotnetArchive",
     "toolchainSha256",
-    "buildRecipe",
+    "buildInputs",
     "feedDirectory",
     "packages",
 }
-DOTNET_INSTALL_KEYS = {"url", "sha256"}
+DOTNET_ARCHIVE_KEYS = {"url", "sha256", "operatingSystem", "architecture"}
 TOOLCHAIN_KEYS = {"dotnetHost", "csc", "msbuild", "nugetPackaging"}
-BUILD_RECIPE_KEYS = {"path", "sha256"}
 PACKAGE_KEYS = {
     "repository",
     "repositoryUrl",
@@ -64,8 +66,13 @@ NORMALIZED_LAST_MODIFIED_BY = "Chummer deterministic package plane/v2"
 CANONICAL_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 CANONICAL_ZIP_EXTERNAL_ATTR = 0o100644 << 16
 BUILD_RECIPE_PATH = "scripts/ai/bootstrap_media_package_feed.py"
-DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.sh"
-DOTNET_INSTALL_SHA256 = "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
+BOOTSTRAP_NUGET_CONFIG_PATH = "eng/NuGet.RegistryBootstrap.Config"
+DOTNET_ARCHIVE_URL = (
+    "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.103/"
+    "dotnet-sdk-10.0.103-linux-x64.tar.gz"
+)
+DOTNET_ARCHIVE_SHA256 = "84dc1f3150ec2800fa38efdbe4d65a855026d68f745c3fe06f522e87e993af0f"
+BUILD_INPUT_PATHS = {BUILD_RECIPE_PATH, BOOTSTRAP_NUGET_CONFIG_PATH}
 EXPECTED_TOOLCHAIN_SHA256 = {
     "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
     "csc": "9a4237515874153817a8bf4a9c889cafed5148e2d77b04f5dd925c903d3161dc",
@@ -86,27 +93,33 @@ def digest_bytes(value: bytes) -> str:
 
 
 def digest_file(path: Path) -> str:
-    return digest_bytes(path.read_bytes())
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def load_lock() -> tuple[dict[str, Any], dict[str, Any]]:
     payload = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or set(payload) != LOCK_KEYS:
         raise PackagePlaneError("package-plane lock has an invalid top-level shape")
-    if payload["contract"] != "chummer.media.package-plane-lock/v2":
+    if payload["contract"] != "chummer.media.package-plane-lock/v3":
         raise PackagePlaneError("package-plane lock contract is invalid")
     if payload["dotnetSdkVersion"] != "10.0.103":
         raise PackagePlaneError("package-plane SDK version is invalid")
     if payload["dotnetRuntimeVersion"] != "10.0.3":
         raise PackagePlaneError("package-plane runtime version is invalid")
-    installer = payload["dotnetInstall"]
+    archive = payload["dotnetArchive"]
     if (
-        not isinstance(installer, dict)
-        or set(installer) != DOTNET_INSTALL_KEYS
-        or installer.get("url") != DOTNET_INSTALL_URL
-        or installer.get("sha256") != DOTNET_INSTALL_SHA256
+        not isinstance(archive, dict)
+        or set(archive) != DOTNET_ARCHIVE_KEYS
+        or archive.get("url") != DOTNET_ARCHIVE_URL
+        or archive.get("sha256") != DOTNET_ARCHIVE_SHA256
+        or archive.get("operatingSystem") != "linux"
+        or archive.get("architecture") != "x64"
     ):
-        raise PackagePlaneError("package-plane installer authority is invalid")
+        raise PackagePlaneError("package-plane SDK archive authority is invalid")
     toolchain = payload["toolchainSha256"]
     if (
         not isinstance(toolchain, dict)
@@ -115,12 +128,11 @@ def load_lock() -> tuple[dict[str, Any], dict[str, Any]]:
         or toolchain != EXPECTED_TOOLCHAIN_SHA256
     ):
         raise PackagePlaneError("package-plane toolchain authority is invalid")
-    recipe = payload["buildRecipe"]
+    build_inputs = payload["buildInputs"]
     if (
-        not isinstance(recipe, dict)
-        or set(recipe) != BUILD_RECIPE_KEYS
-        or recipe.get("path") != BUILD_RECIPE_PATH
-        or SHA256.fullmatch(str(recipe.get("sha256") or "")) is None
+        not isinstance(build_inputs, dict)
+        or set(build_inputs) != BUILD_INPUT_PATHS
+        or any(SHA256.fullmatch(str(value)) is None for value in build_inputs.values())
     ):
         raise PackagePlaneError("package-plane build recipe authority is invalid")
     if payload["feedDirectory"] != ".tmp/package-feed":
@@ -158,12 +170,255 @@ def load_lock() -> tuple[dict[str, Any], dict[str, Any]]:
     return payload, package
 
 
-def resolve_dotnet(dotnet: Path, base: Mapping[str, str]) -> Path:
-    candidate = shutil.which(str(dotnet), path=base.get("PATH"))
-    resolved = Path(candidate or dotnet).resolve()
-    if not resolved.is_file() or resolved.name != "dotnet":
-        raise PackagePlaneError(f"dotnet host is not a regular executable: {resolved}")
-    return resolved
+def lexical_absolute(path: Path) -> Path:
+    if ".." in path.parts:
+        raise PackagePlaneError(f"lexical paths cannot contain parent traversal: {path}")
+    value = path if path.is_absolute() else Path.cwd() / path
+    return Path(os.path.abspath(os.fspath(value)))
+
+
+def _is_reparse_point(value: os.stat_result) -> bool:
+    attributes = getattr(value, "st_file_attributes", 0)
+    marker = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(marker and attributes & marker)
+
+
+def require_no_link_components(path: Path, *, final_kind: str) -> Path:
+    absolute = lexical_absolute(path)
+    current = Path(absolute.anchor)
+    for index, component in enumerate(absolute.parts[1:], start=1):
+        current /= component
+        try:
+            metadata = current.lstat()
+        except OSError as exc:
+            raise PackagePlaneError(f"required path component is unavailable: {current}") from exc
+        if stat.S_ISLNK(metadata.st_mode) or _is_reparse_point(metadata):
+            raise PackagePlaneError(f"symlink/reparse path component is forbidden: {current}")
+        final = index == len(absolute.parts) - 1
+        if final and final_kind == "file" and not stat.S_ISREG(metadata.st_mode):
+            raise PackagePlaneError(f"required path is not a regular file: {current}")
+        if final and final_kind == "directory" and not stat.S_ISDIR(metadata.st_mode):
+            raise PackagePlaneError(f"required path is not a directory: {current}")
+        if not final and not stat.S_ISDIR(metadata.st_mode):
+            raise PackagePlaneError(f"path parent is not a directory: {current}")
+    return absolute
+
+
+def resolve_dotnet(dotnet: Path, _base: Mapping[str, str]) -> Path:
+    if not dotnet.is_absolute():
+        raise PackagePlaneError("dotnet host must be an explicit absolute path")
+    absolute = require_no_link_components(dotnet, final_kind="file")
+    if absolute.name != "dotnet":
+        raise PackagePlaneError(f"dotnet host has an invalid name: {absolute}")
+    return absolute
+
+
+def _canonical_tar_name(name: str) -> str:
+    while name.startswith("./"):
+        name = name[2:]
+    if name in {"", "."}:
+        return ""
+    path = PurePosixPath(name)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise PackagePlaneError(f"SDK archive contains unsafe path: {name}")
+    return path.as_posix()
+
+
+def authenticate_dotnet_archive_and_tree(
+    lock: dict[str, Any], archive_path: Path, dotnet_root: Path
+) -> dict[str, Any]:
+    observed_system = platform.system().lower()
+    observed_architecture = platform.machine().lower()
+    if (
+        observed_system != lock["dotnetArchive"]["operatingSystem"]
+        or observed_architecture not in {"x86_64", "amd64"}
+        or lock["dotnetArchive"]["architecture"] != "x64"
+    ):
+        raise PackagePlaneError(
+            "official SDK archive platform/architecture does not match this host"
+        )
+    archive_path = require_no_link_components(archive_path, final_kind="file")
+    dotnet_root = require_no_link_components(dotnet_root, final_kind="directory")
+    if dotnet_root.lstat().st_mode & 0o222:
+        raise PackagePlaneError(
+            "authenticated private SDK root must be read-only before execution"
+        )
+    archive_digest = digest_file(archive_path)
+    if archive_digest != lock["dotnetArchive"]["sha256"]:
+        raise PackagePlaneError(".NET SDK archive bytes diverge from the official pin")
+
+    expected: dict[str, tuple[str, int, str]] = {}
+    try:
+        with tarfile.open(archive_path, "r:gz") as archive:
+            for member in archive.getmembers():
+                name = _canonical_tar_name(member.name)
+                if not name:
+                    continue
+                if name in expected:
+                    raise PackagePlaneError(f"SDK archive contains duplicate entry: {name}")
+                if member.isdir():
+                    expected[name] = ("directory", 0, "")
+                    continue
+                if not member.isreg():
+                    raise PackagePlaneError(
+                        f"SDK archive contains a link or special entry: {name}"
+                    )
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise PackagePlaneError(f"SDK archive entry is unreadable: {name}")
+                content = stream.read()
+                if len(content) != member.size:
+                    raise PackagePlaneError(f"SDK archive entry is truncated: {name}")
+                expected[name] = ("file", member.size, digest_bytes(content))
+    except (OSError, tarfile.TarError) as exc:
+        raise PackagePlaneError(f"unable to authenticate .NET SDK archive: {exc}") from exc
+
+    observed: dict[str, tuple[str, int, str]] = {}
+    for current_root, directories, files in os.walk(dotnet_root, followlinks=False):
+        current_path = Path(current_root)
+        relative_root = current_path.relative_to(dotnet_root)
+        for name in [*directories, *files]:
+            candidate = current_path / name
+            relative = (relative_root / name).as_posix()
+            metadata = candidate.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or _is_reparse_point(metadata):
+                raise PackagePlaneError(
+                    f"private SDK contains a symlink/reparse entry: {relative}"
+                )
+            if metadata.st_mode & 0o222:
+                raise PackagePlaneError(
+                    f"authenticated private SDK entry must be read-only: {relative}"
+                )
+            if stat.S_ISDIR(metadata.st_mode):
+                observed[relative] = ("directory", 0, "")
+            elif stat.S_ISREG(metadata.st_mode):
+                observed[relative] = (
+                    "file",
+                    metadata.st_size,
+                    digest_file(candidate),
+                )
+            else:
+                raise PackagePlaneError(
+                    f"private SDK contains a non-regular entry: {relative}"
+                )
+    if set(observed) != set(expected):
+        missing = sorted(set(expected) - set(observed))[:10]
+        extras = sorted(set(observed) - set(expected))[:10]
+        raise PackagePlaneError(
+            f"private SDK inventory diverges from authenticated archive "
+            f"(missing={missing}, extras={extras})"
+        )
+    for name, expected_row in expected.items():
+        if observed[name] != expected_row:
+            raise PackagePlaneError(
+                f"private SDK entry diverges from authenticated archive: {name}"
+            )
+    return {
+        "archiveSha256": archive_digest,
+        "inventorySha256": digest_bytes(
+            json.dumps(expected, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        ),
+        "inventoryEntryCount": len(expected),
+    }
+
+
+@contextmanager
+def open_lexical_directory(path: Path, *, create: bool):
+    """Open every lexical component with no-follow semantics and return a dir fd."""
+    if ".." in path.parts:
+        raise PackagePlaneError(f"feed path cannot contain parent traversal: {path}")
+    absolute = lexical_absolute(path)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(absolute.anchor, flags)
+    try:
+        for component in absolute.parts[1:]:
+            try:
+                metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                if not create:
+                    raise PackagePlaneError(
+                        f"lexical directory component is absent: {absolute}"
+                    )
+                os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+            if (
+                stat.S_ISLNK(metadata.st_mode)
+                or _is_reparse_point(metadata)
+                or not stat.S_ISDIR(metadata.st_mode)
+            ):
+                raise PackagePlaneError(
+                    f"feed parent is a symlink, reparse point, or non-directory: {component}"
+                )
+            next_descriptor = os.open(component, flags | no_follow, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        yield descriptor, absolute
+    finally:
+        os.close(descriptor)
+
+
+def validate_feed_entries(descriptor: int, allowed: set[str]) -> set[str]:
+    names = set(os.listdir(descriptor))
+    unexpected = names - allowed
+    if unexpected:
+        raise PackagePlaneError(
+            f"package feed contains ungoverned entries: {sorted(unexpected)}"
+        )
+    for name in names:
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or _is_reparse_point(metadata)
+            or not stat.S_ISREG(metadata.st_mode)
+        ):
+            raise PackagePlaneError(
+                f"package feed entry is not a regular non-link file: {name}"
+            )
+    return names
+
+
+def replace_regular_file(descriptor: int, name: str, content: bytes) -> None:
+    if "/" in name or "\\" in name or name in {"", ".", ".."}:
+        raise PackagePlaneError(f"unsafe package feed filename: {name}")
+    temporary_name = f".{name}.new"
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        file_descriptor = os.open(temporary_name, flags, 0o600, dir_fd=descriptor)
+    except FileExistsError as exc:
+        raise PackagePlaneError(
+            f"package feed contains an ungoverned temporary entry: {temporary_name}"
+        ) from exc
+    try:
+        with os.fdopen(file_descriptor, "wb", closefd=True) as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        metadata = os.stat(temporary_name, dir_fd=descriptor, follow_symlinks=False)
+        if not stat.S_ISREG(metadata.st_mode) or _is_reparse_point(metadata):
+            raise PackagePlaneError(f"temporary feed entry is not regular: {temporary_name}")
+        os.replace(
+            temporary_name,
+            name,
+            src_dir_fd=descriptor,
+            dst_dir_fd=descriptor,
+        )
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if not stat.S_ISREG(metadata.st_mode) or _is_reparse_point(metadata):
+            raise PackagePlaneError(f"final feed entry is not regular: {name}")
+        os.fsync(descriptor)
+    except Exception:
+        try:
+            os.unlink(temporary_name, dir_fd=descriptor)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def clean_environment(
@@ -231,15 +486,17 @@ def run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> str:
     return completed.stdout.strip()
 
 
-def validate_build_recipe(lock: dict[str, Any]) -> None:
-    recipe = ROOT / lock["buildRecipe"]["path"]
-    if (
-        recipe.is_symlink()
-        or not recipe.is_file()
-        or recipe.resolve().parent != (ROOT / "scripts/ai").resolve()
-        or digest_file(recipe) != lock["buildRecipe"]["sha256"]
-    ):
-        raise PackagePlaneError("package build recipe does not match the authority lock")
+def validate_build_inputs(lock: dict[str, Any]) -> dict[str, str]:
+    observed: dict[str, str] = {}
+    for relative_path in sorted(BUILD_INPUT_PATHS):
+        candidate = require_no_link_components(ROOT / relative_path, final_kind="file")
+        digest = digest_file(candidate)
+        if digest != lock["buildInputs"][relative_path]:
+            raise PackagePlaneError(
+                f"package build input does not match the authority lock: {relative_path}"
+            )
+        observed[relative_path] = digest
+    return observed
 
 
 def _dotnet_host_version(dotnet_info: str) -> str:
@@ -255,15 +512,17 @@ def _dotnet_host_version(dotnet_info: str) -> str:
     return ""
 
 
-def validate_dotnet_toolchain(
+def validate_authenticated_dotnet_identity(
     lock: dict[str, Any],
     dotnet: Path,
     dotnet_root: Path,
     *,
     environment: dict[str, str],
 ) -> dict[str, str]:
-    if dotnet.resolve().parent != dotnet_root.resolve():
+    if dotnet.parent != dotnet_root:
         raise PackagePlaneError("dotnet host must live in the private SDK root")
+    # This is deliberately the first execution of dotnet. The complete archive
+    # and extracted tree were authenticated before this function is called.
     version = run([str(dotnet), "--version"], cwd=ROOT, environment=environment)
     if version != lock["dotnetSdkVersion"]:
         raise PackagePlaneError(
@@ -287,8 +546,8 @@ def validate_dotnet_toolchain(
             and separator
             and location.endswith("]")
         ):
-            sdk_rows.append((Path(location[:-1]) / version_text).resolve())
-    if sdk_rows != [expected_sdk_root.resolve()]:
+            sdk_rows.append(lexical_absolute(Path(location[:-1]) / version_text))
+    if sdk_rows != [expected_sdk_root]:
         raise PackagePlaneError("private SDK root does not contain the one exact SDK")
     runtime_root = dotnet_root / "shared/Microsoft.NETCore.App"
     runtime_versions = (
@@ -304,8 +563,8 @@ def validate_dotnet_toolchain(
         "msbuild": expected_sdk_root / "Microsoft.Build.dll",
         "nugetPackaging": expected_sdk_root / "NuGet.Packaging.dll",
     }
-    if any(not path.is_file() for path in files.values()):
-        raise PackagePlaneError("private SDK toolchain files are incomplete")
+    for path in files.values():
+        require_no_link_components(path, final_kind="file")
     observed = {key: digest_file(path) for key, path in files.items()}
     if observed != lock["toolchainSha256"]:
         raise PackagePlaneError("private SDK toolchain bytes diverge from the lock")
@@ -548,15 +807,18 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
         )
 
 
-def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
+def bootstrap(*, dotnet: Path, dotnet_archive: Path, feed: Path) -> dict[str, Any]:
     lock, package = load_lock()
-    validate_build_recipe(lock)
+    observed_build_inputs = validate_build_inputs(lock)
     dotnet_host = resolve_dotnet(dotnet, os.environ)
     dotnet_root = dotnet_host.parent
+    authenticated_sdk = authenticate_dotnet_archive_and_tree(
+        lock, dotnet_archive, dotnet_root
+    )
     with tempfile.TemporaryDirectory(prefix="chummer-media-package-plane-") as temporary:
         temporary_root = Path(temporary)
         environment = clean_environment(temporary_root, dotnet_root)
-        observed_toolchain = validate_dotnet_toolchain(
+        observed_toolchain = validate_authenticated_dotnet_identity(
             lock,
             dotnet_host,
             dotnet_root,
@@ -639,48 +901,62 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
             environment=environment,
         ):
             raise PackagePlaneError("owner checkout is dirty after package production")
-        expected_feed_names = {package["nupkgName"], "feed-inventory.json"}
-        feed.mkdir(parents=True, exist_ok=True)
-        unexpected = {entry.name for entry in feed.iterdir()} - expected_feed_names
-        if unexpected:
-            raise PackagePlaneError(f"package feed contains ungoverned entries: {sorted(unexpected)}")
-        temporary_package = feed / f".{package['nupkgName']}.tmp"
-        shutil.copyfile(normalized, temporary_package)
-        os.replace(temporary_package, feed / package["nupkgName"])
+        if (
+            authenticate_dotnet_archive_and_tree(lock, dotnet_archive, dotnet_root)
+            != authenticated_sdk
+        ):
+            raise PackagePlaneError("authenticated SDK identity changed during package production")
         inventory = {
-            "contract": "chummer.media.package-feed-inventory/v2",
+            "contract": "chummer.media.package-feed-inventory/v3",
             "sourceRepository": package["repository"],
             "sourceCommit": package["commit"],
             "dotnetSdkVersion": lock["dotnetSdkVersion"],
             "dotnetRuntimeVersion": lock["dotnetRuntimeVersion"],
+            "dotnetArchive": lock["dotnetArchive"],
+            "authenticatedSdk": authenticated_sdk,
             "toolchainSha256": observed_toolchain,
-            "buildRecipeSha256": lock["buildRecipe"]["sha256"],
+            "buildInputsSha256": observed_build_inputs,
             "packageId": package["packageId"],
             "packageVersion": package["version"],
             "packageSha256": package["normalizedNupkgSha256"],
             "packageSha512": package["normalizedNupkgSha512"],
             "assemblySha256": package["assemblySha256"],
         }
-        inventory_temp = feed / ".feed-inventory.json.tmp"
-        inventory_temp.write_text(
-            json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        os.replace(inventory_temp, feed / "feed-inventory.json")
-        if {entry.name for entry in feed.iterdir()} != expected_feed_names:
-            raise PackagePlaneError("package feed does not contain the exact governed entry set")
+        expected_feed_names = {package["nupkgName"], "feed-inventory.json"}
+        with open_lexical_directory(feed, create=True) as (feed_descriptor, _):
+            validate_feed_entries(feed_descriptor, expected_feed_names)
+            replace_regular_file(
+                feed_descriptor, package["nupkgName"], normalized.read_bytes()
+            )
+            replace_regular_file(
+                feed_descriptor,
+                "feed-inventory.json",
+                (json.dumps(inventory, indent=2, sort_keys=True) + "\n").encode(
+                    "utf-8"
+                ),
+            )
+            if validate_feed_entries(feed_descriptor, expected_feed_names) != expected_feed_names:
+                raise PackagePlaneError(
+                    "package feed does not contain the exact governed entry set"
+                )
         return inventory
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dotnet", type=Path, default=Path("dotnet"))
+    parser.add_argument("--dotnet", type=Path, required=True)
+    parser.add_argument("--dotnet-archive", type=Path, required=True)
     parser.add_argument("--feed", type=Path, default=ROOT / ".tmp/package-feed")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    inventory = bootstrap(dotnet=args.dotnet, feed=args.feed.resolve())
+    inventory = bootstrap(
+        dotnet=args.dotnet,
+        dotnet_archive=args.dotnet_archive,
+        feed=args.feed,
+    )
     print(json.dumps(inventory, indent=2, sort_keys=True))
     return 0
 

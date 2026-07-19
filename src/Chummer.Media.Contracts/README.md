@@ -20,8 +20,10 @@ Contract families:
 - replay/exchange preview receipts (`ReplayExchangePreview*`), including recap, replay, and exchange preview-card plus inspectable sibling receipts with first-class bundle, kind, caption, and preview grouping for portable artifact shelves
 - media asset manifest and lifecycle state (`Assets/*`), with an explicit public
   projection that requires actual Registry `CURRENT.json`, a full immutable v2
-  generation, content-addressed provenance, explicit public curation, and a complete
-  approved/persisted lifecycle without carrying provider-private evidence
+  generation, content-addressed provenance, explicit public curation, and exact
+  agreement on asset id, content SHA-256, and the canonical cross-language media
+  manifest SHA-256, plus a complete approved/persisted lifecycle without carrying
+  provider-private evidence
 - manifest store substrate operations (`Kernel/ManifestStoreContracts.cs`)
 - render-job substrate transitions (`Kernel/RenderJobSubstrateContracts.cs`)
 - preview and thumbnail linkage (`Kernel/PreviewLinkContracts.cs`)
@@ -45,7 +47,9 @@ Out of scope:
 - route, map, or tactical truth
 - rules/canon authoring and provider-routing policy
 
-Package publication is disabled by default. The owner must first check an approved
-license expression into the project policy and then explicitly set
-`ChummerMediaPackagePublishing=true`. Command-line `IsPackable` or license-property
-overrides cannot widen that distribution authority.
+Package publication is disabled. MSBuild cannot authorize a license or package bytes.
+The external `eng/media-contracts-package-policy.json` remains blocked until the
+program-level license boundary is approved, and the external verifier rejects response
+files, restore bypasses, imports, and caller-controlled MSBuild properties before any
+package operation. Any future authorized lane must validate the license from the final
+`.nupkg` archive bytes.

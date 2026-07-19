@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import tarfile
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -40,23 +41,25 @@ class MediaPackagePlaneTests(unittest.TestCase):
                 "contract",
                 "dotnetSdkVersion",
                 "dotnetRuntimeVersion",
-                "dotnetInstall",
+                "dotnetArchive",
                 "toolchainSha256",
-                "buildRecipe",
+                "buildInputs",
                 "feedDirectory",
                 "packages",
             },
             set(lock),
         )
-        self.assertEqual("chummer.media.package-plane-lock/v2", lock["contract"])
+        self.assertEqual("chummer.media.package-plane-lock/v3", lock["contract"])
         self.assertEqual("10.0.103", lock["dotnetSdkVersion"])
         self.assertEqual("10.0.3", lock["dotnetRuntimeVersion"])
         self.assertEqual(
             {
-                "url": "https://dot.net/v1/dotnet-install.sh",
-                "sha256": "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e",
+                "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.103/dotnet-sdk-10.0.103-linux-x64.tar.gz",
+                "sha256": "84dc1f3150ec2800fa38efdbe4d65a855026d68f745c3fe06f522e87e993af0f",
+                "operatingSystem": "linux",
+                "architecture": "x64",
             },
-            lock["dotnetInstall"],
+            lock["dotnetArchive"],
         )
         self.assertEqual(1, len(lock["packages"]))
         package = lock["packages"][0]
@@ -77,11 +80,17 @@ class MediaPackagePlaneTests(unittest.TestCase):
 
     def test_build_recipe_and_private_toolchain_are_authority_locked(self) -> None:
         lock = json.loads(LOCK.read_text(encoding="utf-8"))
-        recipe = ROOT / lock["buildRecipe"]["path"]
         self.assertEqual(
-            hashlib.sha256(recipe.read_bytes()).hexdigest(),
-            lock["buildRecipe"]["sha256"],
+            {
+                "scripts/ai/bootstrap_media_package_feed.py",
+                "eng/NuGet.RegistryBootstrap.Config",
+            },
+            set(lock["buildInputs"]),
         )
+        for path, expected in lock["buildInputs"].items():
+            self.assertEqual(
+                hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), expected
+            )
         self.assertEqual(
             {
                 "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
@@ -161,13 +170,94 @@ class MediaPackagePlaneTests(unittest.TestCase):
     def test_ci_installs_only_the_digest_locked_private_sdk(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("actions/setup-dotnet", workflow)
-        self.assertIn("https://dot.net/v1/dotnet-install.sh", workflow)
+        self.assertNotIn("dotnet-install.sh", workflow)
         self.assertIn(
-            "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e",
+            "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.103/dotnet-sdk-10.0.103-linux-x64.tar.gz",
             workflow,
         )
-        self.assertIn("--version 10.0.103", workflow)
+        self.assertIn(
+            "84dc1f3150ec2800fa38efdbe4d65a855026d68f745c3fe06f522e87e993af0f",
+            workflow,
+        )
         self.assertIn("DOTNET_ROOT=${media_dotnet_root}", workflow)
+        self.assertIn("CHUMMER_DOTNET_ARCHIVE=${media_dotnet_archive}", workflow)
+
+    def test_complete_sdk_tree_is_authenticated_before_execution_and_rejects_extras(self) -> None:
+        module = load_bootstrap_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sdk = root / "sdk-root"
+            (sdk / "host/fxr/10.0.3").mkdir(parents=True)
+            (sdk / "sdk/10.0.103/Roslyn/bincore").mkdir(parents=True)
+            (sdk / "packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0").mkdir(
+                parents=True
+            )
+            (sdk / "dotnet").write_bytes(b"host")
+            (sdk / "host/fxr/10.0.3/libhostfxr.so").write_bytes(b"runtime")
+            (sdk / "sdk/10.0.103/Roslyn/bincore/csc.dll").write_bytes(b"compiler")
+            (sdk / "packs/Microsoft.NETCore.App.Ref/10.0.3/ref/net10.0/System.dll").write_bytes(
+                b"reference"
+            )
+            archive = root / "sdk.tar.gz"
+            with tarfile.open(archive, "w:gz") as stream:
+                for entry in sorted(sdk.rglob("*")):
+                    stream.add(
+                        entry,
+                        arcname=f"./{entry.relative_to(sdk).as_posix()}",
+                        recursive=False,
+                    )
+            for entry in [*sdk.rglob("*"), sdk]:
+                if not entry.is_symlink():
+                    entry.chmod(entry.stat().st_mode & ~0o222)
+            lock = {
+                "dotnetArchive": {
+                    "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    "operatingSystem": "linux",
+                    "architecture": "x64",
+                }
+            }
+            receipt = module.authenticate_dotnet_archive_and_tree(lock, archive, sdk)
+            self.assertEqual(lock["dotnetArchive"]["sha256"], receipt["archiveSha256"])
+            extra = sdk / "sdk/10.0.103/attacker.targets"
+            extra.parent.chmod(extra.parent.stat().st_mode | 0o200)
+            extra.write_text("poison", encoding="utf-8")
+            extra.chmod(extra.stat().st_mode & ~0o222)
+            extra.parent.chmod(extra.parent.stat().st_mode & ~0o222)
+            with self.assertRaisesRegex(module.PackagePlaneError, "extras"):
+                module.authenticate_dotnet_archive_and_tree(lock, archive, sdk)
+            extra.parent.chmod(extra.parent.stat().st_mode | 0o200)
+            extra.unlink()
+            extra.parent.chmod(extra.parent.stat().st_mode & ~0o222)
+            target = sdk / "sdk/10.0.103/Roslyn/bincore/csc.dll"
+            target.parent.chmod(target.parent.stat().st_mode | 0o200)
+            target.unlink()
+            target.symlink_to(sdk / "dotnet")
+            target.parent.chmod(target.parent.stat().st_mode & ~0o222)
+            with self.assertRaisesRegex(module.PackagePlaneError, "symlink/reparse"):
+                module.authenticate_dotnet_archive_and_tree(lock, archive, sdk)
+            for entry in [sdk, *sdk.rglob("*")]:
+                if entry.is_dir() and not entry.is_symlink():
+                    entry.chmod(entry.stat().st_mode | 0o700)
+
+    def test_feed_path_and_entries_reject_symlinks_before_writes(self) -> None:
+        module = load_bootstrap_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            real_parent = root / "real"
+            real_parent.mkdir()
+            linked_parent = root / "linked"
+            linked_parent.symlink_to(real_parent, target_is_directory=True)
+            with self.assertRaisesRegex(module.PackagePlaneError, "symlink"):
+                with module.open_lexical_directory(linked_parent / "feed", create=True):
+                    pass
+            self.assertFalse((real_parent / "feed").exists())
+
+            feed = root / "feed"
+            feed.mkdir()
+            (feed / "feed-inventory.json").symlink_to(root / "outside")
+            with module.open_lexical_directory(feed, create=False) as (descriptor, _):
+                with self.assertRaisesRegex(module.PackagePlaneError, "not a regular"):
+                    module.validate_feed_entries(descriptor, {"feed-inventory.json"})
 
     def test_lockfile_content_hash_binds_the_normalized_owner_package(self) -> None:
         lock = json.loads(LOCK.read_text(encoding="utf-8"))

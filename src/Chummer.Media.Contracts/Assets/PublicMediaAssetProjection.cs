@@ -1,3 +1,8 @@
+using System.Buffers.Binary;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Chummer.Media.Contracts.Assets;
 
 /// <summary>
@@ -19,7 +24,10 @@ public sealed record MediaReleaseAuthorityBinding(
     string ReleaseDecisionSha256,
     string ReleaseDecisionStatus,
     string ProvenanceRef,
-    string ProvenanceSha256);
+    string ProvenanceSha256,
+    string AssetId,
+    string AssetContentSha256,
+    string MediaManifestCanonicalSha256);
 
 /// <summary>
 /// Explicit curation decision binding one asset to one governed authority snapshot.
@@ -30,7 +38,79 @@ public sealed record MediaPublicEligibility(
     bool CuratedForPublicRelease,
     string CuratedBy,
     DateTimeOffset CuratedAtUtc,
-    string AuthoritySnapshotSha256);
+    string AuthoritySnapshotSha256,
+    string AssetId,
+    string AssetContentSha256,
+    string MediaManifestCanonicalSha256);
+
+/// <summary>
+/// Cross-language canonical digest for one exact media manifest. The encoding is
+/// a fixed sequence of nullable, length-prefixed UTF-8 values under a versioned
+/// domain separator; it is deliberately independent of serializer defaults.
+/// </summary>
+public static class MediaAssetManifestDigest
+{
+    /// <summary>The canonical digest preimage contract.</summary>
+    public const string Contract = "chummer.media.asset-manifest-digest/v1";
+
+    /// <summary>Returns the lowercase SHA-256 of the exact canonical manifest.</summary>
+    public static string ComputeSha256(MediaAssetManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentNullException.ThrowIfNull(manifest.Lifecycle);
+        ArgumentNullException.ThrowIfNull(manifest.DerivedAssetIds);
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, Contract);
+        Append(hash, manifest.AssetId);
+        Append(hash, manifest.CatalogKey);
+        Append(hash, manifest.RenderJobId);
+        Append(hash, ((int)manifest.RenderKind).ToString(CultureInfo.InvariantCulture));
+        Append(hash, manifest.StorageBucket);
+        Append(hash, manifest.StorageObjectKey);
+        Append(hash, manifest.ContentType);
+        Append(hash, manifest.ContentLengthBytes.ToString(CultureInfo.InvariantCulture));
+        Append(hash, manifest.ContentHash);
+        Append(hash, manifest.PreviewAssetId);
+        Append(hash, manifest.ParentAssetId);
+        Append(hash, ((int)manifest.Lifecycle.ApprovalStatus).ToString(CultureInfo.InvariantCulture));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.CreatedAtUtc));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.ApprovedAtUtc));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.RejectedAtUtc));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.PersistedAtUtc));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.ExpiresAtUtc));
+        Append(hash, FormatTimestamp(manifest.Lifecycle.PurgedAtUtc));
+        var derivedAssetIds = manifest.DerivedAssetIds.Order(StringComparer.Ordinal).ToArray();
+        Append(hash, derivedAssetIds.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var derivedAssetId in derivedAssetIds)
+        {
+            Append(hash, derivedAssetId);
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private static string? FormatTimestamp(DateTimeOffset? value) =>
+        value?.ToUniversalTime().ToString(
+            "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'",
+            CultureInfo.InvariantCulture);
+
+    private static void Append(IncrementalHash hash, string? value)
+    {
+        if (value is null)
+        {
+            hash.AppendData([0]);
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(value);
+        Span<byte> header = stackalloc byte[5];
+        header[0] = 1;
+        BinaryPrimitives.WriteInt32BigEndian(header[1..], bytes.Length);
+        hash.AppendData(header);
+        hash.AppendData(bytes);
+    }
+}
 
 /// <summary>
 /// The only release-facing projection of a media manifest. Creation fails closed
@@ -46,7 +126,7 @@ public sealed class PublicMediaAssetProjection
     public const string RequiredRegistryRepository = "ArchonMegalon/chummer6-hub-registry";
 
     /// <summary>The curation contract required before an asset can enter a public projection.</summary>
-    public const string RequiredEligibilityContract = "chummer.media.public-eligibility/v1";
+    public const string RequiredEligibilityContract = "chummer.media.public-eligibility/v2";
 
     private static readonly string[] ForbiddenLocalPathFragments =
     [
@@ -131,6 +211,7 @@ public sealed class PublicMediaAssetProjection
         RequireSha256(manifest.ContentHash, nameof(manifest.ContentHash));
         ValidateLifecycle(manifest, eligibility);
         ValidateLineage(manifest);
+        var canonicalManifestSha256 = MediaAssetManifestDigest.ComputeSha256(manifest);
         if (!string.Equals(
                 authority.AuthorityContract,
                 RequiredAuthorityContract,
@@ -199,10 +280,17 @@ public sealed class PublicMediaAssetProjection
 
         RequirePortableAuthorityRef(authority.ProvenanceRef, nameof(authority.ProvenanceRef));
         RequireSha256(authority.ProvenanceSha256, nameof(authority.ProvenanceSha256));
+        RequireIdentifier(authority.AssetId, nameof(authority.AssetId));
+        RequireSha256(authority.AssetContentSha256, nameof(authority.AssetContentSha256));
+        RequireSha256(
+            authority.MediaManifestCanonicalSha256,
+            nameof(authority.MediaManifestCanonicalSha256));
         var expectedProvenanceRef =
             "release-evidence://media-factory/snapshots/"
             + $"{authority.ReleaseVersion}/{authority.AuthoritySnapshotSha256}/"
             + $"decisions/{authority.ReleaseDecisionSha256}/"
+            + $"assets/{authority.AssetId}/{authority.AssetContentSha256}/"
+            + $"manifests/{authority.MediaManifestCanonicalSha256}/"
             + $"provenance/{authority.ProvenanceSha256}.json";
         if (!string.Equals(authority.ProvenanceRef, expectedProvenanceRef, StringComparison.Ordinal))
         {
@@ -221,6 +309,25 @@ public sealed class PublicMediaAssetProjection
                 nameof(eligibility));
         }
 
+        RequireIdentifier(eligibility.AssetId, nameof(eligibility.AssetId));
+        RequireSha256(eligibility.AssetContentSha256, nameof(eligibility.AssetContentSha256));
+        RequireSha256(
+            eligibility.MediaManifestCanonicalSha256,
+            nameof(eligibility.MediaManifestCanonicalSha256));
+        var expectedAssetBinding = (
+            manifest.AssetId,
+            manifest.ContentHash,
+            canonicalManifestSha256);
+        if ((authority.AssetId, authority.AssetContentSha256, authority.MediaManifestCanonicalSha256)
+                != expectedAssetBinding
+            || (eligibility.AssetId, eligibility.AssetContentSha256, eligibility.MediaManifestCanonicalSha256)
+                != expectedAssetBinding)
+        {
+            throw new ArgumentException(
+                "Public eligibility and provenance must bind the exact asset id, content SHA-256, and canonical media-manifest SHA-256.",
+                nameof(manifest));
+        }
+
         return new PublicMediaAssetProjection(manifest, authority, eligibility);
     }
 
@@ -233,6 +340,21 @@ public sealed class PublicMediaAssetProjection
     }
 
     private static void RequireSha256(string value, string name) => RequireHex(value, 64, name);
+
+    private static void RequireIdentifier(string value, string name)
+    {
+        RequireText(value, name);
+        if (value.Length > 128
+            || value is "." or ".."
+            || value.Any(static character =>
+                character is not (>= 'a' and <= 'z')
+                    and not (>= 'A' and <= 'Z')
+                    and not (>= '0' and <= '9')
+                    and not ('.' or '_' or '+' or '-')))
+        {
+            throw new ArgumentException($"{name} must be one canonical identifier.", name);
+        }
+    }
 
     private static void RequireExactReleaseRef(
         string value,

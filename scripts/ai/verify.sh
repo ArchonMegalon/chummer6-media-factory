@@ -51,8 +51,10 @@ test -f eng/design-mirror.lock.json
 test -f eng/historical-proof-anchors.lock.json
 test -f eng/package-plane.lock.json
 test -f eng/NuGet.RegistryBootstrap.Config
+test -f eng/media-contracts-package-policy.json
 test -f NuGet.Config
 test -f scripts/ai/bootstrap_media_package_feed.py
+test -f scripts/ai/verify_media_contracts_package_policy.py
 test -f scripts/ai/verify_historical_proof_anchors.py
 test -f src/Chummer.Media.Factory.Runtime/packages.lock.json
 test -f src/Chummer.Media.Factory.Runtime/Assets/AssetLifecycleService.cs
@@ -143,6 +145,12 @@ if rg -n 'namespace Chummer\.Campaign\.Contracts' src Chummer.Media.Factory.Runt
   exit 1
 fi
 
+: "${CHUMMER_DOTNET_ARCHIVE:?CHUMMER_DOTNET_ARCHIVE must name the pinned official SDK archive}"
+dotnet_host="$(command -v dotnet)"
+python3 scripts/ai/bootstrap_media_package_feed.py \
+  --dotnet "${dotnet_host}" \
+  --dotnet-archive "${CHUMMER_DOTNET_ARCHIVE}" >/dev/null
+
 python3 scripts/ai/verify_historical_proof_anchors.py >/dev/null
 python3 -m py_compile scripts/render_guide_asset.py scripts/ai/materialize_media_release_proof.py
 python3 -m py_compile scripts/ai/verify_design_mirror.py
@@ -182,7 +190,6 @@ assert isinstance(registry, dict)
 assert registry.get("providers") == {}
 PY
 
-python3 scripts/ai/bootstrap_media_package_feed.py --dotnet "$(command -v dotnet)" >/dev/null
 dotnet restore Chummer.Media.Factory.slnx --locked-mode --configfile NuGet.Config --nologo --verbosity quiet
 dotnet build Chummer.Media.Factory.slnx --no-restore --configuration Release --nologo --verbosity quiet
 
@@ -227,12 +234,38 @@ dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
   --verbosity quiet
 assert_no_package_bytes "$default_pack_dir"
 expect_pack_blocked direct-is-packable -p:IsPackable=true
-expect_pack_blocked publishing-without-license -p:ChummerMediaPackagePublishing=true
+legacy_property_dir="${pack_output_root}/legacy-property-is-inert"
+mkdir -p "${legacy_property_dir}"
+dotnet pack src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj \
+  --no-restore --configuration Release --output "${legacy_property_dir}" \
+  --nologo --verbosity quiet -p:ChummerMediaPackagePublishing=true
+assert_no_package_bytes "${legacy_property_dir}"
 expect_pack_blocked forged-license \
   -p:IsPackable=true \
   -p:ChummerMediaPackagePublishing=true \
   -p:ChummerMediaApprovedPackageLicenseExpression=MIT \
   -p:PackageLicenseExpression=MIT
+
+expect_external_package_blocked() {
+  local label="$1"
+  shift
+  local output_dir="${pack_output_root}/external-${label}"
+  mkdir -p "${output_dir}"
+  if python3 scripts/ai/verify_media_contracts_package_policy.py \
+    --output "${output_dir}" "$@"; then
+    echo "verify failed: external package-policy vector ${label} unexpectedly succeeded"
+    exit 1
+  fi
+  assert_no_package_bytes "${output_dir}"
+}
+
+expect_external_package_blocked blocked-policy
+expect_external_package_blocked no-restore --no-restore
+expect_external_package_blocked response-file @attacker.rsp
+expect_external_package_blocked custom-before -p:CustomBeforeMicrosoftCommonTargets=attacker.targets
+expect_external_package_blocked custom-after -p:CustomAfterMicrosoftCommonTargets=attacker.targets
+expect_external_package_blocked import-before -p:ImportBefore=attacker.props
+expect_external_package_blocked import-after -p:ImportAfter=attacker.targets
 
 python3 -m unittest \
   tests/test_release_snapshot_compatibility.py \
@@ -251,6 +284,12 @@ bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m113_gm_prep_packets.sh
 bash scripts/ai/verify_m116_creator_promo_kits.sh
 bash scripts/ai/verify_m135_media_coverage.sh
-python3 scripts/ai/materialize_media_release_proof.py --status passed
+python3 scripts/ai/materialize_media_release_proof.py --status passed --check
+
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+  echo "verify failed: verification must leave the exact checkout clean" >&2
+  git status --short --untracked-files=all >&2
+  exit 1
+fi
 
 echo "verify ok"

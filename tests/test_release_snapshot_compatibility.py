@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,6 +27,21 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+class SourceResponse(io.BytesIO):
+    def __init__(self, value: bytes, source: str):
+        super().__init__(value)
+        self._source = source
+
+    def geturl(self) -> str:
+        return self._source
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
+
+
 class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
     def make_fixture(
         self,
@@ -35,6 +52,7 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
         decision_mutator: Callable[[dict[str, Any]], None] | None = None,
         current_mutator: Callable[[dict[str, Any]], None] | None = None,
         provenance_mutator: Callable[[dict[str, Any]], None] | None = None,
+        acquisition_fixture: bool = True,
     ) -> dict[str, Path | str]:
         manifest = root / "RELEASE_CHANNEL.json"
         decision = root / "RELEASE_DECISION.json"
@@ -42,6 +60,9 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
         current = root / "CURRENT.json"
         provenance = root / "PROVENANCE.json"
         binding = root / "MEDIA_BINDING.json"
+        media_manifest = root / "MEDIA_ASSET_MANIFEST.json"
+        eligibility = root / "MEDIA_PUBLIC_ELIGIBILITY.json"
+        acquisition = root / "AUTHORITY_ACQUISITION.json"
         manifest.write_text('{"channel":"preview","artifacts":[]}\n', encoding="utf-8")
         decision_payload: dict[str, Any] = {
             "contractName": "chummer.preview-release-decision/v1",
@@ -98,6 +119,35 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
         if current_mutator is not None:
             current_mutator(current_payload)
         write_json(current, current_payload)
+        media_manifest_payload: dict[str, Any] = {
+            "assetId": "asset-public-proof",
+            "catalogKey": "public/proof",
+            "renderJobId": "render-public-proof",
+            "renderKind": 2,
+            "storageBucket": "public-media",
+            "storageObjectKey": "release/asset-public-proof.mp4",
+            "contentType": "video/mp4",
+            "contentLengthBytes": 42,
+            "contentHash": "a" * 64,
+            "previewAssetId": None,
+            "parentAssetId": None,
+            "lifecycle": {
+                "approvalStatus": 1,
+                "createdAtUtc": "2026-07-18T00:00:00Z",
+                "approvedAtUtc": "2026-07-18T00:00:00Z",
+                "rejectedAtUtc": None,
+                "persistedAtUtc": "2026-07-18T00:00:00Z",
+                "expiresAtUtc": None,
+                "purgedAtUtc": None,
+            },
+            "derivedAssetIds": [],
+        }
+        write_json(media_manifest, media_manifest_payload)
+        canonical_manifest_sha256 = MODULE.canonical_media_manifest_sha256(
+            media_manifest_payload
+        )
+        asset_id = str(media_manifest_payload["assetId"])
+        asset_content_sha256 = str(media_manifest_payload["contentHash"])
         provenance_payload: dict[str, Any] = {
             "contract": MODULE.PROVENANCE_CONTRACT,
             "releaseVersion": release_version,
@@ -107,10 +157,26 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
             "authoritySnapshotSha256": digest(snapshot),
             "manifestSha256": digest(manifest),
             "releaseDecisionSha256": digest(decision),
+            "assetId": asset_id,
+            "assetContentSha256": asset_content_sha256,
+            "canonicalMediaManifestSha256": canonical_manifest_sha256,
         }
         if provenance_mutator is not None:
             provenance_mutator(provenance_payload)
         write_json(provenance, provenance_payload)
+        write_json(
+            eligibility,
+            {
+                "contract": MODULE.ELIGIBILITY_CONTRACT,
+                "curatedForPublicRelease": True,
+                "curatedBy": "media-release-curator",
+                "curatedAtUtc": "2026-07-18T00:00:00Z",
+                "authoritySnapshotSha256": digest(snapshot),
+                "assetId": asset_id,
+                "assetContentSha256": asset_content_sha256,
+                "canonicalMediaManifestSha256": canonical_manifest_sha256,
+            },
+        )
         snapshot_digest = digest(snapshot)
         decision_digest = digest(decision)
         provenance_digest = digest(provenance)
@@ -136,19 +202,45 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
                 "provenanceRef": (
                     "release-evidence://media-factory/snapshots/"
                     f"{release_version}/{snapshot_digest}/decisions/{decision_digest}/"
+                    f"assets/{asset_id}/{asset_content_sha256}/"
+                    f"manifests/{canonical_manifest_sha256}/"
                     f"provenance/{provenance_digest}.json"
                 ),
                 "provenanceSha256": provenance_digest,
+                "assetId": asset_id,
+                "assetContentSha256": asset_content_sha256,
+                "canonicalMediaManifestSha256": canonical_manifest_sha256,
+            },
+        )
+        registry_commit = "0123456789abcdef0123456789abcdef01234567"
+        write_json(
+            acquisition,
+            {
+                "contract": MODULE.ACQUISITION_CONTRACT,
+                "authenticationMode": MODULE.ACQUISITION_MODE,
+                "source": (
+                    "https://raw.githubusercontent.com/"
+                    f"{MODULE.REGISTRY_REPOSITORY}/{registry_commit}/"
+                    "release-evidence/CURRENT.json"
+                ),
+                "registryRepository": MODULE.REGISTRY_REPOSITORY,
+                "registryCommit": registry_commit,
+                "currentRef": "registry://release-evidence/CURRENT.json",
+                "currentSha256": digest(current),
+                "fixture": acquisition_fixture,
+                "releaseEvidenceEligible": not acquisition_fixture,
             },
         )
         return {
             "current_path": current,
-            "expected_current_sha256": digest(current),
+            "acquisition_receipt_path": acquisition,
             "snapshot_path": snapshot,
             "manifest_path": manifest,
             "decision_path": decision,
             "provenance_path": provenance,
             "binding_path": binding,
+            "media_manifest_path": media_manifest,
+            "eligibility_path": eligibility,
         }
 
     def test_fixture_mode_binds_full_v2_chain_but_is_never_release_evidence(self) -> None:
@@ -162,16 +254,28 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
     def test_release_mode_accepts_only_a_full_nonfixture_authority_chain(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             fixture = self.make_fixture(
-                Path(temporary_directory), release_version="run-20260719-review"
+                Path(temporary_directory),
+                release_version="run-20260719-review",
+                acquisition_fixture=False,
             )
-            result = MODULE.verify(mode="release", **fixture)
+            current_path = fixture["current_path"]
+            acquisition_path = fixture["acquisition_receipt_path"]
+            assert isinstance(current_path, Path)
+            assert isinstance(acquisition_path, Path)
+            source = json.loads(acquisition_path.read_text(encoding="utf-8"))["source"]
+            with mock.patch.object(
+                MODULE.urllib.request,
+                "urlopen",
+                return_value=SourceResponse(current_path.read_bytes(), source),
+            ):
+                result = MODULE.verify(mode="release", **fixture)
             self.assertTrue(result["releaseEvidenceEligible"])
             self.assertEqual("review_required", result["releaseDecisionStatus"])
 
     def test_release_mode_rejects_fixture_authority(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             fixture = self.make_fixture(Path(temporary_directory))
-            with self.assertRaisesRegex(MODULE.CompatibilityError, "fixture authority"):
+            with self.assertRaisesRegex(MODULE.CompatibilityError, "nonfixture authority acquisition"):
                 MODULE.verify(mode="release", **fixture)
 
     def test_minimal_self_asserted_snapshot_is_rejected_even_when_digests_align(self) -> None:
@@ -194,9 +298,20 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
                 Path(temporary_directory),
                 release_version="run-20260719-review",
                 snapshot_mutator=minimize,
+                acquisition_fixture=False,
             )
-            with self.assertRaisesRegex(MODULE.CompatibilityError, "invalid fields"):
-                MODULE.verify(mode="release", **fixture)
+            current_path = fixture["current_path"]
+            acquisition_path = fixture["acquisition_receipt_path"]
+            assert isinstance(current_path, Path)
+            assert isinstance(acquisition_path, Path)
+            source = json.loads(acquisition_path.read_text(encoding="utf-8"))["source"]
+            with mock.patch.object(
+                MODULE.urllib.request,
+                "urlopen",
+                return_value=SourceResponse(current_path.read_bytes(), source),
+            ):
+                with self.assertRaisesRegex(MODULE.CompatibilityError, "invalid fields"):
+                    MODULE.verify(mode="release", **fixture)
 
     def test_snapshot_unknown_field_is_rejected_by_exact_21_field_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -235,8 +350,85 @@ class ReleaseSnapshotCompatibilityTests(unittest.TestCase):
             current = fixture["current_path"]
             assert isinstance(current, Path)
             current.write_text(current.read_text(encoding="utf-8") + "\n", encoding="utf-8")
-            with self.assertRaisesRegex(MODULE.CompatibilityError, "explicit authority digest"):
+            with self.assertRaisesRegex(MODULE.CompatibilityError, "authenticated acquisition"):
                 MODULE.verify(mode="fixture", **fixture)
+
+    def test_acquisition_receipt_cannot_be_rehashed_inside_the_authority_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture = self.make_fixture(Path(temporary_directory))
+            receipt_path = fixture["acquisition_receipt_path"]
+            assert isinstance(receipt_path, Path)
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["currentSha256"] = "f" * 64
+            write_json(receipt_path, receipt)
+            with self.assertRaisesRegex(MODULE.CompatibilityError, "authenticated acquisition"):
+                MODULE.verify(mode="fixture", **fixture)
+
+    def test_release_mode_rejects_a_self_hashed_chain_absent_registry_source_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture = self.make_fixture(
+                Path(temporary_directory),
+                release_version="run-20260719-review",
+                acquisition_fixture=False,
+            )
+            acquisition_path = fixture["acquisition_receipt_path"]
+            assert isinstance(acquisition_path, Path)
+            source = json.loads(acquisition_path.read_text(encoding="utf-8"))["source"]
+            with mock.patch.object(
+                MODULE.urllib.request,
+                "urlopen",
+                return_value=SourceResponse(b'{"different":"registry bytes"}\n', source),
+            ):
+                with self.assertRaisesRegex(MODULE.CompatibilityError, "Registry source bytes"):
+                    MODULE.verify(mode="release", **fixture)
+
+    def test_acquisition_commit_must_equal_the_snapshot_issuer_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture = self.make_fixture(
+                Path(temporary_directory),
+                release_version="run-20260719-review",
+                acquisition_fixture=False,
+            )
+            acquisition_path = fixture["acquisition_receipt_path"]
+            current_path = fixture["current_path"]
+            assert isinstance(acquisition_path, Path)
+            assert isinstance(current_path, Path)
+            acquisition = json.loads(acquisition_path.read_text(encoding="utf-8"))
+            acquisition["registryCommit"] = "f" * 40
+            acquisition["source"] = (
+                "https://raw.githubusercontent.com/"
+                f"{MODULE.REGISTRY_REPOSITORY}/{'f' * 40}/release-evidence/CURRENT.json"
+            )
+            write_json(acquisition_path, acquisition)
+            with mock.patch.object(
+                MODULE.urllib.request,
+                "urlopen",
+                return_value=SourceResponse(current_path.read_bytes(), acquisition["source"]),
+            ):
+                with self.assertRaisesRegex(MODULE.CompatibilityError, "issuer commit"):
+                    MODULE.verify(mode="release", **fixture)
+
+    def test_asset_substitution_fails_the_shared_manifest_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture = self.make_fixture(Path(temporary_directory))
+            media_manifest_path = fixture["media_manifest_path"]
+            assert isinstance(media_manifest_path, Path)
+            media_manifest = json.loads(media_manifest_path.read_text(encoding="utf-8"))
+            media_manifest["assetId"] = "asset-substitution"
+            write_json(media_manifest_path, media_manifest)
+            with self.assertRaisesRegex(MODULE.CompatibilityError, "exact asset"):
+                MODULE.verify(mode="fixture", **fixture)
+
+    def test_canonical_media_manifest_digest_matches_the_csharp_vector(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture = self.make_fixture(Path(temporary_directory))
+            media_manifest_path = fixture["media_manifest_path"]
+            assert isinstance(media_manifest_path, Path)
+            media_manifest = json.loads(media_manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                "6b6a51b3b345d7a3734697ce66499e7ebc3001fb19f57d847347c10c6b2e0671",
+                MODULE.canonical_media_manifest_sha256(media_manifest),
+            )
 
     def test_provenance_must_anchor_current_snapshot_manifest_and_decision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
