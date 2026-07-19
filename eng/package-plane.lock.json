@@ -1,22 +1,38 @@
 {
-  "contract": "chummer.media.package-plane-lock/v1",
+  "contract": "chummer.media.package-plane-lock/v2",
   "dotnetSdkVersion": "10.0.103",
+  "dotnetRuntimeVersion": "10.0.3",
+  "dotnetInstall": {
+    "url": "https://dot.net/v1/dotnet-install.sh",
+    "sha256": "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
+  },
+  "toolchainSha256": {
+    "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
+    "csc": "9a4237515874153817a8bf4a9c889cafed5148e2d77b04f5dd925c903d3161dc",
+    "msbuild": "cc96c3846ae171984d29ba572ef6f22d273c675cd745c59dc7225fd5cd69610b",
+    "nugetPackaging": "980fd0205cf99d02e52664ea82c678dcd32232b59d96e277b774d4743e7496b1"
+  },
+  "buildRecipe": {
+    "path": "scripts/ai/bootstrap_media_package_feed.py",
+    "sha256": "1812437d00a47be573157b8a571f387a85edd251843812f9f31c5d646e93cf49"
+  },
   "feedDirectory": ".tmp/package-feed",
   "packages": [
     {
       "repository": "ArchonMegalon/chummer6-hub-registry",
       "repositoryUrl": "https://github.com/ArchonMegalon/chummer6-hub-registry.git",
       "commit": "4a312798a10cb7ae97c77731450e24fe6a74d963",
+      "checkoutDirectory": "chummer-hub-registry",
       "project": "Chummer.Hub.Registry.Contracts/Chummer.Hub.Registry.Contracts.csproj",
       "packageId": "Chummer.Hub.Registry.Contracts",
-      "version": "0.0.0-packageplane.20260718.1",
-      "nupkgName": "Chummer.Hub.Registry.Contracts.0.0.0-packageplane.20260718.1.nupkg",
+      "version": "0.0.0-packageplane.20260718.2",
+      "nupkgName": "Chummer.Hub.Registry.Contracts.0.0.0-packageplane.20260718.2.nupkg",
       "assemblyPath": "lib/net10.0/Chummer.Hub.Registry.Contracts.dll",
-      "assemblySha256": "f30f09e04933cd94c537effac0d6ebee7913f73fb6ed174cfed55e9a05d5fc36",
+      "assemblySha256": "f6582b86b7c4ddccf79da74101a8588ec38f922f9a6d36fe550b52838eef6ead",
       "licensePath": "LICENSE",
       "licenseSha256": "2ecaed15e0f77335d19138e3a98b82779714a4483c45d356a75053f9d33de0e4",
-      "normalizedNupkgSha256": "f7a3b6f7f0c1703b7ca7e6890b8b417a44b68b4f310b5eee87f6116f5a82ea1e",
-      "normalizedNupkgSha512": "4f164561ac0b543c17cd4f03873da63c00a0f969e162a18590531795cab63a4e9d9dd58b589e4bf814482b8b156c6bf93f2dda2df491e6f83fa80fecf5ffdb87"
+      "normalizedNupkgSha256": "db1236718d7f2dbf897d4cdb2f1e153e73056fac2dfc2021b9b2149f754c458f",
+      "normalizedNupkgSha512": "a89fd770eb2acf1bdccbea06d2604b84625a7a1134d17aac58cc4331e379f738bed541353e9998ab9e45992b9cef64cd696ddcd51749f863b858dd0c847483fd"
     }
   ]
 }

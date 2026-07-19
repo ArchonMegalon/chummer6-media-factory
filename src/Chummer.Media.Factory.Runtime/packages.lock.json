@@ -4,9 +4,9 @@
     "net10.0": {
       "Chummer.Hub.Registry.Contracts": {
         "type": "Direct",
-        "requested": "[0.0.0-packageplane.20260718.1, )",
-        "resolved": "0.0.0-packageplane.20260718.1",
-        "contentHash": "TxZFYawLVDwXzU8Dhz2mPACg+WnhYqGFkFMXlcq2Ok6dndWLWJ5L+BRIK4sVbGv5Py3aLfSR5vg/qA/s9f/bhw=="
+        "requested": "[0.0.0-packageplane.20260718.2, )",
+        "resolved": "0.0.0-packageplane.20260718.2",
+        "contentHash": "qJ/XcOsqzxvcy+oG0mBLhGJaehE00XqsWMxDMeN59zi+1UE1PpmYq55FmSuc72TNaW3c1RdJ+GO4WN0MhHSD/Q=="
       },
       "chummer.media.contracts": {
         "type": "Project"

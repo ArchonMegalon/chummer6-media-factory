@@ -14,17 +14,30 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK_PATH = ROOT / "eng/package-plane.lock.json"
 BOOTSTRAP_NUGET_CONFIG = ROOT / "eng/NuGet.RegistryBootstrap.Config"
-LOCK_KEYS = {"contract", "dotnetSdkVersion", "feedDirectory", "packages"}
+LOCK_KEYS = {
+    "contract",
+    "dotnetSdkVersion",
+    "dotnetRuntimeVersion",
+    "dotnetInstall",
+    "toolchainSha256",
+    "buildRecipe",
+    "feedDirectory",
+    "packages",
+}
+DOTNET_INSTALL_KEYS = {"url", "sha256"}
+TOOLCHAIN_KEYS = {"dotnetHost", "csc", "msbuild", "nugetPackaging"}
+BUILD_RECIPE_KEYS = {"path", "sha256"}
 PACKAGE_KEYS = {
     "repository",
     "repositoryUrl",
     "commit",
+    "checkoutDirectory",
     "project",
     "packageId",
     "version",
@@ -46,10 +59,22 @@ CORE_RELATIONSHIP = (
     "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
 )
 MANIFEST_RELATIONSHIP = "http://schemas.microsoft.com/packaging/2010/07/manifest"
-NORMALIZED_CORE_PATH = (
-    "package/services/metadata/core-properties/registry-contracts.psmdcp"
-)
-NORMALIZED_LAST_MODIFIED_BY = "Chummer deterministic package plane/v1"
+CORE_PROPERTIES_PREFIX = "package/services/metadata/core-properties/"
+NORMALIZED_LAST_MODIFIED_BY = "Chummer deterministic package plane/v2"
+CANONICAL_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+CANONICAL_ZIP_EXTERNAL_ATTR = 0o100644 << 16
+BUILD_RECIPE_PATH = "scripts/ai/bootstrap_media_package_feed.py"
+DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.sh"
+DOTNET_INSTALL_SHA256 = "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e"
+EXPECTED_TOOLCHAIN_SHA256 = {
+    "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
+    "csc": "9a4237515874153817a8bf4a9c889cafed5148e2d77b04f5dd925c903d3161dc",
+    "msbuild": "cc96c3846ae171984d29ba572ef6f22d273c675cd745c59dc7225fd5cd69610b",
+    "nugetPackaging": "980fd0205cf99d02e52664ea82c678dcd32232b59d96e277b774d4743e7496b1",
+}
+OWNER_REPOSITORY = "ArchonMegalon/chummer6-hub-registry"
+OWNER_REPOSITORY_URL = "https://github.com/ArchonMegalon/chummer6-hub-registry.git"
+OWNER_CHECKOUT_DIRECTORY = "chummer-hub-registry"
 
 
 class PackagePlaneError(RuntimeError):
@@ -68,18 +93,61 @@ def load_lock() -> tuple[dict[str, Any], dict[str, Any]]:
     payload = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or set(payload) != LOCK_KEYS:
         raise PackagePlaneError("package-plane lock has an invalid top-level shape")
-    if payload["contract"] != "chummer.media.package-plane-lock/v1":
+    if payload["contract"] != "chummer.media.package-plane-lock/v2":
         raise PackagePlaneError("package-plane lock contract is invalid")
+    if payload["dotnetSdkVersion"] != "10.0.103":
+        raise PackagePlaneError("package-plane SDK version is invalid")
+    if payload["dotnetRuntimeVersion"] != "10.0.3":
+        raise PackagePlaneError("package-plane runtime version is invalid")
+    installer = payload["dotnetInstall"]
+    if (
+        not isinstance(installer, dict)
+        or set(installer) != DOTNET_INSTALL_KEYS
+        or installer.get("url") != DOTNET_INSTALL_URL
+        or installer.get("sha256") != DOTNET_INSTALL_SHA256
+    ):
+        raise PackagePlaneError("package-plane installer authority is invalid")
+    toolchain = payload["toolchainSha256"]
+    if (
+        not isinstance(toolchain, dict)
+        or set(toolchain) != TOOLCHAIN_KEYS
+        or any(SHA256.fullmatch(str(value)) is None for value in toolchain.values())
+        or toolchain != EXPECTED_TOOLCHAIN_SHA256
+    ):
+        raise PackagePlaneError("package-plane toolchain authority is invalid")
+    recipe = payload["buildRecipe"]
+    if (
+        not isinstance(recipe, dict)
+        or set(recipe) != BUILD_RECIPE_KEYS
+        or recipe.get("path") != BUILD_RECIPE_PATH
+        or SHA256.fullmatch(str(recipe.get("sha256") or "")) is None
+    ):
+        raise PackagePlaneError("package-plane build recipe authority is invalid")
+    if payload["feedDirectory"] != ".tmp/package-feed":
+        raise PackagePlaneError("package-plane feed directory is invalid")
     packages = payload["packages"]
     if not isinstance(packages, list) or len(packages) != 1:
         raise PackagePlaneError("package-plane lock must contain exactly one owner package")
     package = packages[0]
     if not isinstance(package, dict) or set(package) != PACKAGE_KEYS:
         raise PackagePlaneError("package-plane package row has an invalid shape")
-    if package["repository"] != "ArchonMegalon/chummer6-hub-registry":
+    if package["repository"] != OWNER_REPOSITORY:
         raise PackagePlaneError("package-plane owner repository is invalid")
-    if package["repositoryUrl"] != "https://github.com/ArchonMegalon/chummer6-hub-registry.git":
+    if package["repositoryUrl"] != OWNER_REPOSITORY_URL:
         raise PackagePlaneError("package-plane owner URL is invalid")
+    if package["checkoutDirectory"] != OWNER_CHECKOUT_DIRECTORY:
+        raise PackagePlaneError("package-plane checkout directory is invalid")
+    expected_package_values = {
+        "project": "Chummer.Hub.Registry.Contracts/Chummer.Hub.Registry.Contracts.csproj",
+        "packageId": "Chummer.Hub.Registry.Contracts",
+        "version": "0.0.0-packageplane.20260718.2",
+        "nupkgName": "Chummer.Hub.Registry.Contracts.0.0.0-packageplane.20260718.2.nupkg",
+        "assemblyPath": "lib/net10.0/Chummer.Hub.Registry.Contracts.dll",
+        "licensePath": "LICENSE",
+        "licenseSha256": "2ecaed15e0f77335d19138e3a98b82779714a4483c45d356a75053f9d33de0e4",
+    }
+    if any(package.get(key) != value for key, value in expected_package_values.items()):
+        raise PackagePlaneError("package-plane owner package authority is invalid")
     if SHA40.fullmatch(str(package["commit"])) is None:
         raise PackagePlaneError("package-plane owner commit is invalid")
     for key in ("assemblySha256", "licenseSha256", "normalizedNupkgSha256"):
@@ -90,33 +158,57 @@ def load_lock() -> tuple[dict[str, Any], dict[str, Any]]:
     return payload, package
 
 
-def clean_environment(root: Path) -> dict[str, str]:
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith("GIT_")
-        and key
-        not in {
-            "NUGET_PACKAGES",
-            "NUGET_HTTP_CACHE_PATH",
-            "DOTNET_CLI_HOME",
-            "RestorePackagesPath",
-            "MSBuildSDKsPath",
-        }
+def resolve_dotnet(dotnet: Path, base: Mapping[str, str]) -> Path:
+    candidate = shutil.which(str(dotnet), path=base.get("PATH"))
+    resolved = Path(candidate or dotnet).resolve()
+    if not resolved.is_file() or resolved.name != "dotnet":
+        raise PackagePlaneError(f"dotnet host is not a regular executable: {resolved}")
+    return resolved
+
+
+def clean_environment(
+    root: Path,
+    dotnet_root: Path,
+    base: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    source = os.environ if base is None else base
+    inherited = {
+        "PATH",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
     }
+    environment = {key: value for key, value in source.items() if key in inherited}
+    temporary_root = root / "tmp"
+    temporary_root.mkdir(parents=True, exist_ok=True)
     environment.update(
         {
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_SYSTEM": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
+            "DOTNET_ROOT": str(dotnet_root),
             "DOTNET_CLI_HOME": str(root / "dotnet-home"),
             "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1",
             "DOTNET_NOLOGO": "1",
             "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+            "DOTNET_MULTILEVEL_LOOKUP": "0",
+            "DOTNET_ROLL_FORWARD": "LatestPatch",
+            "DOTNET_ROLL_FORWARD_TO_PRERELEASE": "0",
             "NUGET_PACKAGES": str(root / "nuget-packages"),
             "NUGET_HTTP_CACHE_PATH": str(root / "nuget-http-cache"),
             "RestorePackagesPath": str(root / "nuget-packages"),
+            "CI": "true",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "TZ": "UTC",
+            "TMPDIR": str(temporary_root),
+            "SOURCE_DATE_EPOCH": "0",
         }
     )
     return environment
@@ -139,7 +231,112 @@ def run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> str:
     return completed.stdout.strip()
 
 
-def normalize_core_properties(value: bytes) -> bytes:
+def validate_build_recipe(lock: dict[str, Any]) -> None:
+    recipe = ROOT / lock["buildRecipe"]["path"]
+    if (
+        recipe.is_symlink()
+        or not recipe.is_file()
+        or recipe.resolve().parent != (ROOT / "scripts/ai").resolve()
+        or digest_file(recipe) != lock["buildRecipe"]["sha256"]
+    ):
+        raise PackagePlaneError("package build recipe does not match the authority lock")
+
+
+def _dotnet_host_version(dotnet_info: str) -> str:
+    in_host = False
+    for line in dotnet_info.splitlines():
+        if line.strip() == "Host:":
+            in_host = True
+            continue
+        if in_host and line.strip().startswith("Version:"):
+            return line.split(":", 1)[1].strip()
+        if in_host and line and not line[0].isspace():
+            break
+    return ""
+
+
+def validate_dotnet_toolchain(
+    lock: dict[str, Any],
+    dotnet: Path,
+    dotnet_root: Path,
+    *,
+    environment: dict[str, str],
+) -> dict[str, str]:
+    if dotnet.resolve().parent != dotnet_root.resolve():
+        raise PackagePlaneError("dotnet host must live in the private SDK root")
+    version = run([str(dotnet), "--version"], cwd=ROOT, environment=environment)
+    if version != lock["dotnetSdkVersion"]:
+        raise PackagePlaneError(
+            f"exact .NET SDK {lock['dotnetSdkVersion']} is required; found {version}"
+        )
+    info = run([str(dotnet), "--info"], cwd=ROOT, environment=environment)
+    host_version = _dotnet_host_version(info)
+    if host_version != lock["dotnetRuntimeVersion"]:
+        raise PackagePlaneError(
+            "exact private .NET host/runtime is required "
+            f"(expected {lock['dotnetRuntimeVersion']}, found {host_version or 'unknown'})"
+        )
+    expected_sdk_root = dotnet_root / "sdk" / lock["dotnetSdkVersion"]
+    sdk_rows: list[Path] = []
+    for line in run(
+        [str(dotnet), "--list-sdks"], cwd=ROOT, environment=environment
+    ).splitlines():
+        version_text, separator, location = line.partition(" [")
+        if (
+            version_text == lock["dotnetSdkVersion"]
+            and separator
+            and location.endswith("]")
+        ):
+            sdk_rows.append((Path(location[:-1]) / version_text).resolve())
+    if sdk_rows != [expected_sdk_root.resolve()]:
+        raise PackagePlaneError("private SDK root does not contain the one exact SDK")
+    runtime_root = dotnet_root / "shared/Microsoft.NETCore.App"
+    runtime_versions = (
+        {entry.name for entry in runtime_root.iterdir() if entry.is_dir()}
+        if runtime_root.is_dir()
+        else set()
+    )
+    if runtime_versions != {lock["dotnetRuntimeVersion"]}:
+        raise PackagePlaneError("private SDK root contains runtime version drift")
+    files = {
+        "dotnetHost": dotnet,
+        "csc": expected_sdk_root / "Roslyn/bincore/csc.dll",
+        "msbuild": expected_sdk_root / "Microsoft.Build.dll",
+        "nugetPackaging": expected_sdk_root / "NuGet.Packaging.dll",
+    }
+    if any(not path.is_file() for path in files.values()):
+        raise PackagePlaneError("private SDK toolchain files are incomplete")
+    observed = {key: digest_file(path) for key, path in files.items()}
+    if observed != lock["toolchainSha256"]:
+        raise PackagePlaneError("private SDK toolchain bytes diverge from the lock")
+    return observed
+
+
+def package_build_properties(
+    package: dict[str, Any], source: Path, package_root: Path
+) -> list[str]:
+    normalized_source_root = f"/_/src/{package['checkoutDirectory']}"
+    return [
+        f"-p:PackageVersion={package['version']}",
+        f"-p:Version={package['version']}",
+        f"-p:RepositoryCommit={package['commit']}",
+        f"-p:SourceRevisionId={package['commit']}",
+        f"-p:RepositoryUrl={package['repositoryUrl']}",
+        "-p:RepositoryBranch=",
+        "-p:PublishRepositoryUrl=true",
+        "-p:ContinuousIntegrationBuild=true",
+        "-p:Deterministic=true",
+        "-p:DeterministicSourcePaths=true",
+        "-p:EmbedUntrackedSources=false",
+        f"-p:PathMap={source.resolve()}={normalized_source_root}",
+        "-p:UseSharedCompilation=false",
+        f"-p:RestorePackagesPath={package_root}",
+    ]
+
+
+def normalize_core_properties(
+    value: bytes, package: dict[str, Any] | None = None
+) -> bytes:
     try:
         root = ET.fromstring(value)
     except ET.ParseError as exc:
@@ -156,54 +353,88 @@ def normalize_core_properties(value: bytes) -> bytes:
         child.tag for child in root
     ] != expected_tags:
         raise PackagePlaneError("owner package core properties have an unexpected shape")
-    for child in root:
-        child.text = str(child.text or "").strip()
-    root[-1].text = NORMALIZED_LAST_MODIFIED_BY
+    observed_values = [str(child.text or "").strip() for child in root]
+    if package is None:
+        canonical_values = [*observed_values[:-1], NORMALIZED_LAST_MODIFIED_BY]
+    else:
+        canonical_values = [
+            package["packageId"],
+            "Chummer deterministic package-plane artifact",
+            package["packageId"],
+            package["version"],
+            "",
+            NORMALIZED_LAST_MODIFIED_BY,
+        ]
     ET.register_namespace("", CORE_PROPERTIES_NS)
     ET.register_namespace("dc", DC_NS)
+    canonical = ET.Element(f"{{{CORE_PROPERTIES_NS}}}coreProperties")
+    for tag, text in zip(expected_tags, canonical_values, strict=True):
+        ET.SubElement(canonical, tag).text = text
+    ET.indent(canonical, space="  ")
+    return ET.tostring(canonical, encoding="utf-8", xml_declaration=True)
+
+
+def canonical_relationships(nuspec_name: str, core_path: str) -> bytes:
+    ET.register_namespace("", RELATIONSHIPS_NS)
+    root = ET.Element(f"{{{RELATIONSHIPS_NS}}}Relationships")
+    relationships = (
+        (MANIFEST_RELATIONSHIP, f"/{nuspec_name}"),
+        (CORE_RELATIONSHIP, f"/{core_path}"),
+    )
+    for relationship_type, target in sorted(relationships):
+        identifier = "R" + hashlib.sha256(
+            f"{relationship_type}\n{target}".encode("utf-8")
+        ).hexdigest()[:16].upper()
+        ET.SubElement(
+            root,
+            f"{{{RELATIONSHIPS_NS}}}Relationship",
+            {"Type": relationship_type, "Target": target, "Id": identifier},
+        )
     ET.indent(root, space="  ")
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
-def normalize_nupkg(source: Path, destination: Path) -> None:
+def normalize_nupkg(
+    source: Path, destination: Path, package: dict[str, Any] | None = None
+) -> None:
     with zipfile.ZipFile(source, "r") as archive:
-        entries = {name: archive.read(name) for name in archive.namelist()}
+        names = archive.namelist()
+        if len(names) != len(set(names)):
+            raise PackagePlaneError("owner package contains duplicate entries")
+        entries = {name: archive.read(name) for name in names}
     core_paths = [
         name
         for name in entries
-        if name.startswith("package/services/metadata/core-properties/")
+        if name.startswith(CORE_PROPERTIES_PREFIX)
         and name.endswith(".psmdcp")
     ]
-    if len(core_paths) != 1 or "_rels/.rels" not in entries:
+    nuspec_paths = [name for name in entries if name.lower().endswith(".nuspec")]
+    if len(core_paths) != 1 or len(nuspec_paths) != 1 or "_rels/.rels" not in entries:
         raise PackagePlaneError("owner package has an invalid core-properties inventory")
     original_core_path = core_paths[0]
     core_bytes = entries.pop(original_core_path)
-    entries[NORMALIZED_CORE_PATH] = normalize_core_properties(core_bytes)
+    canonical_core = normalize_core_properties(core_bytes, package)
+    normalized_core_path = (
+        CORE_PROPERTIES_PREFIX + digest_bytes(canonical_core)[:32] + ".psmdcp"
+    )
+    entries[normalized_core_path] = canonical_core
     try:
         relationships = ET.fromstring(entries["_rels/.rels"])
     except ET.ParseError as exc:
         raise PackagePlaneError("owner package relationships are invalid") from exc
-    relationship_types: set[str] = set()
-    for relationship in relationships:
-        relationship_type = relationship.attrib.get("Type", "")
-        relationship_types.add(relationship_type)
-        if relationship_type == MANIFEST_RELATIONSHIP:
-            relationship.set("Id", "R_MANIFEST")
-        elif relationship_type == CORE_RELATIONSHIP:
-            relationship.set("Id", "R_CORE_PROPERTIES")
-            relationship.set("Target", f"/{NORMALIZED_CORE_PATH}")
-        else:
-            raise PackagePlaneError("owner package contains an unexpected relationship")
+    relationship_types = {
+        relationship.attrib.get("Type", "") for relationship in relationships
+    }
     if relationship_types != {MANIFEST_RELATIONSHIP, CORE_RELATIONSHIP}:
         raise PackagePlaneError("owner package relationship set is incomplete")
-    ET.register_namespace("", RELATIONSHIPS_NS)
-    entries["_rels/.rels"] = ET.tostring(
-        relationships, encoding="utf-8", xml_declaration=True
+    entries["_rels/.rels"] = canonical_relationships(
+        nuspec_paths[0], normalized_core_path
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     # Store canonical entries without DEFLATE. Compressed bytes can vary across
     # Python/zlib builds even when every input byte and ZIP header is identical.
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.comment = b""
         for name in sorted(entries):
             if (
                 name.startswith("/")
@@ -211,10 +442,12 @@ def normalize_nupkg(source: Path, destination: Path) -> None:
                 or any(segment in {"", ".", ".."} for segment in name.split("/"))
             ):
                 raise PackagePlaneError(f"owner package contains unsafe entry {name}")
-            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info = zipfile.ZipInfo(name, date_time=CANONICAL_ZIP_TIMESTAMP)
             info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3
-            info.external_attr = 0o100644 << 16
+            info.external_attr = CANONICAL_ZIP_EXTERNAL_ATTR
+            info.extra = b""
+            info.comment = b""
             archive.writestr(info, entries[name], compress_type=zipfile.ZIP_STORED)
 
 
@@ -222,7 +455,16 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
     actual_digest = digest_file(path)
     actual_sha512 = hashlib.sha512(path.read_bytes()).hexdigest()
     with zipfile.ZipFile(path, "r") as archive:
-        names = set(archive.namelist())
+        ordered_names = archive.namelist()
+        names = set(ordered_names)
+        core_paths = [
+            name
+            for name in ordered_names
+            if name.startswith(CORE_PROPERTIES_PREFIX) and name.endswith(".psmdcp")
+        ]
+        if len(core_paths) != 1:
+            raise PackagePlaneError("owner package must contain one core-properties part")
+        core_path = core_paths[0]
         expected_names = {
             "_rels/.rels",
             f"{package['packageId']}.nuspec",
@@ -230,21 +472,40 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
             "PACKAGE_README.md",
             package["licensePath"],
             "[Content_Types].xml",
-            NORMALIZED_CORE_PATH,
+            core_path,
         }
         if names != expected_names:
             raise PackagePlaneError("owner package contains an unexpected file inventory")
+        if ordered_names != sorted(ordered_names) or archive.comment:
+            raise PackagePlaneError("owner package archive layout is not canonical")
+        for info in archive.infolist():
+            if (
+                info.date_time != CANONICAL_ZIP_TIMESTAMP
+                or info.compress_type != zipfile.ZIP_STORED
+                or info.create_system != 3
+                or info.external_attr != CANONICAL_ZIP_EXTERNAL_ATTR
+                or info.extra
+                or info.comment
+            ):
+                raise PackagePlaneError("owner package ZIP metadata is not canonical")
         entry_digests = {
             name: digest_bytes(archive.read(name)) for name in sorted(names)
         }
         actual_assembly_sha256 = digest_bytes(archive.read(package["assemblyPath"]))
-        if actual_assembly_sha256 != package["assemblySha256"]:
-            raise PackagePlaneError(
-                "owner contract assembly bytes diverge from the lock "
-                f"(expected {package['assemblySha256']}, actual {actual_assembly_sha256})"
-            )
         if digest_bytes(archive.read(package["licensePath"])) != package["licenseSha256"]:
             raise PackagePlaneError("owner package license bytes diverge from the lock")
+        core_bytes = archive.read(core_path)
+        expected_core_path = (
+            CORE_PROPERTIES_PREFIX + digest_bytes(core_bytes)[:32] + ".psmdcp"
+        )
+        if core_path != expected_core_path:
+            raise PackagePlaneError("owner package core-properties path is not content-addressed")
+        if core_bytes != normalize_core_properties(core_bytes, package):
+            raise PackagePlaneError("owner package core properties are not canonical")
+        if archive.read("_rels/.rels") != canonical_relationships(
+            f"{package['packageId']}.nuspec", core_path
+        ):
+            raise PackagePlaneError("owner package relationships are not canonical")
         nuspec = ET.fromstring(archive.read(f"{package['packageId']}.nuspec"))
     namespace = {"n": "http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd"}
     metadata = nuspec.find("n:metadata", namespace)
@@ -268,27 +529,43 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
         or repository.attrib.get("commit") != package["commit"]
     ):
         raise PackagePlaneError("owner package nuspec authority metadata diverges from the lock")
-    if actual_digest != package["normalizedNupkgSha256"]:
+    observed = {
+        "assemblySha256": actual_assembly_sha256,
+        "normalizedNupkgSha256": actual_digest,
+        "normalizedNupkgSha512": actual_sha512,
+    }
+    expected = {
+        "assemblySha256": package["assemblySha256"],
+        "normalizedNupkgSha256": package["normalizedNupkgSha256"],
+        "normalizedNupkgSha512": package["normalizedNupkgSha512"],
+    }
+    if observed != expected:
         raise PackagePlaneError(
-            "normalized owner package digest diverges from the lock "
-            f"(expected {package['normalizedNupkgSha256']}, actual {actual_digest}); "
+            "owner package or assembly digests diverge from the lock "
+            f"(expected {json.dumps(expected, sort_keys=True)}, "
+            f"observed {json.dumps(observed, sort_keys=True)}); "
             f"entry SHA-256 values: {json.dumps(entry_digests, sort_keys=True)}"
         )
-    if actual_sha512 != package["normalizedNupkgSha512"]:
-        raise PackagePlaneError("normalized owner package SHA-512 diverges from the lock")
 
 
 def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
     lock, package = load_lock()
+    validate_build_recipe(lock)
+    dotnet_host = resolve_dotnet(dotnet, os.environ)
+    dotnet_root = dotnet_host.parent
     with tempfile.TemporaryDirectory(prefix="chummer-media-package-plane-") as temporary:
         temporary_root = Path(temporary)
-        environment = clean_environment(temporary_root)
-        version = run([str(dotnet), "--version"], cwd=ROOT, environment=environment)
-        if version != lock["dotnetSdkVersion"]:
-            raise PackagePlaneError(
-                f"exact .NET SDK {lock['dotnetSdkVersion']} is required; found {version}"
-            )
-        source = temporary_root / "owner"
+        environment = clean_environment(temporary_root, dotnet_root)
+        observed_toolchain = validate_dotnet_toolchain(
+            lock,
+            dotnet_host,
+            dotnet_root,
+            environment=environment,
+        )
+        source = (
+            temporary_root / "sources" / package["checkoutDirectory"]
+        )
+        source.parent.mkdir(parents=True, exist_ok=True)
         source.mkdir()
         run(["git", "init", "--quiet"], cwd=source, environment=environment)
         run(
@@ -307,16 +584,25 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
         if run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=source, environment=environment):
             raise PackagePlaneError("owner checkout is dirty before package production")
         project = source / package["project"]
+        if not project.is_file():
+            raise PackagePlaneError("owner package project is missing")
+        package_root = temporary_root / "nuget-packages"
+        common_properties = package_build_properties(package, source, package_root)
         run(
             [
-                str(dotnet),
+                str(dotnet_host),
                 "restore",
                 str(project),
                 "--configfile",
                 str(BOOTSTRAP_NUGET_CONFIG),
+                "--packages",
+                str(package_root),
+                "--no-cache",
                 "--nologo",
                 "--verbosity",
                 "quiet",
+                "-m:1",
+                *common_properties,
             ],
             cwd=source,
             environment=environment,
@@ -324,7 +610,7 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
         raw_output = temporary_root / "raw"
         run(
             [
-                str(dotnet),
+                str(dotnet_host),
                 "pack",
                 str(project),
                 "--no-restore",
@@ -335,7 +621,8 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
                 "--nologo",
                 "--verbosity",
                 "quiet",
-                "-p:ContinuousIntegrationBuild=true",
+                "-m:1",
+                *common_properties,
             ],
             cwd=source,
             environment=environment,
@@ -344,8 +631,14 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
         if len(raw_packages) != 1 or raw_packages[0].name != package["nupkgName"]:
             raise PackagePlaneError("owner pack did not emit the one exact locked package")
         normalized = temporary_root / package["nupkgName"]
-        normalize_nupkg(raw_packages[0], normalized)
+        normalize_nupkg(raw_packages[0], normalized, package)
         validate_nupkg(normalized, package)
+        if run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=source,
+            environment=environment,
+        ):
+            raise PackagePlaneError("owner checkout is dirty after package production")
         expected_feed_names = {package["nupkgName"], "feed-inventory.json"}
         feed.mkdir(parents=True, exist_ok=True)
         unexpected = {entry.name for entry in feed.iterdir()} - expected_feed_names
@@ -355,10 +648,13 @@ def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:
         shutil.copyfile(normalized, temporary_package)
         os.replace(temporary_package, feed / package["nupkgName"])
         inventory = {
-            "contract": "chummer.media.package-feed-inventory/v1",
+            "contract": "chummer.media.package-feed-inventory/v2",
             "sourceRepository": package["repository"],
             "sourceCommit": package["commit"],
             "dotnetSdkVersion": lock["dotnetSdkVersion"],
+            "dotnetRuntimeVersion": lock["dotnetRuntimeVersion"],
+            "toolchainSha256": observed_toolchain,
+            "buildRecipeSha256": lock["buildRecipe"]["sha256"],
             "packageId": package["packageId"],
             "packageVersion": package["version"],
             "packageSha256": package["normalizedNupkgSha256"],

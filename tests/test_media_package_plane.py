@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -18,6 +20,7 @@ RUNTIME_PROJECT = (
 PACKAGE_LOCK = ROOT / "src/Chummer.Media.Factory.Runtime/packages.lock.json"
 NUGET_CONFIG = ROOT / "NuGet.Config"
 BOOTSTRAP = ROOT / "scripts/ai/bootstrap_media_package_feed.py"
+WORKFLOW = ROOT / ".github/workflows/pr-ci.yml"
 
 
 def load_bootstrap_module():
@@ -33,11 +36,31 @@ class MediaPackagePlaneTests(unittest.TestCase):
     def test_runtime_consumes_the_exact_owner_package_without_sibling_paths(self) -> None:
         lock = json.loads(LOCK.read_text(encoding="utf-8"))
         self.assertEqual(
-            {"contract", "dotnetSdkVersion", "feedDirectory", "packages"}, set(lock)
+            {
+                "contract",
+                "dotnetSdkVersion",
+                "dotnetRuntimeVersion",
+                "dotnetInstall",
+                "toolchainSha256",
+                "buildRecipe",
+                "feedDirectory",
+                "packages",
+            },
+            set(lock),
         )
+        self.assertEqual("chummer.media.package-plane-lock/v2", lock["contract"])
         self.assertEqual("10.0.103", lock["dotnetSdkVersion"])
+        self.assertEqual("10.0.3", lock["dotnetRuntimeVersion"])
+        self.assertEqual(
+            {
+                "url": "https://dot.net/v1/dotnet-install.sh",
+                "sha256": "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e",
+            },
+            lock["dotnetInstall"],
+        )
         self.assertEqual(1, len(lock["packages"]))
         package = lock["packages"][0]
+        self.assertEqual("chummer-hub-registry", package["checkoutDirectory"])
         project_text = RUNTIME_PROJECT.read_text(encoding="utf-8")
         self.assertNotIn("chummercomplete", project_text)
         self.assertNotIn("chummer.run-services", project_text)
@@ -51,6 +74,100 @@ class MediaPackagePlaneTests(unittest.TestCase):
             "true", project.findtext(".//RestorePackagesWithLockFile")
         )
         self.assertEqual("true", project.findtext(".//RestoreLockedMode"))
+
+    def test_build_recipe_and_private_toolchain_are_authority_locked(self) -> None:
+        lock = json.loads(LOCK.read_text(encoding="utf-8"))
+        recipe = ROOT / lock["buildRecipe"]["path"]
+        self.assertEqual(
+            hashlib.sha256(recipe.read_bytes()).hexdigest(),
+            lock["buildRecipe"]["sha256"],
+        )
+        self.assertEqual(
+            {
+                "dotnetHost": "bff05e5f15646f8b7bb72d1ba8ea1d60db348f17f848962f49840b58276f6c6d",
+                "csc": "9a4237515874153817a8bf4a9c889cafed5148e2d77b04f5dd925c903d3161dc",
+                "msbuild": "cc96c3846ae171984d29ba572ef6f22d273c675cd745c59dc7225fd5cd69610b",
+                "nugetPackaging": "980fd0205cf99d02e52664ea82c678dcd32232b59d96e277b774d4743e7496b1",
+            },
+            lock["toolchainSha256"],
+        )
+
+    def test_build_environment_rejects_ambient_ci_and_msbuild_poisoning(self) -> None:
+        module = load_bootstrap_module()
+        poisoned = {
+            "PATH": os.environ.get("PATH", ""),
+            "DOTNET_ROOT": "/ambient/dotnet",
+            "NUGET_PACKAGES": "/ambient/packages",
+            "DOTNET_CLI_HOME": "/ambient/home",
+            "RestorePackagesPath": "/ambient/restore",
+            "RestoreAdditionalProjectSources": "/ambient/feed",
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_SHA": "f" * 40,
+            "GITHUB_WORKSPACE": "/ambient/workspace",
+            "MSBuildSDKsPath": "/ambient/msbuild",
+            "SourceRevisionId": "e" * 40,
+            "RepositoryCommit": "d" * 40,
+            "CI": "false",
+            "SOURCE_DATE_EPOCH": "1234567890",
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            temp_root = Path(temp)
+            private_dotnet = temp_root / "private-dotnet"
+            result = module.clean_environment(
+                temp_root / "build", private_dotnet, poisoned
+            )
+            self.assertEqual(str(private_dotnet), result["DOTNET_ROOT"])
+            self.assertEqual("true", result["CI"])
+            self.assertEqual("0", result["SOURCE_DATE_EPOCH"])
+            self.assertEqual("0", result["DOTNET_MULTILEVEL_LOOKUP"])
+            self.assertEqual("UTC", result["TZ"])
+            self.assertFalse(
+                any(str(value).startswith("/ambient") for value in result.values())
+            )
+            for key in (
+                "GITHUB_ACTIONS",
+                "GITHUB_SHA",
+                "GITHUB_WORKSPACE",
+                "MSBuildSDKsPath",
+                "SourceRevisionId",
+                "RepositoryCommit",
+                "RestoreAdditionalProjectSources",
+            ):
+                self.assertNotIn(key, result)
+
+    def test_owner_build_properties_pin_source_authority_and_path_map(self) -> None:
+        module = load_bootstrap_module()
+        package = json.loads(LOCK.read_text(encoding="utf-8"))["packages"][0]
+        with tempfile.TemporaryDirectory() as temp:
+            temp_root = Path(temp)
+            source = temp_root / "machine-path" / package["checkoutDirectory"]
+            properties = module.package_build_properties(
+                package, source, temp_root / "packages"
+            )
+        self.assertIn(f"-p:RepositoryCommit={package['commit']}", properties)
+        self.assertIn(f"-p:SourceRevisionId={package['commit']}", properties)
+        self.assertIn(f"-p:RepositoryUrl={package['repositoryUrl']}", properties)
+        self.assertIn("-p:RepositoryBranch=", properties)
+        self.assertIn("-p:ContinuousIntegrationBuild=true", properties)
+        self.assertIn("-p:Deterministic=true", properties)
+        self.assertIn("-p:DeterministicSourcePaths=true", properties)
+        self.assertIn("-p:EmbedUntrackedSources=false", properties)
+        self.assertIn("-p:UseSharedCompilation=false", properties)
+        self.assertIn(
+            f"-p:PathMap={source.resolve()}=/_/src/{package['checkoutDirectory']}",
+            properties,
+        )
+
+    def test_ci_installs_only_the_digest_locked_private_sdk(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("actions/setup-dotnet", workflow)
+        self.assertIn("https://dot.net/v1/dotnet-install.sh", workflow)
+        self.assertIn(
+            "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e",
+            workflow,
+        )
+        self.assertIn("--version 10.0.103", workflow)
+        self.assertIn("DOTNET_ROOT=${media_dotnet_root}", workflow)
 
     def test_lockfile_content_hash_binds_the_normalized_owner_package(self) -> None:
         lock = json.loads(LOCK.read_text(encoding="utf-8"))

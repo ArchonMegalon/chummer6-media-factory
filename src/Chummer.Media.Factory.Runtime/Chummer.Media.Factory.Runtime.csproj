@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Chummer.Media.Contracts\Chummer.Media.Contracts.csproj" />
     <PackageReference Include="Chummer.Hub.Registry.Contracts"
-                      Version="0.0.0-packageplane.20260718.1" />
+                      Version="0.0.0-packageplane.20260718.2" />
   </ItemGroup>
 
   <PropertyGroup>
