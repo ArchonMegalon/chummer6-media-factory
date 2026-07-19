@@ -573,6 +573,18 @@ def _openai_size(width: int, height: int) -> str:
     return "1536x1024" if width >= height else "1024x1536"
 
 
+def _validate_openai_edit_preconditions(reference_image: Path | None) -> Path:
+    if reference_image is None:
+        raise RuntimeError("media_factory:missing_reference_image")
+    if not reference_image.exists():
+        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
+    if not reference_image.is_file():
+        raise RuntimeError(f"media_factory:invalid_reference_image:{reference_image}")
+    if not _openai_api_key():
+        raise RuntimeError("media_factory:openai_edits_not_configured")
+    return reference_image
+
+
 def _render_with_openai_edits(
     *,
     prompt: str,
@@ -581,15 +593,8 @@ def _render_with_openai_edits(
     height: int,
     reference_image: Path | None,
 ) -> dict[str, object]:
-    if reference_image is None:
-        raise RuntimeError("media_factory:missing_reference_image")
-    if not reference_image.exists():
-        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
-    if not reference_image.is_file():
-        raise RuntimeError(f"media_factory:invalid_reference_image:{reference_image}")
+    reference_image = _validate_openai_edit_preconditions(reference_image)
     api_key = _openai_api_key()
-    if not api_key:
-        raise RuntimeError("media_factory:openai_edits_not_configured")
     fields = [
         ("model", str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_EDIT_MODEL") or "gpt-image-1").strip() or "gpt-image-1"),
         ("prompt", str(prompt or "").strip()),
@@ -1202,6 +1207,8 @@ def render_asset(
         }
     if not image_execution_enabled or backend_provider == "disabled":
         raise RuntimeError("media_factory:rendering_disabled")
+    if backend_provider == "openai_edits":
+        _validate_openai_edit_preconditions(reference_image)
 
     _write_attempt_status(
         render_id=render_id,
