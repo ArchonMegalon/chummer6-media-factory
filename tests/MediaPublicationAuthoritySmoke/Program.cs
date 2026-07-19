@@ -70,6 +70,22 @@ Assert(
 Assert(
     canonicalManifestSha256 == "6b6a51b3b345d7a3734697ce66499e7ebc3001fb19f57d847347c10c6b2e0671",
     "C# and Python must share the exact canonical media-manifest vector.");
+var seventhTickManifest = manifest with
+{
+    Lifecycle = manifest.Lifecycle with { ApprovedAtUtc = now.AddTicks(1) },
+};
+Assert(
+    MediaAssetManifestDigest.ComputeSha256(seventhTickManifest)
+        == "8645e54e544bf72f553f21b3945e9d42fe795312a9bdbd326914ec07d3b73b47",
+    "C# and Python must preserve the seventh fractional timestamp digit.");
+var utf16OrdinalLineageManifest = manifest with
+{
+    DerivedAssetIds = ["\uE000", "\U00010000"],
+};
+Assert(
+    MediaAssetManifestDigest.ComputeSha256(utf16OrdinalLineageManifest)
+        == "adde2158cc4667b0675a984d7fb44a7eceb3dca864881098cf3e76e753e582d8",
+    "C# and Python must share UTF-16 ordinal derived-asset ordering.");
 
 ExpectFailure(
     () => PublicMediaAssetProjection.Create(manifest, authority with { ManifestSha256 = "ABC" }, eligibility),

@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import sys
+import unicodedata
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,9 @@ MEDIA_MANIFEST_DIGEST_CONTRACT = "chummer.media.asset-manifest-digest/v1"
 ELIGIBILITY_CONTRACT = "chummer.media.public-eligibility/v2"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+UTC_TIMESTAMP = re.compile(
+    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,7}))?Z$"
+)
 RELEASE_VERSION = re.compile(r"^[A-Za-z0-9._+-]{1,128}$")
 NORMALIZED_TOKEN = re.compile(r"^[a-z0-9][a-z0-9._+-]*$")
 NORMALIZED_IDENTIFIER = re.compile(
@@ -39,6 +43,7 @@ NORMALIZED_IDENTIFIER = re.compile(
 DECISION_STATUSES = {"review_required", "preview_ready", "stable_ready"}
 INSTALL_ACCESS_CLASSES = {"open_public", "account_recommended", "account_required"}
 DOWNLOAD_ACCESS_POSTURES = INSTALL_ACCESS_CLASSES | {"unavailable", "mixed"}
+INT64_MAX = (1 << 63) - 1
 SCHEMA_LOCK_KEYS = {"contract", "repository", "commit", "path", "sha256"}
 CURRENT_KEYS = {"releaseVersion", "snapshotSha256", "decisionSha256", "status"}
 BINDING_KEYS = {
@@ -267,9 +272,22 @@ def require_release_version(value: Any, label: str = "releaseVersion") -> str:
     return value
 
 
-def require_integer(value: Any, label: str, minimum: int) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
-        raise CompatibilityError(f"{label} must be an integer >= {minimum}")
+def require_integer(
+    value: Any, label: str, minimum: int, maximum: int | None = None
+) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < minimum
+        or maximum is not None
+        and value > maximum
+    ):
+        range_label = (
+            f"between {minimum} and {maximum}"
+            if maximum is not None
+            else f">= {minimum}"
+        )
+        raise CompatibilityError(f"{label} must be an integer {range_label}")
     return value
 
 
@@ -279,17 +297,41 @@ def require_nullable_text(value: Any, label: str) -> str | None:
     return require_text(value, label)
 
 
-def canonical_timestamp(value: Any, label: str) -> str:
+def parse_utc_timestamp(value: Any, label: str) -> tuple[dt.datetime, int]:
     value = require_text(value, label)
-    if not value.endswith("Z"):
+    match = UTC_TIMESTAMP.fullmatch(value)
+    if match is None:
         raise CompatibilityError(f"{label} must be a UTC timestamp")
+    year, month, day, hour, minute, second = (
+        int(component) for component in match.groups()[:6]
+    )
+    fraction = (match.group(7) or "").ljust(7, "0")
     try:
-        parsed = dt.datetime.fromisoformat(value[:-1] + "+00:00")
+        parsed = dt.datetime(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            microsecond=int(fraction[:6]),
+            tzinfo=dt.timezone.utc,
+        )
     except ValueError as exc:
         raise CompatibilityError(f"{label} must be a UTC timestamp") from exc
-    if parsed.utcoffset() != dt.timedelta(0):
+    final_tick = int(fraction[6])
+    if parsed == dt.datetime.min.replace(tzinfo=dt.timezone.utc) and final_tick == 0:
         raise CompatibilityError(f"{label} must be a UTC timestamp")
-    return parsed.strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+    return parsed, final_tick
+
+
+def canonical_timestamp(value: Any, label: str) -> str:
+    parsed, final_tick = parse_utc_timestamp(value, label)
+    return (
+        f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}"
+        f"T{parsed.hour:02d}:{parsed.minute:02d}:{parsed.second:02d}."
+        f"{parsed.microsecond:06d}{final_tick}Z"
+    )
 
 
 def canonical_nullable_timestamp(value: Any, label: str) -> str | None:
@@ -306,6 +348,11 @@ def _append_manifest_segment(digest: Any, value: str | None) -> None:
     digest.update(encoded)
 
 
+def utf16_ordinal_key(value: str) -> bytes:
+    """Return the byte-sort key matching .NET StringComparer.Ordinal code units."""
+    return value.encode("utf-16-be")
+
+
 def canonical_media_manifest_sha256(payload: dict[str, Any]) -> str:
     """Compute the exact cross-language media-manifest digest contract."""
     require_exact_keys(payload, MEDIA_MANIFEST_KEYS, "media asset manifest")
@@ -320,7 +367,7 @@ def canonical_media_manifest_sha256(payload: dict[str, Any]) -> str:
     if render_kind not in {0, 1, 2} or approval_status not in {0, 1, 2}:
         raise CompatibilityError("media manifest enum value is invalid")
     content_length = require_integer(
-        payload["contentLengthBytes"], "contentLengthBytes", 1
+        payload["contentLengthBytes"], "contentLengthBytes", 1, INT64_MAX
     )
     content_hash = require_sha(payload["contentHash"], "contentHash")
     derived = payload["derivedAssetIds"]
@@ -350,7 +397,7 @@ def canonical_media_manifest_sha256(payload: dict[str, Any]) -> str:
         canonical_nullable_timestamp(lifecycle["expiresAtUtc"], "expiresAtUtc"),
         canonical_nullable_timestamp(lifecycle["purgedAtUtc"], "purgedAtUtc"),
         str(len(derived_ids)),
-        *sorted(derived_ids),
+        *sorted(derived_ids, key=utf16_ordinal_key),
     ]
     digest = hashlib.sha256()
     for value in values:
@@ -367,9 +414,12 @@ def validate_eligibility(
     canonical_manifest_sha256: str,
 ) -> None:
     require_exact_keys(eligibility, ELIGIBILITY_KEYS, "media public eligibility")
+    if eligibility["curatedForPublicRelease"] is not True:
+        raise CompatibilityError(
+            "media public eligibility curatedForPublicRelease must be boolean true"
+        )
     expected = {
         "contract": ELIGIBILITY_CONTRACT,
-        "curatedForPublicRelease": True,
         "authoritySnapshotSha256": snapshot_sha256,
         "assetId": asset_id,
         "assetContentSha256": content_sha256,
@@ -384,6 +434,105 @@ def validate_eligibility(
     canonical_timestamp(
         eligibility["curatedAtUtc"], "media public eligibility curatedAtUtc"
     )
+
+
+def require_storage_object_key(value: Any) -> str:
+    value = require_text(value, "storageObjectKey")
+    segments = value.split("/")
+    if (
+        value.startswith("/")
+        or "\\" in value
+        or any(unicodedata.category(character) == "Cc" for character in value)
+        or any(segment in {"", ".", ".."} for segment in segments)
+    ):
+        raise CompatibilityError("storageObjectKey must be a safe relative object key")
+    return value
+
+
+def require_content_type(value: Any) -> str:
+    value = require_text(value, "contentType")
+    separator = value.find("/")
+    if (
+        separator <= 0
+        or separator == len(value) - 1
+        or separator != value.rfind("/")
+        or any(character.isspace() for character in value)
+    ):
+        raise CompatibilityError("contentType must contain one canonical type/subtype pair")
+    return value
+
+
+def validate_public_media_manifest(
+    manifest: dict[str, Any], eligibility: dict[str, Any]
+) -> None:
+    """Match PublicMediaAssetProjection's public lifecycle and storage gate."""
+    require_exact_keys(manifest, MEDIA_MANIFEST_KEYS, "media asset manifest")
+    asset_id = require_release_version(manifest["assetId"], "assetId")
+    require_text(manifest["catalogKey"], "catalogKey")
+    require_text(manifest["renderJobId"], "renderJobId")
+    render_kind = require_integer(manifest["renderKind"], "renderKind", 0)
+    if render_kind not in {0, 1, 2}:
+        raise CompatibilityError("media manifest renderKind is invalid")
+    require_text(manifest["storageBucket"], "storageBucket")
+    require_storage_object_key(manifest["storageObjectKey"])
+    require_content_type(manifest["contentType"])
+    require_integer(
+        manifest["contentLengthBytes"], "contentLengthBytes", 1, INT64_MAX
+    )
+    require_sha(manifest["contentHash"], "contentHash")
+
+    lifecycle = manifest["lifecycle"]
+    if not isinstance(lifecycle, dict):
+        raise CompatibilityError("media asset lifecycle must be an object")
+    require_exact_keys(lifecycle, MEDIA_LIFECYCLE_KEYS, "media asset lifecycle")
+    created_at = parse_utc_timestamp(lifecycle["createdAtUtc"], "createdAtUtc")
+    if lifecycle["approvalStatus"] != 1:
+        raise CompatibilityError(
+            "public media lifecycle approvalStatus must be Approved"
+        )
+    if lifecycle["approvedAtUtc"] is None:
+        raise CompatibilityError("public media lifecycle approvedAtUtc is required")
+    if lifecycle["persistedAtUtc"] is None:
+        raise CompatibilityError("public media lifecycle persistedAtUtc is required")
+    if lifecycle["rejectedAtUtc"] is not None:
+        raise CompatibilityError("public media lifecycle rejectedAtUtc must be null")
+    if lifecycle["purgedAtUtc"] is not None:
+        raise CompatibilityError("public media lifecycle purgedAtUtc must be null")
+
+    approved_at = parse_utc_timestamp(lifecycle["approvedAtUtc"], "approvedAtUtc")
+    persisted_at = parse_utc_timestamp(lifecycle["persistedAtUtc"], "persistedAtUtc")
+    curated_at = parse_utc_timestamp(
+        eligibility["curatedAtUtc"], "media public eligibility curatedAtUtc"
+    )
+    expires_at = (
+        None
+        if lifecycle["expiresAtUtc"] is None
+        else parse_utc_timestamp(lifecycle["expiresAtUtc"], "expiresAtUtc")
+    )
+    if (
+        approved_at < created_at
+        or persisted_at < created_at
+        or curated_at < approved_at
+        or curated_at < persisted_at
+    ):
+        raise CompatibilityError(
+            "public media lifecycle timestamps are out of order at curation"
+        )
+    if expires_at is not None and expires_at <= curated_at:
+        raise CompatibilityError("public media lifecycle is expired at curation")
+
+    derived = manifest["derivedAssetIds"]
+    if not isinstance(derived, list):
+        raise CompatibilityError("derivedAssetIds must be an array")
+    derived_ids = [require_text(item, "derivedAssetIds item") for item in derived]
+    if len(derived_ids) != len(set(derived_ids)):
+        raise CompatibilityError("derivedAssetIds must be unique")
+    if asset_id in derived_ids:
+        raise CompatibilityError("media asset lineage cannot derive from itself")
+    require_nullable_text(manifest["previewAssetId"], "previewAssetId")
+    parent_asset_id = require_nullable_text(manifest["parentAssetId"], "parentAssetId")
+    if parent_asset_id == asset_id:
+        raise CompatibilityError("media asset lineage cannot name itself as parent")
 
 
 def require_identifier_list(value: Any, label: str, *, sorted_values: bool) -> list[str]:
@@ -906,6 +1055,7 @@ def verify(
         content_sha256=asset_content_sha256,
         canonical_manifest_sha256=canonical_manifest_sha256,
     )
+    validate_public_media_manifest(media_manifest, eligibility)
     validate_decision(decision, snapshot)
     validate_provenance(
         provenance,
