@@ -40,6 +40,8 @@ SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA512 = re.compile(r"^[0-9a-f]{128}$")
 RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+CORE_PROPERTIES_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+DC_NS = "http://purl.org/dc/elements/1.1/"
 CORE_RELATIONSHIP = (
     "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
 )
@@ -47,6 +49,7 @@ MANIFEST_RELATIONSHIP = "http://schemas.microsoft.com/packaging/2010/07/manifest
 NORMALIZED_CORE_PATH = (
     "package/services/metadata/core-properties/registry-contracts.psmdcp"
 )
+NORMALIZED_LAST_MODIFIED_BY = "Chummer deterministic package plane/v1"
 
 
 class PackagePlaneError(RuntimeError):
@@ -97,6 +100,7 @@ def clean_environment(root: Path) -> dict[str, str]:
             "NUGET_PACKAGES",
             "NUGET_HTTP_CACHE_PATH",
             "DOTNET_CLI_HOME",
+            "RestorePackagesPath",
             "MSBuildSDKsPath",
         }
     }
@@ -112,6 +116,7 @@ def clean_environment(root: Path) -> dict[str, str]:
             "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
             "NUGET_PACKAGES": str(root / "nuget-packages"),
             "NUGET_HTTP_CACHE_PATH": str(root / "nuget-http-cache"),
+            "RestorePackagesPath": str(root / "nuget-packages"),
         }
     )
     return environment
@@ -134,6 +139,32 @@ def run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> str:
     return completed.stdout.strip()
 
 
+def normalize_core_properties(value: bytes) -> bytes:
+    try:
+        root = ET.fromstring(value)
+    except ET.ParseError as exc:
+        raise PackagePlaneError("owner package core properties are invalid") from exc
+    expected_tags = [
+        f"{{{DC_NS}}}creator",
+        f"{{{DC_NS}}}description",
+        f"{{{DC_NS}}}identifier",
+        f"{{{CORE_PROPERTIES_NS}}}version",
+        f"{{{CORE_PROPERTIES_NS}}}keywords",
+        f"{{{CORE_PROPERTIES_NS}}}lastModifiedBy",
+    ]
+    if root.tag != f"{{{CORE_PROPERTIES_NS}}}coreProperties" or [
+        child.tag for child in root
+    ] != expected_tags:
+        raise PackagePlaneError("owner package core properties have an unexpected shape")
+    for child in root:
+        child.text = str(child.text or "").strip()
+    root[-1].text = NORMALIZED_LAST_MODIFIED_BY
+    ET.register_namespace("", CORE_PROPERTIES_NS)
+    ET.register_namespace("dc", DC_NS)
+    ET.indent(root, space="  ")
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
 def normalize_nupkg(source: Path, destination: Path) -> None:
     with zipfile.ZipFile(source, "r") as archive:
         entries = {name: archive.read(name) for name in archive.namelist()}
@@ -147,7 +178,7 @@ def normalize_nupkg(source: Path, destination: Path) -> None:
         raise PackagePlaneError("owner package has an invalid core-properties inventory")
     original_core_path = core_paths[0]
     core_bytes = entries.pop(original_core_path)
-    entries[NORMALIZED_CORE_PATH] = core_bytes
+    entries[NORMALIZED_CORE_PATH] = normalize_core_properties(core_bytes)
     try:
         relationships = ET.fromstring(entries["_rels/.rels"])
     except ET.ParseError as exc:
@@ -189,14 +220,7 @@ def normalize_nupkg(source: Path, destination: Path) -> None:
 
 def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
     actual_digest = digest_file(path)
-    if actual_digest != package["normalizedNupkgSha256"]:
-        raise PackagePlaneError(
-            "normalized owner package digest diverges from the lock "
-            f"(expected {package['normalizedNupkgSha256']}, actual {actual_digest})"
-        )
     actual_sha512 = hashlib.sha512(path.read_bytes()).hexdigest()
-    if actual_sha512 != package["normalizedNupkgSha512"]:
-        raise PackagePlaneError("normalized owner package SHA-512 diverges from the lock")
     with zipfile.ZipFile(path, "r") as archive:
         names = set(archive.namelist())
         expected_names = {
@@ -210,6 +234,9 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
         }
         if names != expected_names:
             raise PackagePlaneError("owner package contains an unexpected file inventory")
+        entry_digests = {
+            name: digest_bytes(archive.read(name)) for name in sorted(names)
+        }
         actual_assembly_sha256 = digest_bytes(archive.read(package["assemblyPath"]))
         if actual_assembly_sha256 != package["assemblySha256"]:
             raise PackagePlaneError(
@@ -241,6 +268,14 @@ def validate_nupkg(path: Path, package: dict[str, Any]) -> None:
         or repository.attrib.get("commit") != package["commit"]
     ):
         raise PackagePlaneError("owner package nuspec authority metadata diverges from the lock")
+    if actual_digest != package["normalizedNupkgSha256"]:
+        raise PackagePlaneError(
+            "normalized owner package digest diverges from the lock "
+            f"(expected {package['normalizedNupkgSha256']}, actual {actual_digest}); "
+            f"entry SHA-256 values: {json.dumps(entry_digests, sort_keys=True)}"
+        )
+    if actual_sha512 != package["normalizedNupkgSha512"]:
+        raise PackagePlaneError("normalized owner package SHA-512 diverges from the lock")
 
 
 def bootstrap(*, dotnet: Path, feed: Path) -> dict[str, Any]:

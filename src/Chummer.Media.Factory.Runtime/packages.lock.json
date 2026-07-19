@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[0.0.0-packageplane.20260718.1, )",
         "resolved": "0.0.0-packageplane.20260718.1",
-        "contentHash": "jjyf1yZHFLUWxL88cZn4skKQoERgdQkMXXOcL0AwhzYvTRi9ni39TVz7JQjCiRzhqJ2HdkE9jpRIn/4hO4Q8CA=="
+        "contentHash": "TxZFYawLVDwXzU8Dhz2mPACg+WnhYqGFkFMXlcq2Ok6dndWLWJ5L+BRIK4sVbGv5Py3aLfSR5vg/qA/s9f/bhw=="
       },
       "chummer.media.contracts": {
         "type": "Project"

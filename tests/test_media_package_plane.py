@@ -85,10 +85,19 @@ class MediaPackagePlaneTests(unittest.TestCase):
   <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/package.nuspec" Id="random-manifest" />
   <Relationship Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/package/services/metadata/core-properties/random.psmdcp" Id="random-core" />
 </Relationships>"""
+        core_properties = b"""<?xml version="1.0" encoding="utf-8"?>
+<coreProperties xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://schemas.openxmlformats.org/package/2006/metadata/core-properties">
+  <dc:creator>owner</dc:creator>
+  <dc:description>description</dc:description>
+  <dc:identifier>package</dc:identifier>
+  <version>1.0.0</version>
+  <keywords>contracts</keywords>
+  <lastModifiedBy>host-specific value</lastModifiedBy>
+</coreProperties>"""
         entries = {
             "_rels/.rels": relationships,
             "package.nuspec": b"package metadata",
-            "package/services/metadata/core-properties/random.psmdcp": b"core metadata",
+            "package/services/metadata/core-properties/random.psmdcp": core_properties,
         }
         with tempfile.TemporaryDirectory() as temp:
             temp_root = Path(temp)

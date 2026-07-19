@@ -9,10 +9,22 @@ report_verification_failure() {
 
 trap report_verification_failure ERR
 
-export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-/tmp/chummer-media-factory-dotnet}"
+verification_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-verify.XXXXXX")"
+cleanup_verification() {
+  if [[ -n "${verification_temp_root:-}" && -d "${verification_temp_root}" ]]; then
+    rm -rf -- "${verification_temp_root}"
+  fi
+}
+
+trap cleanup_verification EXIT
+
+export DOTNET_CLI_HOME="${verification_temp_root}/dotnet-home"
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 export DOTNET_NOLOGO=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export NUGET_PACKAGES="${verification_temp_root}/nuget-packages"
+export NUGET_HTTP_CACHE_PATH="${verification_temp_root}/nuget-http-cache"
+export RestorePackagesPath="${verification_temp_root}/nuget-packages"
 
 test -f README.md
 test -f AGENTS.md
@@ -154,7 +166,8 @@ if CHUMMER_MEDIA_FACTORY_IMAGE_BACKEND=openai_edits OPENAI_API_KEY=dummy python3
 fi
 rg -n 'media_factory:invalid_reference_image:\.' /tmp/chummer-media-factory-openai-invalid-ref.log >/dev/null
 
-health_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-health.XXXXXX")"
+health_state_dir="${verification_temp_root}/health"
+mkdir -p "${health_state_dir}"
 printf '[]\n' >"${health_state_dir}/guide_provider_health.json"
 CHUMMER_MEDIA_FACTORY_STATE_DIR="${health_state_dir}" python3 - <<'PY'
 import importlib.util
@@ -168,7 +181,6 @@ registry = module._load_health_registry()
 assert isinstance(registry, dict)
 assert registry.get("providers") == {}
 PY
-rm -rf "${health_state_dir}"
 
 python3 scripts/ai/bootstrap_media_package_feed.py --dotnet "$(command -v dotnet)" >/dev/null
 dotnet restore Chummer.Media.Factory.slnx --locked-mode --configfile NuGet.Config --nologo --verbosity quiet
@@ -180,8 +192,8 @@ bash scripts/ai/verify_m115_replay_exchange_previews.sh
 bash scripts/ai/verify_m119_starter_artifacts.sh
 bash scripts/ai/contract-boundary-tests.sh
 
-pack_output_root="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-contracts-pack.XXXXXX")"
-trap 'rm -rf "$pack_output_root"' EXIT
+pack_output_root="${verification_temp_root}/contracts-pack"
+mkdir -p "${pack_output_root}"
 
 assert_no_package_bytes() {
   if find "$1" -maxdepth 1 -type f -name "*.nupkg" -print -quit | grep -q .; then
