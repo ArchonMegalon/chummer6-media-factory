@@ -49,14 +49,18 @@ RUN python3 -m pip install \
  && apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg \
  && rm -rf /var/lib/apt/lists/* \
- && groupadd --gid "${CHUMMER_MEDIA_FACTORY_GID}" chummer-media \
- && useradd \
-      --uid "${CHUMMER_MEDIA_FACTORY_UID}" \
-      --gid "${CHUMMER_MEDIA_FACTORY_GID}" \
-      --home-dir /nonexistent \
-      --no-create-home \
-      --shell /usr/sbin/nologin \
-      chummer-media
+ && if ! getent group "${CHUMMER_MEDIA_FACTORY_GID}" >/dev/null; then \
+      groupadd --gid "${CHUMMER_MEDIA_FACTORY_GID}" chummer-media; \
+    fi \
+ && if ! getent passwd "${CHUMMER_MEDIA_FACTORY_UID}" >/dev/null; then \
+      useradd \
+        --uid "${CHUMMER_MEDIA_FACTORY_UID}" \
+        --gid "${CHUMMER_MEDIA_FACTORY_GID}" \
+        --home-dir /nonexistent \
+        --no-create-home \
+        --shell /usr/sbin/nologin \
+        chummer-media; \
+    fi
 
 WORKDIR /app
 COPY --from=build /app/publish/ ./
