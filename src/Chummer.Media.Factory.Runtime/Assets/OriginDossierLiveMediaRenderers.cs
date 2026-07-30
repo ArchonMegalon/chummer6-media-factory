@@ -14,18 +14,22 @@ namespace Chummer.Run.AI.Services.Assets;
 public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobookRenderer
 {
     private const string DefaultApiBaseUrl = "https://unmixr.com/api/v1";
+    private const int ProviderMaximumCharactersPerRequest = 2_000;
+    private const int SafeMaximumCharactersPerRequest = 1_900;
     private readonly HttpClient _http;
     private readonly string _apiBaseUrl;
     private readonly IReadOnlyList<string> _apiKeys;
     private readonly IReadOnlyDictionary<string, string> _voiceMap;
     private readonly int _maximumCharactersPerRequest;
+    private readonly int _maximumParallelRequests;
 
     public UnmixrOriginDossierAudiobookRenderer(
         HttpClient? httpClient = null,
         string? apiBaseUrl = null,
         IEnumerable<string>? apiKeys = null,
         IReadOnlyDictionary<string, string>? voiceMap = null,
-        int maximumCharactersPerRequest = 3_000)
+        int maximumCharactersPerRequest = SafeMaximumCharactersPerRequest,
+        int maximumParallelRequests = 4)
     {
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
         _apiBaseUrl = (apiBaseUrl ?? Environment.GetEnvironmentVariable("CHUMMER_MEDIA_FACTORY_UNMIXR_API_BASE_URL")
@@ -36,8 +40,19 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         _voiceMap = voiceMap ?? LoadVoiceMap();
-        _maximumCharactersPerRequest = Math.Clamp(maximumCharactersPerRequest, 500, 5_000);
+        _maximumCharactersPerRequest = Math.Clamp(
+            maximumCharactersPerRequest,
+            500,
+            Math.Min(SafeMaximumCharactersPerRequest, ProviderMaximumCharactersPerRequest));
+        _maximumParallelRequests = Math.Clamp(
+            maximumParallelRequests,
+            1,
+            Math.Max(_apiKeys.Count, 1));
     }
+
+    internal int MaximumCharactersPerRequest => _maximumCharactersPerRequest;
+
+    internal int MaximumParallelRequests => _maximumParallelRequests;
 
     public async Task<OriginDossierMediaRenderResult> RenderAsync(
         OriginDossierMediaDispatchRequest request,
@@ -68,23 +83,29 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
         string voiceId = ResolveProviderVoiceId(request.SelectionId);
         string segmentRoot = Path.Combine(outputDirectory, "segments");
         Directory.CreateDirectory(segmentRoot);
-        var segmentPaths = new List<string>(chunks.Count);
-        var providerRefs = new List<string>(chunks.Count);
-        for (int index = 0; index < chunks.Count; index++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            UnmixrAudioResponse audio = await SynthesizeAsync(
-                chunks[index],
-                voiceId,
-                request.Locale,
-                index,
-                cancellationToken);
-            string extension = ExtensionForContentType(audio.ContentType);
-            string segmentPath = Path.Combine(segmentRoot, $"segment-{index + 1:D4}{extension}");
-            await File.WriteAllBytesAsync(segmentPath, audio.Bytes, cancellationToken);
-            segmentPaths.Add(segmentPath);
-            providerRefs.Add(audio.ProviderReferenceHash);
-        }
+        var segmentPaths = new string[chunks.Count];
+        var providerRefs = new string[chunks.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, chunks.Count),
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = _maximumParallelRequests
+            },
+            async (index, token) =>
+            {
+                UnmixrAudioResponse audio = await SynthesizeAsync(
+                    chunks[index],
+                    voiceId,
+                    request.Locale,
+                    index,
+                    token);
+                string extension = ExtensionForContentType(audio.ContentType);
+                string segmentPath = Path.Combine(segmentRoot, $"segment-{index + 1:D4}{extension}");
+                await File.WriteAllBytesAsync(segmentPath, audio.Bytes, token);
+                segmentPaths[index] = segmentPath;
+                providerRefs[index] = audio.ProviderReferenceHash;
+            });
 
         string outputPath = Path.Combine(outputDirectory, "origin-dossier-audiobook.m4b");
         await AssembleM4bAsync(segmentPaths, outputPath, cancellationToken);
@@ -96,7 +117,7 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
             requestId = request.RequestId,
             provider = "Unmixr AI",
             providerAccountKeyCount = _apiKeys.Count,
-            segmentCount = segmentPaths.Count,
+            segmentCount = segmentPaths.Length,
             segmentSha256 = segmentPaths.Select(Sha256File).ToArray(),
             providerExecutionRefHash = executionHash,
             outputSha256 = Sha256File(outputPath),

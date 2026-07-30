@@ -30,7 +30,15 @@ var voiceResolver = new UnmixrOriginDossierAudiobookRenderer(
     {
         ["voice-noir"] = "008f05b0-d477-41c5-b8f4-1bb2815dd06a",
         ["voice-wire"] = "a5291143-a094-4ed0-8a36-ce4cdc29b7c4"
-    });
+    },
+    maximumCharactersPerRequest: 3_000,
+    maximumParallelRequests: 8);
+Assert(
+    voiceResolver.MaximumCharactersPerRequest == 1_900,
+    "Unmixr audiobook chunks must stay safely below the provider's 2,000-character limit.");
+Assert(
+    voiceResolver.MaximumParallelRequests == 1,
+    "Unmixr parallelism must not exceed the number of configured provider accounts.");
 Assert(
     voiceResolver.ResolveProviderVoiceId("voice-noir")
         == "008f05b0-d477-41c5-b8f4-1bb2815dd06a",
