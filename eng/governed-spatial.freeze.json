@@ -1,0 +1,14 @@
+{
+  "contract": "chummer.media.governed-spatial-freeze/v1",
+  "status": "blocked",
+  "providerExecutionAuthorized": false,
+  "quotaUseAuthorized": false,
+  "releaseScopeWidened": false,
+  "requiredBeforeUnfreeze": [
+    "independent re-review passes",
+    "PropertyQuarry numeric policy exists",
+    "authority boundaries are accepted",
+    "retention and deletion tests are executable",
+    "public release truth is converged"
+  ]
+}

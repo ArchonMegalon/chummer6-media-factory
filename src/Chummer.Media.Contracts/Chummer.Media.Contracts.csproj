@@ -1,4 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk"
+>
 
   <PropertyGroup>
     <PackageId>Chummer.Media.Contracts</PackageId>
@@ -8,8 +9,13 @@
     <PackageTags>chummer;media;contracts;render-verified;dto</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/ArchonMegalon/chummer6-media-factory.git</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IsPackable>true</IsPackable>
+    <!-- Package authorization is intentionally outside MSBuild. The checked-in
+         external policy currently blocks publication, so this project never
+         authorizes package bytes through command-line properties or imports. -->
+    <IsPackable>false</IsPackable>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -20,5 +26,11 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <Target Name="RejectDirectMediaContractsPackageProduction"
+          BeforeTargets="GenerateNuspec;Pack"
+          Condition="'$(IsPackable)' == 'true'">
+    <Error Text="Direct MSBuild package production is forbidden. Package licensing is authorized and final nupkg bytes are validated only by the external media-contract package policy lane." />
+  </Target>
 
 </Project>

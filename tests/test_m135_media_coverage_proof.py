@@ -8,9 +8,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FLEET_QUEUE = Path('/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml')
-DESIGN_QUEUE = Path('/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml')
-REGISTRY = Path('/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml')
+FLEET_QUEUE = ROOT / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+DESIGN_QUEUE = ROOT / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+REGISTRY = ROOT / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"
 REPO_LOCAL_QUEUE = ROOT / '.codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml'
 REPO_LOCAL_REGISTRY = ROOT / '.codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml'
 

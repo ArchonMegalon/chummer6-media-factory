@@ -8,15 +8,15 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FLEET_QUEUE = Path("/docker/fleet/.codex-studio/published/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
-DESIGN_QUEUE = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_QUEUE_STAGING.generated.yaml")
-REGISTRY = Path("/docker/chummercomplete/chummer-design/products/chummer/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml")
+FLEET_QUEUE = ROOT / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+DESIGN_QUEUE = ROOT / ".codex-design/product/NEXT_90_DAY_QUEUE_STAGING.generated.yaml"
+REGISTRY = ROOT / ".codex-design/product/NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml"
 
 PACKAGE_ID = "next90-m119-media-factory-starter-artifacts"
 FRONTIER_ID = "1413666751"
 LANDED_COMMIT = "TO_BE_FILLED_M119_COMMIT"
 PROOF_FLOOR_COMMIT = "TO_BE_FILLED_M119_COMMIT"
-VERIFY_SCRIPT = Path("/docker/fleet/repos/chummer-media-factory/scripts/ai/verify_m119_starter_artifacts.sh")
+VERIFY_SCRIPT = ROOT / "scripts/ai/verify_m119_starter_artifacts.sh"
 
 
 def read(path: Path) -> str:

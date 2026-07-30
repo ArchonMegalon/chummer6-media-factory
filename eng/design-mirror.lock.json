@@ -1,0 +1,41 @@
+{
+  "contract": "chummer.media.design-mirror-lock/v1",
+  "repository": "ArchonMegalon/chummer6-design",
+  "repositoryUrl": "https://github.com/ArchonMegalon/chummer6-design.git",
+  "commit": "67d2965b7b95a21f6b7402564f995270c3535bca",
+  "sourceRoot": "products/chummer",
+  "files": [
+    {
+      "path": "NEXT_90_DAY_PRODUCT_ADVANCE_REGISTRY.yaml",
+      "sha256": "bef807ae6bedaf0ee64e1052c75dbe920a214a597dc8a07941388800c2f4eeba"
+    },
+    {
+      "path": "NEXT_90_DAY_QUEUE_STAGING.generated.yaml",
+      "sha256": "9ed2805870aab4b98139e0638d9f5829303b6095f3bf747ed33f742c9ea5d37d"
+    },
+    {
+      "path": "PUBLIC_DOWNLOADS_POLICY.md",
+      "sha256": "765aad7c72d63f266a9d43d1d07a44c99ec84f0832b3f448bf5306a79cd2480a"
+    },
+    {
+      "path": "PUBLIC_LANDING_MANIFEST.yaml",
+      "sha256": "18f8f501c0e6319edc85b5e78c3d97d5d223ca20972afce2fd12b8bf4ba572ce"
+    },
+    {
+      "path": "PUBLIC_LANDING_POLICY.md",
+      "sha256": "d956f8d65b84925d77eaeaf6b5faf30177a92cf7f7c007219babd4d33e9ff2ad"
+    },
+    {
+      "path": "README.md",
+      "sha256": "0f2bdad13a2d9589fde5701a4b736112ad78d33f5757f3d8635a806c9d3f31ea"
+    },
+    {
+      "path": "USER_JOURNEYS.md",
+      "sha256": "a27a1eedc8ae174910965e2b3d46d92c9b4de4edd4385769a8457236474e99be"
+    },
+    {
+      "path": "VISION.md",
+      "sha256": "25973bfbe2ea1a9c2b3c2b7270e6d7b193c8812594dd5819ca25152fdeac241c"
+    }
+  ]
+}

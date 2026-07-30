@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/verify/">
     <Project Path="Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verify.csproj" />
+    <Project Path="tests/MediaPublicationAuthoritySmoke/Chummer.Media.PublicationAuthoritySmoke.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj" />

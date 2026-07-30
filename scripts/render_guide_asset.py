@@ -23,7 +23,7 @@ from time import monotonic
 
 
 MEDIA_FACTORY_ROOT = Path(__file__).resolve().parents[1]
-EA_ROOT = Path("/docker/EA")
+EA_ROOT = Path(os.environ.get("EA_ROOT", "/docker/EA"))
 EA_APP_ROOT = EA_ROOT / "ea"
 EA_SCRIPTS_ROOT = EA_ROOT / "scripts"
 STATE_ROOT = Path(os.environ.get("CHUMMER_MEDIA_FACTORY_STATE_DIR", "/docker/fleet/state/chummer6/media-factory"))
@@ -50,7 +50,21 @@ for root in (EA_APP_ROOT, EA_SCRIPTS_ROOT):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
 
-from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
+try:
+    from chummer6_runtime_config import load_local_env, load_runtime_overrides  # type: ignore  # noqa: E402
+except ModuleNotFoundError as exc:
+    if exc.name != "chummer6_runtime_config":
+        raise
+
+    def load_local_env() -> dict[str, str]:
+        """Return no operator overrides when the optional EA runtime is absent."""
+
+        return {}
+
+    def load_runtime_overrides() -> dict[str, str]:
+        """Return no policy overrides when the optional EA runtime is absent."""
+
+        return {}
 
 
 _ONEMIN_SLOT_HINTS_CACHE: dict[str, dict[str, object]] | None = None
@@ -504,7 +518,7 @@ def _selected_backend() -> str:
         return "openai_edits"
     if backend in {"disabled", "off", "none"}:
         return "disabled"
-    return backend
+    raise RuntimeError(f"media_factory:unsupported_backend:{backend}")
 
 
 def _openai_api_key() -> str:
@@ -559,6 +573,18 @@ def _openai_size(width: int, height: int) -> str:
     return "1536x1024" if width >= height else "1024x1536"
 
 
+def _validate_openai_edit_preconditions(reference_image: Path | None) -> Path:
+    if reference_image is None:
+        raise RuntimeError("media_factory:missing_reference_image")
+    if not reference_image.exists():
+        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
+    if not reference_image.is_file():
+        raise RuntimeError(f"media_factory:invalid_reference_image:{reference_image}")
+    if not _openai_api_key():
+        raise RuntimeError("media_factory:openai_edits_not_configured")
+    return reference_image
+
+
 def _render_with_openai_edits(
     *,
     prompt: str,
@@ -567,15 +593,8 @@ def _render_with_openai_edits(
     height: int,
     reference_image: Path | None,
 ) -> dict[str, object]:
-    if reference_image is None:
-        raise RuntimeError("media_factory:missing_reference_image")
-    if not reference_image.exists():
-        raise RuntimeError(f"media_factory:missing_reference_image:{reference_image}")
-    if not reference_image.is_file():
-        raise RuntimeError(f"media_factory:invalid_reference_image:{reference_image}")
+    reference_image = _validate_openai_edit_preconditions(reference_image)
     api_key = _openai_api_key()
-    if not api_key:
-        raise RuntimeError("media_factory:openai_edits_not_configured")
     fields = [
         ("model", str(os.environ.get("CHUMMER_MEDIA_FACTORY_OPENAI_EDIT_MODEL") or "gpt-image-1").strip() or "gpt-image-1"),
         ("prompt", str(prompt or "").strip()),
@@ -1188,6 +1207,8 @@ def render_asset(
         }
     if not image_execution_enabled or backend_provider == "disabled":
         raise RuntimeError("media_factory:rendering_disabled")
+    if backend_provider == "openai_edits":
+        _validate_openai_edit_preconditions(reference_image)
 
     _write_attempt_status(
         render_id=render_id,
@@ -1272,9 +1293,6 @@ def render_asset(
             )
             _record_health_attempt(backend=backend_provider, family=family, detail=detail, ok=False)
             raise
-
-    if backend_provider != "onemin":
-        raise RuntimeError(f"media_factory:unsupported_backend:{backend_provider}")
 
     reservation_request_id = f"media-factory-image-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{width}x{height}"
     reservation = _reserve_onemin_image_slot(
