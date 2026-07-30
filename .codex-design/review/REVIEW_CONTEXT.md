@@ -5,3 +5,8 @@
 - Flag direct provider calls from client repos or `hub` once media-factory owns the render path as P1.
 - Flag app-host filesystem blob storage, missing retention state, or non-idempotent heavy render execution as P1.
 - Flag document rendering nondeterminism or missing portrait/video lineage preservation as P1.
+- For `governed_spatial_render_v1`, require canonical `Chummer.Media.Contracts` ownership, deterministic authoritative compose, strict compose/build separation, and zero provider enqueue/reservation/quota mutation during compose.
+- Reject builds without a fresh consumer authorization, accepted composition digest, same-key idempotency, bounded attempts, current exact-family/environment/route/gate capability evidence, and atomic reservation/consumption/cancellation/compensation receipts.
+- Require immutable output manifests, encrypted private execution receipts, provider-redacted projections, numeric retention, deletion cascades, provider-deletion evidence, tombstone-first restoration, and Registry-owned public publication/revocation.
+- Reject any provider/capability/artifact `ready` projection from prose, environment variables, provider names, historical handoffs, compose receipts, or missing/stale/revoked/mismatched evidence; fail closed to `unverified` or `blocked`.
+- Reject mechanics/outcome calculation or mutation, public/private audience ownership, PropertyQuarry authority claims, or private encounter-preview leakage into public RUNSITE meaning.
