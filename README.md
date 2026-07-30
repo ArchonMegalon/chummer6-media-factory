@@ -34,3 +34,38 @@ Registry owner commit in `eng/package-plane.lock.json`; ambient sibling reposito
 and mutable package feeds are not release inputs. The official .NET SDK archive is
 digest-pinned, and its complete extracted inventory is authenticated before the first
 `dotnet` execution.
+
+## Local Origin Dossier worker
+
+The Origin Dossier worker is the Chummer-owned execution boundary for premium
+audiobook and selected-scene requests. The Hub writes provider-neutral requests;
+this worker resolves protected provider configuration, renders once, and emits a
+provider-redacted receipt. A matching successful receipt is reused without another
+provider call.
+
+Before the first local image build, create the governed package feed with
+`scripts/ai/bootstrap_media_package_feed.py` and the exact SDK/archive from
+`eng/package-plane.lock.json`. Then prepare a least-privilege provider env file:
+
+```bash
+python3 scripts/providers/prepare_origin_dossier_provider_env.py \
+  --source /docker/EA/.env \
+  --output /docker/fleet/secrets/chummer-media-factory/providers.env
+```
+
+The preparation step copies only the approved MagicFit and Unmixr settings and
+discovers the current English voice ids for the provider-neutral product choices.
+It does not synthesize audio or render video.
+
+Build locally—no GitHub Actions are required or used:
+
+```bash
+docker build \
+  --file Dockerfile.origin-dossier-worker \
+  --tag chummer-origin-media-worker:local \
+  .
+```
+
+`chummer.run-services/docker-compose.public-edge.yml` mounts the Hub state
+read-only into the worker and shares only `/origin-media` for inbox requests,
+outputs, receipts, and the worker heartbeat.

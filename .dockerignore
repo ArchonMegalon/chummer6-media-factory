@@ -1,0 +1,10 @@
+.git
+.github
+.codex-studio
+.artifacts
+**/bin
+**/obj
+**/__pycache__
+.tmp/*
+!.tmp/package-feed
+!.tmp/package-feed/**

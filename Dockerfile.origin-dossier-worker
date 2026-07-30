@@ -1,0 +1,67 @@
+# syntax=docker/dockerfile:1.7
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0.103@sha256:e362a8dbcd691522456da26a5198b8f3ca1d7641c95624fadc5e3e82678bd08a AS build
+WORKDIR /src
+
+COPY global.json Directory.Build.props Directory.Build.targets NuGet.Config ./
+COPY .tmp/package-feed/ .tmp/package-feed/
+COPY src/Chummer.Media.Contracts/ src/Chummer.Media.Contracts/
+COPY src/Chummer.Media.Factory.Runtime/ src/Chummer.Media.Factory.Runtime/
+COPY src/Chummer.Media.Factory.Worker/ src/Chummer.Media.Factory.Worker/
+COPY scripts/providers/render_magicfit_origin_dossier.py scripts/providers/render_magicfit_origin_dossier.py
+
+RUN dotnet restore \
+      src/Chummer.Media.Factory.Worker/Chummer.Media.Factory.Worker.csproj \
+      --locked-mode \
+      --nologo \
+      -m:1 \
+ && dotnet publish \
+      src/Chummer.Media.Factory.Worker/Chummer.Media.Factory.Worker.csproj \
+      --configuration Release \
+      --no-restore \
+      --output /app/publish \
+      --nologo \
+      -m:1 \
+      -p:BuildInParallel=false \
+      -p:UseSharedCompilation=false
+
+FROM mcr.microsoft.com/playwright/python:v1.60.0-noble@sha256:8ff591d613b01c884cc488339ed4318b4513eaf0c57a164a878ba49e70e3f384 AS final
+ARG CHUMMER_MEDIA_FACTORY_UID=1654
+ARG CHUMMER_MEDIA_FACTORY_GID=1654
+
+ENV DOTNET_ROOT=/usr/share/dotnet \
+    PATH="/usr/share/dotnet:${PATH}" \
+    PYTHONUNBUFFERED=1
+
+COPY --from=build /usr/share/dotnet /usr/share/dotnet
+RUN python3 -m pip install \
+      --no-cache-dir \
+      --disable-pip-version-check \
+      playwright==1.60.0 \
+      requests==2.31.0 \
+      certifi==2026.7.22 \
+      charset-normalizer==3.4.9 \
+      greenlet==3.5.4 \
+      idna==3.18 \
+      pyee==13.0.1 \
+      typing-extensions==4.16.0 \
+      urllib3==2.7.0 \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --gid "${CHUMMER_MEDIA_FACTORY_GID}" chummer-media \
+ && useradd \
+      --uid "${CHUMMER_MEDIA_FACTORY_UID}" \
+      --gid "${CHUMMER_MEDIA_FACTORY_GID}" \
+      --home-dir /nonexistent \
+      --no-create-home \
+      --shell /usr/sbin/nologin \
+      chummer-media
+
+WORKDIR /app
+COPY --from=build /app/publish/ ./
+RUN find -P /app -xdev -type d -exec chmod 0755 {} + \
+ && find -P /app -xdev -type f -exec chmod 0644 {} +
+
+USER ${CHUMMER_MEDIA_FACTORY_UID}:${CHUMMER_MEDIA_FACTORY_GID}
+ENTRYPOINT ["dotnet", "Chummer.Media.Factory.Worker.dll"]

@@ -2,9 +2,11 @@
   <Folder Name="/verify/">
     <Project Path="Chummer.Media.Factory.Runtime.Verify/Chummer.Media.Factory.Runtime.Verify.csproj" />
     <Project Path="tests/MediaPublicationAuthoritySmoke/Chummer.Media.PublicationAuthoritySmoke.csproj" />
+    <Project Path="tests/OriginDossierMediaDispatchSmoke/Chummer.Media.OriginDossierDispatchSmoke.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chummer.Media.Contracts/Chummer.Media.Contracts.csproj" />
     <Project Path="src/Chummer.Media.Factory.Runtime/Chummer.Media.Factory.Runtime.csproj" />
+    <Project Path="src/Chummer.Media.Factory.Worker/Chummer.Media.Factory.Worker.csproj" />
   </Folder>
 </Solution>
