@@ -33,13 +33,16 @@ int maximumRequests = ParsePositiveInt(
     maximum: 100);
 
 using HttpClient httpClient = new() { Timeout = TimeSpan.FromMinutes(3) };
+var narrationRenderer = new UnmixrOriginDossierAudiobookRenderer(httpClient);
 var processor = new OriginDossierMediaInboxProcessor(
     inboxRoot,
     receiptRoot,
     outputRoot,
     sourceRoots,
-    new UnmixrOriginDossierAudiobookRenderer(httpClient),
-    new MagicFitOriginDossierCinematicSceneRenderer(scriptPath));
+    narrationRenderer,
+    new MagicFitOriginDossierCinematicSceneRenderer(
+        scriptPath,
+        narrationRenderer));
 using CancellationTokenSource stopping = new();
 Console.CancelKeyPress += (_, eventArgs) =>
 {

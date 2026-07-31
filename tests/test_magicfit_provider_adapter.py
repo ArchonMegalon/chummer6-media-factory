@@ -69,6 +69,26 @@ class MagicFitProviderAdapterTests(unittest.TestCase):
         for token in forbidden:
             self.assertNotIn(token, adapter)
 
+    def test_origin_dossier_script_enforces_reference_frame_continuity(self):
+        script = read("scripts/providers/render_magicfit_origin_dossier.py")
+
+        for token in (
+            '"--first-frame"',
+            "attach_first_frame(page, first_frame)",
+            "page.expect_file_chooser",
+            "firstFrameApplied",
+            "firstFrameSha256",
+            "file_sha256(first_frame)",
+            "origin_dossier_media_magicfit_first_frame_missing",
+        ):
+            self.assertIn(token, script)
+
+        self.assertLess(
+            script.index("attach_first_frame(page, first_frame)"),
+            script.index("fill_prompt(page, prompt)"),
+            "The continuity anchor must be attached before generation is submitted.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

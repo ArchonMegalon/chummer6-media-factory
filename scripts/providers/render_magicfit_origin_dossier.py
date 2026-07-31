@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -68,6 +69,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--aspect-label", default="Landscape (16:9)")
     parser.add_argument("--timeout-minutes", type=int, default=18)
     parser.add_argument("--model-label", default="")
+    parser.add_argument(
+        "--first-frame",
+        default="",
+        help="Optional continuity frame from the immediately preceding shot.",
+    )
     parser.add_argument("--state-json", required=True)
     return parser.parse_args()
 
@@ -183,7 +189,7 @@ def maybe_login(page) -> None:
     page.wait_for_timeout(8_000)
 
 
-def select_button(page, current_text: str, option_text: str) -> None:
+def select_button(page, current_text: str | re.Pattern[str], option_text: str) -> None:
     try:
         page.get_by_role("button", name=current_text).last.click(timeout=10_000)
         page.wait_for_timeout(500)
@@ -191,6 +197,44 @@ def select_button(page, current_text: str, option_text: str) -> None:
         page.wait_for_timeout(500)
     except PlaywrightTimeoutError:
         return
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(128 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def attach_first_frame(page, first_frame: Path) -> None:
+    target = page.get_by_role(
+        "button", name=re.compile(r"^\s*First Frame\s*$", re.I)
+    ).first
+    target.wait_for(timeout=15_000)
+    target.click(timeout=15_000)
+    dialog = page.get_by_role("dialog", name=re.compile(r"Select Image", re.I))
+    dialog.wait_for(timeout=15_000)
+    upload_target = dialog.get_by_role(
+        "button",
+        name=re.compile(r"Click, drag, or paste.*upload", re.I),
+    ).first
+    with page.expect_file_chooser(timeout=15_000) as chooser_info:
+        upload_target.click(timeout=15_000)
+    chooser_info.value.set_files(str(first_frame))
+    page.wait_for_timeout(8_000)
+    if dialog.is_visible():
+        uploaded_image = dialog.locator("img").last
+        if not uploaded_image.count():
+            raise RuntimeError(
+                "origin_dossier_media_magicfit_first_frame_preview_missing"
+            )
+        uploaded_image.click(timeout=15_000)
+        page.wait_for_timeout(3_000)
+    if page.get_by_role("dialog", name=re.compile(r"Select Image", re.I)).is_visible():
+        raise RuntimeError(
+            "origin_dossier_media_magicfit_first_frame_selection_incomplete"
+        )
 
 
 def fill_prompt(page, prompt: str) -> None:
@@ -226,6 +270,18 @@ def run() -> int:
     args = parse_args()
     output = Path(args.out).resolve()
     state = Path(args.state_json).resolve()
+    first_frame = (
+        Path(args.first_frame).resolve()
+        if str(args.first_frame or "").strip()
+        else None
+    )
+    if first_frame is not None and not first_frame.is_file():
+        raise RuntimeError(
+            "origin_dossier_media_magicfit_first_frame_missing"
+        )
+    first_frame_sha256 = (
+        file_sha256(first_frame) if first_frame is not None else None
+    )
     selected_duration = provider_duration(int(args.duration or 10))
     prompt = f"{args.prompt.strip()} Global constraints: {NEGATIVE}."
     with sync_playwright() as playwright:
@@ -243,10 +299,20 @@ def run() -> int:
             )
             page.wait_for_timeout(5_000)
             baseline = visible_urls(page)
+            if first_frame is not None:
+                attach_first_frame(page, first_frame)
             select_button(page, "9:16", args.aspect_label)
-            select_button(page, "4s", f"{selected_duration}s")
+            select_button(
+                page,
+                re.compile(r"^\s*\d+\s*s\s*$", re.I),
+                f"{selected_duration}s",
+            )
             if args.model_label:
-                select_button(page, "Veo 3.1", args.model_label)
+                select_button(
+                    page,
+                    re.compile(r"Veo|Seedance|Kling|Hailuo|Sora", re.I),
+                    args.model_label,
+                )
             fill_prompt(page, prompt)
             events: list[dict[str, object]] = []
             observed_urls: set[str] = set()
@@ -312,6 +378,8 @@ def run() -> int:
                     else "unverified"
                 ),
                 "aspectLabel": args.aspect_label,
+                "firstFrameApplied": first_frame is not None,
+                "firstFrameSha256": first_frame_sha256,
                 "prompt": prompt,
                 "pageUrl": page.url,
                 "eventsTail": events[-80:],

@@ -44,6 +44,25 @@ class OriginDossierVideoRenderingTests(unittest.TestCase):
         ):
             self.assertIn(token, smoke)
 
+    def test_live_chapter_renderer_replaces_unverified_provider_dialogue(self):
+        renderer = read(
+            "src/Chummer.Media.Factory.Runtime/Assets/OriginDossierLiveMediaRenderers.cs"
+        )
+        worker = read("src/Chummer.Media.Factory.Worker/Program.cs")
+
+        for token in (
+            "controlled_tts_with_continuous_ambient_bed",
+            "providerOriginalAudioRemoved = true",
+            "EnsureControlledShotAudioAsync",
+            "RenderDialogueLineAsync",
+            "dialogueLineSha256",
+            "origin_dossier_media_controlled_shot_audio_failed",
+            "CHUMMER_MEDIA_FACTORY_ORIGIN_DIALOGUE_VOICE_ALIASES",
+        ):
+            self.assertIn(token, renderer)
+        self.assertIn("narrationRenderer", worker)
+        self.assertIn("new MagicFitOriginDossierCinematicSceneRenderer(", worker)
+
 
 if __name__ == "__main__":
     unittest.main()

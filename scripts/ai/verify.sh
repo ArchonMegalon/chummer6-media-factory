@@ -11,9 +11,31 @@ trap report_verification_failure ERR
 
 verification_temp_root="$(mktemp -d "${TMPDIR:-/tmp}/chummer-media-verify.XXXXXX")"
 cleanup_verification() {
+  local verification_status="$?"
+  local restore_status=0
+  trap - EXIT
+  unset DOTNET_CLI_HOME NUGET_PACKAGES NUGET_HTTP_CACHE_PATH RestorePackagesPath
+  local restore_targets=(
+    Chummer.Media.Factory.slnx
+    tests/*/*.csproj
+  )
+  for restore_target in "${restore_targets[@]}"; do
+    if ! dotnet restore "${restore_target}" \
+      --locked-mode \
+      --force \
+      --no-cache \
+      --verbosity quiet >/dev/null 2>&1; then
+      restore_status=1
+    fi
+  done
   if [[ -n "${verification_temp_root:-}" && -d "${verification_temp_root}" ]]; then
     rm -rf -- "${verification_temp_root}"
   fi
+  if [[ "${verification_status}" -eq 0 && "${restore_status}" -ne 0 ]]; then
+    echo "verify cleanup failed: normal local package restore state was not recovered" >&2
+    exit "${restore_status}"
+  fi
+  exit "${verification_status}"
 }
 
 trap cleanup_verification EXIT

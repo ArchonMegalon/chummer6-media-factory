@@ -27,7 +27,7 @@ public sealed record OriginDossierMediaRenderResult(
     string OutputContentType,
     double? ObservedDurationSeconds,
     string ProviderExecutionRefHash,
-    string NarrativeScope = "",
+    string RenderScope = "",
     int DialogueTurnCount = 0,
     bool AudioTrackVerified = false);
 
@@ -191,7 +191,7 @@ public sealed class OriginDossierMediaInboxProcessor
                 RequestSha256: requestSha256,
                 ProviderExecutionRefHash: rendered.ProviderExecutionRefHash,
                 CompletedAtUtc: DateTimeOffset.UtcNow,
-                NarrativeScope: rendered.NarrativeScope,
+                RenderScope: rendered.RenderScope,
                 DialogueTurnCount: rendered.DialogueTurnCount,
                 AudioTrackVerified: rendered.AudioTrackVerified);
             await WriteReceiptAsync(receipt, cancellationToken);
@@ -274,8 +274,8 @@ public sealed class OriginDossierMediaInboxProcessor
                 || receipt.ObservedDurationSeconds >= OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds);
         bool cinematicEvidenceValid = request.Kind != OriginDossierMediaDispatchKind.CinematicScene
             || string.Equals(
-                receipt.NarrativeScope,
-                OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                receipt.RenderScope,
+                OriginDossierMediaDispatchContract.ChapterRenderScope,
                 StringComparison.Ordinal)
             && receipt.DialogueTurnCount >= request.MinimumDialogueTurns
             && receipt.AudioTrackVerified;
@@ -335,7 +335,7 @@ public sealed class OriginDossierMediaInboxProcessor
         ValidateSourcePath(request.ManuscriptPath, nameof(request.ManuscriptPath), required: true);
         ValidateSourcePath(request.SourcePacketPath, nameof(request.SourcePacketPath), required: true);
         ValidateSourcePath(request.CoverPath, nameof(request.CoverPath), required: false);
-        ValidateSourcePath(request.StoryboardPath, nameof(request.StoryboardPath), required: false);
+        ValidateSourcePath(request.SequencePlanPath, nameof(request.SequencePlanPath), required: false);
         if (request.Kind == OriginDossierMediaDispatchKind.CinematicScene)
         {
             if (request.DurationTargetSeconds is < OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds
@@ -345,11 +345,31 @@ public sealed class OriginDossierMediaInboxProcessor
             }
 
             if (!string.Equals(
-                    request.NarrativeScope,
-                    OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                    request.RenderScope,
+                    OriginDossierMediaDispatchContract.ChapterRenderScope,
                     StringComparison.Ordinal)
                 || !request.DialogueRequired
-                || request.MinimumDialogueTurns < OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns)
+                || request.MinimumDialogueTurns < OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns
+                || request.Screenplay is null
+                || !string.Equals(
+                    request.Screenplay.ContractVersion,
+                    OriginDossierScreenplayContract.Version,
+                    StringComparison.Ordinal)
+                || request.Screenplay.Cast.Count < 2
+                || request.Screenplay.DialogueTurns.Count < request.MinimumDialogueTurns
+                || request.Screenplay.DialogueTurns.Count
+                    > Math.Max(request.Screenplay.PlannedShotCount - 2, 0)
+                || request.Screenplay.DialogueTurns.Any(turn =>
+                    !OriginDossierScreenplayContract.IsDialogueTurnRenderable(turn.Line))
+                || request.Screenplay.RenderBeats.Count == 0
+                || request.Screenplay.RenderBeats.Any(beat =>
+                    string.IsNullOrWhiteSpace(beat)
+                    || beat.Length > OriginDossierScreenplayContract.MaximumNarrativeBeatCharacters + 1)
+                || request.Screenplay.UsesSupportingCanonDialogue
+                    != request.Screenplay.DialogueTurns.Any(turn => turn.UsesSupportingCanonDialogue)
+                || !OriginDossierScreenplayContract.FingerprintMatches(
+                    request,
+                    request.Screenplay))
             {
                 throw new InvalidOperationException("origin_dossier_media_chapter_dialogue_contract_invalid");
             }
@@ -380,8 +400,8 @@ public sealed class OriginDossierMediaInboxProcessor
         }
 
         if (!string.Equals(
-                rendered.NarrativeScope,
-                OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                rendered.RenderScope,
+                OriginDossierMediaDispatchContract.ChapterRenderScope,
                 StringComparison.Ordinal)
             || rendered.DialogueTurnCount < request.MinimumDialogueTurns
             || !rendered.AudioTrackVerified)

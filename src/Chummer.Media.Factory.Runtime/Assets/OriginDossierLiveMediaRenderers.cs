@@ -306,6 +306,44 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
         return voiceId;
     }
 
+    internal async Task<DialogueLineRenderResult> RenderDialogueLineAsync(
+        string text,
+        string voiceSelectionId,
+        string locale,
+        string outputDirectory,
+        string fileStem,
+        int segmentIndex,
+        CancellationToken cancellationToken)
+    {
+        if (_apiKeys.Count == 0)
+        {
+            throw new InvalidOperationException("origin_dossier_media_unmixr_credentials_missing");
+        }
+
+        string normalizedText = Regex.Replace(text ?? string.Empty, @"\s+", " ").Trim();
+        if (normalizedText.Length is <= 0 or > 500)
+        {
+            throw new InvalidOperationException("origin_dossier_media_dialogue_line_invalid");
+        }
+
+        string voiceId = ResolveProviderVoiceId(voiceSelectionId);
+        UnmixrAudioResponse audio = await SynthesizeAsync(
+            normalizedText,
+            voiceId,
+            locale,
+            segmentIndex,
+            cancellationToken);
+        Directory.CreateDirectory(outputDirectory);
+        string outputPath = Path.Combine(
+            outputDirectory,
+            fileStem + ExtensionForContentType(audio.ContentType));
+        await File.WriteAllBytesAsync(outputPath, audio.Bytes, cancellationToken);
+        return new(
+            OutputPath: outputPath,
+            ProviderReferenceHash: audio.ProviderReferenceHash,
+            OutputSha256: Sha256File(outputPath));
+    }
+
     private static string NormalizeManuscript(string value)
     {
         string withoutFrontMatter = Regex.Replace(
@@ -589,6 +627,11 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
         string ContentType,
         string ProviderReferenceHash);
 
+    internal sealed record DialogueLineRenderResult(
+        string OutputPath,
+        string ProviderReferenceHash,
+        string OutputSha256);
+
     internal sealed record ProcessResult(
         int ExitCode,
         string StandardOutput,
@@ -597,19 +640,22 @@ public sealed class UnmixrOriginDossierAudiobookRenderer : IOriginDossierAudiobo
 
 public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossierCinematicSceneRenderer
 {
-    private const int ProviderShotSeconds = 15;
+    private const string ControlledShotAudioContract =
+        "chummer.origin_dossier_controlled_shot_audio.v1";
+    private const int ProviderShotSeconds = 6;
+    private const int ProviderRenderAttemptLimit = 3;
     private const double ExpectedObservedShotSeconds = 5.0;
     private const double MinimumReusableShotSeconds = 3.0;
-    // MagicFit serializes or throttles concurrent jobs on the same account.
-    // Keep this at one so a chapter render cannot cross-associate or stall shots.
-    private const int MaximumParallelShotRenders = 1;
-    private const int MaximumBeatCharacters = 560;
     private readonly string _scriptPath;
     private readonly string _pythonExecutable;
+    private readonly UnmixrOriginDossierAudiobookRenderer _dialogueRenderer;
+    private readonly IReadOnlyList<string> _dialogueVoiceAliases;
 
     public MagicFitOriginDossierCinematicSceneRenderer(
         string scriptPath,
-        string pythonExecutable = "python3")
+        UnmixrOriginDossierAudiobookRenderer dialogueRenderer,
+        string pythonExecutable = "python3",
+        IEnumerable<string>? dialogueVoiceAliases = null)
     {
         _scriptPath = Path.GetFullPath(
             string.IsNullOrWhiteSpace(scriptPath)
@@ -618,6 +664,18 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
         _pythonExecutable = string.IsNullOrWhiteSpace(pythonExecutable)
             ? "python3"
             : pythonExecutable.Trim();
+        _dialogueRenderer = dialogueRenderer
+            ?? throw new ArgumentNullException(nameof(dialogueRenderer));
+        _dialogueVoiceAliases = (dialogueVoiceAliases ?? LoadDialogueVoiceAliases())
+            .Where(static alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(static alias => alias.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (_dialogueVoiceAliases.Count < 2)
+        {
+            throw new InvalidOperationException(
+                "origin_dossier_media_dialogue_voice_aliases_invalid");
+        }
     }
 
     public async Task<OriginDossierMediaRenderResult> RenderAsync(
@@ -633,12 +691,21 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
         Directory.CreateDirectory(outputDirectory);
         string outputPath = Path.Combine(outputDirectory, "origin-dossier-selected-scene.mp4");
         string privateStatePath = Path.Combine(outputDirectory, "cinematic.provider.private.json");
-        ChapterMoviePlan plan = await BuildChapterMoviePlanAsync(request, cancellationToken);
         int renderTargetSeconds = Math.Max(
             request.DurationTargetSeconds,
             OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds + ProviderShotSeconds);
         int estimatedShotCount = (int)Math.Ceiling(renderTargetSeconds / ExpectedObservedShotSeconds);
         int maximumShotCount = (int)Math.Ceiling(renderTargetSeconds / MinimumReusableShotSeconds) + 1;
+        OriginDossierScreenplayPlan plan = ValidateScreenplayPlan(
+            request,
+            estimatedShotCount);
+        await File.WriteAllTextAsync(
+            Path.Combine(outputDirectory, "screenplay.plan.private.json"),
+            JsonSerializer.Serialize(
+                plan,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true })
+            + Environment.NewLine,
+            cancellationToken);
         string segmentRoot = Path.Combine(outputDirectory, "chapter-segments");
         Directory.CreateDirectory(segmentRoot);
         var segmentPaths = new List<string>(estimatedShotCount);
@@ -647,13 +714,27 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
         double cumulativeObservedDuration = 0;
         int nextShotIndex = 0;
 
-        while (nextShotIndex < maximumShotCount
-               && cumulativeObservedDuration < renderTargetSeconds)
+        while (ShouldRenderNextShot(
+                   nextShotIndex,
+                   maximumShotCount,
+                   plan.PlannedShotCount,
+                   cumulativeObservedDuration,
+                   renderTargetSeconds))
         {
+            ContinuityReferenceFrame? continuityFrame = nextShotIndex == 0
+                ? null
+                : await MaterializeContinuityReferenceFrameAsync(
+                    segmentPaths[^1],
+                    segmentRoot,
+                    nextShotIndex,
+                    cancellationToken);
             ChapterMovieSegmentResult? reusable = await TryReuseChapterSegmentAsync(
                 request,
+                plan,
                 segmentRoot,
                 nextShotIndex,
+                plan.PlannedShotCount,
+                continuityFrame,
                 cancellationToken);
             if (reusable is null)
             {
@@ -664,37 +745,30 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             nextShotIndex++;
         }
 
-        while (nextShotIndex < maximumShotCount
-               && cumulativeObservedDuration < renderTargetSeconds)
+        while (ShouldRenderNextShot(
+                   nextShotIndex,
+                   maximumShotCount,
+                   plan.PlannedShotCount,
+                   cumulativeObservedDuration,
+                   renderTargetSeconds))
         {
-            int estimatedRemaining = Math.Max(
-                1,
-                (int)Math.Ceiling(
-                    (renderTargetSeconds - cumulativeObservedDuration)
-                    / ExpectedObservedShotSeconds));
-            int batchSize = Math.Min(
-                MaximumParallelShotRenders,
-                Math.Min(estimatedRemaining, maximumShotCount - nextShotIndex));
-            int plannedShotCount = Math.Max(
-                estimatedShotCount,
-                nextShotIndex + estimatedRemaining);
-            Task<ChapterMovieSegmentResult>[] batch = Enumerable
-                .Range(nextShotIndex, batchSize)
-                .Select(index => RenderChapterSegmentAsync(
-                    request,
-                    plan,
+            ContinuityReferenceFrame? continuityFrame = nextShotIndex == 0
+                ? null
+                : await MaterializeContinuityReferenceFrameAsync(
+                    segmentPaths[^1],
                     segmentRoot,
-                    index,
-                    plannedShotCount,
-                    cancellationToken))
-                .ToArray();
-            ChapterMovieSegmentResult[] rendered = await Task.WhenAll(batch);
-            foreach (ChapterMovieSegmentResult segment in rendered.OrderBy(item => item.Index))
-            {
-                AddSegment(segment);
-            }
-
-            nextShotIndex += batchSize;
+                    nextShotIndex,
+                    cancellationToken);
+            ChapterMovieSegmentResult rendered = await RenderChapterSegmentAsync(
+                request,
+                plan,
+                segmentRoot,
+                nextShotIndex,
+                plan.PlannedShotCount,
+                continuityFrame,
+                cancellationToken);
+            AddSegment(rendered);
+            nextShotIndex++;
         }
 
         void AddSegment(ChapterMovieSegmentResult segment)
@@ -732,7 +806,7 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             contractVersion = OriginDossierMediaDispatchContract.Version,
             requestId = request.RequestId,
             provider = "MagicFit",
-            narrativeScope = OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+            renderScope = OriginDossierMediaDispatchContract.ChapterRenderScope,
             requestedDurationSeconds = request.DurationTargetSeconds,
             observedDurationSeconds = observedDuration,
             shotCount = segmentPaths.Count,
@@ -740,6 +814,14 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             observedSegmentDurationSeconds = observedSegmentDurations,
             dialogueTurnCount = plan.DialogueTurns.Count,
             dialogueAudioTrackVerified = audioTrackVerified,
+            dialogueAudioMode = "controlled_tts_with_continuous_ambient_bed",
+            providerOriginalShotAudioRemoved = true,
+            screenplayContractVersion = plan.ContractVersion,
+            screenplayPlanSha256 = plan.FingerprintSha256,
+            screenplayCast = plan.Cast.Select(character => character.Name).ToArray(),
+            screenplayTimeOfDay = plan.TimeOfDay,
+            screenplayWeather = plan.Weather,
+            screenplayLocation = plan.PrimaryLocation,
             providerSegmentStateSha256 = segmentStateHashes,
             providerExecutionRefHash = providerRefHash,
             outputSha256 = await Sha256FileAsync(outputPath, cancellationToken),
@@ -758,15 +840,36 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             OutputContentType: "video/mp4",
             ObservedDurationSeconds: observedDuration,
             ProviderExecutionRefHash: providerRefHash,
-            NarrativeScope: OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+            RenderScope: OriginDossierMediaDispatchContract.ChapterRenderScope,
             DialogueTurnCount: plan.DialogueTurns.Count,
             AudioTrackVerified: audioTrackVerified);
     }
 
-    private static async Task<ChapterMovieSegmentResult?> TryReuseChapterSegmentAsync(
+    internal static bool ShouldRenderNextShot(
+        int nextShotIndex,
+        int maximumShotCount,
+        int plannedShotCount,
+        double cumulativeObservedDuration,
+        int renderTargetSeconds)
+        => nextShotIndex < maximumShotCount
+            && (nextShotIndex < plannedShotCount
+                || cumulativeObservedDuration < renderTargetSeconds);
+
+    internal static bool ShouldRetryProviderRender(
+        int attemptNumber,
+        int exitCode,
+        bool outputExists)
+        => attemptNumber > 0
+            && attemptNumber < ProviderRenderAttemptLimit
+            && (exitCode != 0 || !outputExists);
+
+    private async Task<ChapterMovieSegmentResult?> TryReuseChapterSegmentAsync(
         OriginDossierMediaDispatchRequest request,
+        OriginDossierScreenplayPlan plan,
         string segmentRoot,
         int index,
+        int plannedShotCount,
+        ContinuityReferenceFrame? continuityFrame,
         CancellationToken cancellationToken)
     {
         string segmentPath = Path.Combine(segmentRoot, $"shot-{index + 1:D3}.mp4");
@@ -788,46 +891,136 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
         string segmentStatePath = Path.Combine(
             segmentRoot,
             $"shot-{index + 1:D3}.provider.private.json");
+        string screenplayStatePath = Path.Combine(
+            segmentRoot,
+            $"shot-{index + 1:D3}.screenplay.private.json");
+        string expectedPrompt = OriginDossierScreenplayPromptBuilder.BuildShotPrompt(
+            request,
+            plan,
+            index,
+            plannedShotCount);
+        if (!TryValidateScreenplaySegmentState(
+                screenplayStatePath,
+                plan.FingerprintSha256,
+                Sha256Text(expectedPrompt),
+                continuityFrame?.Sha256)
+            || !TryValidateProviderContinuityState(
+                segmentStatePath,
+                continuityFrame?.Sha256))
+        {
+            return null;
+        }
+
+        ControlledShotAudioResult controlledAudio =
+            await EnsureControlledShotAudioAsync(
+                request,
+                plan,
+                segmentRoot,
+                index,
+                segmentPath,
+                segmentDuration.Value,
+                cancellationToken);
+
         return new(
             Index: index,
             Path: segmentPath,
             ObservedDurationSeconds: segmentDuration.Value,
-            ProviderStateHash: File.Exists(segmentStatePath)
-                ? await Sha256FileAsync(segmentStatePath, cancellationToken)
-                : Sha256Text($"{request.RequestId}|{index + 1}"));
+            ProviderStateHash: Sha256Text(string.Join(
+                "|",
+                File.Exists(segmentStatePath)
+                    ? await Sha256FileAsync(segmentStatePath, cancellationToken)
+                    : Sha256Text($"{request.RequestId}|{index + 1}"),
+                controlledAudio.StateSha256,
+                await Sha256FileAsync(screenplayStatePath, cancellationToken))));
     }
 
     private async Task<ChapterMovieSegmentResult> RenderChapterSegmentAsync(
         OriginDossierMediaDispatchRequest request,
-        ChapterMoviePlan plan,
+        OriginDossierScreenplayPlan plan,
         string segmentRoot,
         int index,
         int plannedShotCount,
+        ContinuityReferenceFrame? continuityFrame,
         CancellationToken cancellationToken)
     {
         string segmentPath = Path.Combine(segmentRoot, $"shot-{index + 1:D3}.mp4");
         string segmentStatePath = Path.Combine(
             segmentRoot,
             $"shot-{index + 1:D3}.provider.private.json");
-        string prompt = BuildShotPrompt(
+        string screenplayStatePath = Path.Combine(
+            segmentRoot,
+            $"shot-{index + 1:D3}.screenplay.private.json");
+        string prompt = OriginDossierScreenplayPromptBuilder.BuildShotPrompt(
             request,
             plan,
             index,
             plannedShotCount);
-        UnmixrOriginDossierAudiobookRenderer.ProcessResult result =
-            await UnmixrOriginDossierAudiobookRenderer.RunProcessAsync(
+        var arguments = new List<string>
+        {
+            _scriptPath,
+            "--prompt", prompt,
+            "--out", segmentPath,
+            "--duration", ProviderShotSeconds.ToString(CultureInfo.InvariantCulture),
+            "--aspect-label", "Landscape (16:9)",
+            "--state-json", segmentStatePath
+        };
+        if (continuityFrame is not null)
+        {
+            arguments.Add("--first-frame");
+            arguments.Add(continuityFrame.Path);
+        }
+
+        UnmixrOriginDossierAudiobookRenderer.ProcessResult result = new(
+            ExitCode: -1,
+            StandardOutput: string.Empty,
+            StandardError: string.Empty);
+        for (int attemptNumber = 1;
+             attemptNumber <= ProviderRenderAttemptLimit;
+             attemptNumber++)
+        {
+            File.Delete(segmentPath);
+            File.Delete(segmentStatePath);
+            result = await UnmixrOriginDossierAudiobookRenderer.RunProcessAsync(
                 _pythonExecutable,
-                [
-                    _scriptPath,
-                    "--prompt", prompt,
-                    "--out", segmentPath,
-                    "--duration", ProviderShotSeconds.ToString(CultureInfo.InvariantCulture),
-                    "--aspect-label", "Landscape (16:9)",
-                    "--state-json", segmentStatePath
-                ],
+                arguments,
                 TimeSpan.FromMinutes(30),
                 cancellationToken,
                 throwOnFailure: false);
+            bool outputExists = File.Exists(segmentPath);
+            if (result.ExitCode == 0 && outputExists)
+            {
+                break;
+            }
+
+            string attemptFailurePath = Path.Combine(
+                segmentRoot,
+                $"shot-{index + 1:D3}.provider-attempt-{attemptNumber:D2}.failed.private.json");
+            await File.WriteAllTextAsync(
+                attemptFailurePath,
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        contractName = "chummer.origin_dossier_provider_attempt_failure.v1",
+                        requestId = request.RequestId,
+                        shotNumber = index + 1,
+                        attemptNumber,
+                        attemptLimit = ProviderRenderAttemptLimit,
+                        exitCode = result.ExitCode,
+                        outputExists,
+                        standardOutputSha256 = Sha256Text(result.StandardOutput),
+                        standardErrorSha256 = Sha256Text(result.StandardError),
+                        observedAtUtc = DateTimeOffset.UtcNow
+                    },
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true })
+                + Environment.NewLine,
+                cancellationToken);
+            if (!ShouldRetryProviderRender(attemptNumber, result.ExitCode, outputExists))
+            {
+                break;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(attemptNumber * 5), cancellationToken);
+        }
         if (result.ExitCode != 0 || !File.Exists(segmentPath))
         {
             throw new InvalidOperationException("origin_dossier_media_magicfit_render_failed");
@@ -846,22 +1039,468 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             throw new InvalidOperationException("origin_dossier_media_cinematic_dialogue_audio_missing");
         }
 
+        if (!TryValidateProviderContinuityState(
+                segmentStatePath,
+                continuityFrame?.Sha256))
+        {
+            throw new InvalidOperationException(
+                "origin_dossier_media_magicfit_continuity_reference_unverified");
+        }
+
+        ControlledShotAudioResult controlledAudio =
+            await EnsureControlledShotAudioAsync(
+                request,
+                plan,
+                segmentRoot,
+                index,
+                segmentPath,
+                segmentDuration.Value,
+                cancellationToken);
+
+        await File.WriteAllTextAsync(
+            screenplayStatePath,
+            JsonSerializer.Serialize(
+                new
+                {
+                    contractVersion = OriginDossierScreenplayContract.Version,
+                    requestId = request.RequestId,
+                    shotIndex = index,
+                    shotNumber = index + 1,
+                    plannedShotCount,
+                    screenplayPlanSha256 = plan.FingerprintSha256,
+                    promptSha256 = Sha256Text(prompt),
+                    continuityReferenceApplied = continuityFrame is not null,
+                    continuityReferenceSha256 = continuityFrame?.Sha256,
+                    controlledAudioApplied = true,
+                    dialogueAudioRequired = controlledAudio.DialogueRequired,
+                    dialogueLineSha256 = controlledAudio.DialogueLineSha256,
+                    timeOfDay = plan.TimeOfDay,
+                    weather = plan.Weather,
+                    location = plan.PrimaryLocation,
+                    cast = plan.Cast.Select(character => character.Name).ToArray()
+                },
+                new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true })
+            + Environment.NewLine,
+            cancellationToken);
+        string providerStateHash = File.Exists(segmentStatePath)
+            ? await Sha256FileAsync(segmentStatePath, cancellationToken)
+            : Sha256Text($"{request.RequestId}|{index + 1}");
         return new(
             Index: index,
             Path: segmentPath,
             ObservedDurationSeconds: segmentDuration.Value,
-            ProviderStateHash: File.Exists(segmentStatePath)
-                ? await Sha256FileAsync(segmentStatePath, cancellationToken)
-                : Sha256Text($"{request.RequestId}|{index + 1}"));
+            ProviderStateHash: Sha256Text(string.Join(
+                "|",
+                providerStateHash,
+                controlledAudio.StateSha256,
+                await Sha256FileAsync(screenplayStatePath, cancellationToken))));
     }
 
-    private static async Task<ChapterMoviePlan> BuildChapterMoviePlanAsync(
+    private async Task<ControlledShotAudioResult> EnsureControlledShotAudioAsync(
         OriginDossierMediaDispatchRequest request,
+        OriginDossierScreenplayPlan plan,
+        string segmentRoot,
+        int index,
+        string segmentPath,
+        double segmentDurationSeconds,
         CancellationToken cancellationToken)
     {
+        int? dialogueIndex = OriginDossierScreenplayPromptBuilder.ResolveDialogueIndex(
+            index,
+            plan.PlannedShotCount,
+            plan.DialogueTurns.Count);
+        OriginDossierScreenplayDialogueTurn? dialogue = dialogueIndex is null
+            ? null
+            : plan.DialogueTurns[dialogueIndex.Value];
+        string? dialogueLineSha256 = dialogue is null
+            ? null
+            : Sha256Text(dialogue.Line.Trim());
+        string statePath = Path.Combine(
+            segmentRoot,
+            $"shot-{index + 1:D3}.controlled-audio.private.json");
+        ControlledShotAudioResult? reusable = await TryReuseControlledShotAudioAsync(
+            statePath,
+            segmentPath,
+            request.RequestId,
+            index,
+            dialogue,
+            dialogueLineSha256,
+            cancellationToken);
+        if (reusable is not null)
+        {
+            return reusable;
+        }
+
+        string? voiceAlias = null;
+        UnmixrOriginDossierAudiobookRenderer.DialogueLineRenderResult? dialogueAudio = null;
+        if (dialogue is not null)
+        {
+            voiceAlias = ResolveDialogueVoiceAlias(plan, dialogue.Speaker);
+            dialogueAudio = await _dialogueRenderer.RenderDialogueLineAsync(
+                dialogue.Line,
+                voiceAlias,
+                request.Locale,
+                segmentRoot,
+                $"shot-{index + 1:D3}.dialogue",
+                index,
+                cancellationToken);
+        }
+
+        string controlledPath = Path.Combine(
+            segmentRoot,
+            $"shot-{index + 1:D3}.controlled.tmp.mp4");
+        var arguments = new List<string>
+        {
+            "-y",
+            "-v", "error",
+            "-i", segmentPath,
+            "-f", "lavfi",
+            "-i", "anoisesrc=color=pink:sample_rate=48000:amplitude=0.035"
+        };
+        if (dialogueAudio is not null)
+        {
+            arguments.AddRange(
+            [
+                "-i", dialogueAudio.OutputPath,
+                "-filter_complex",
+                "[1:a]lowpass=f=3500,volume=0.45[ambient];"
+                + "[2:a]adelay=650:all=1,volume=1.30[voice];"
+                + "[ambient][voice]amix=inputs=2:duration=first:dropout_transition=0[aout]"
+            ]);
+        }
+        else
+        {
+            arguments.AddRange(
+            [
+                "-filter_complex",
+                "[1:a]lowpass=f=3500,volume=0.45[aout]"
+            ]);
+        }
+
+        arguments.AddRange(
+        [
+            "-map", "0:v:0",
+            "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-t", segmentDurationSeconds.ToString("0.###", CultureInfo.InvariantCulture),
+            "-movflags", "+faststart",
+            controlledPath
+        ]);
+        UnmixrOriginDossierAudiobookRenderer.ProcessResult ffmpegResult =
+            await UnmixrOriginDossierAudiobookRenderer.RunProcessAsync(
+                "ffmpeg",
+                arguments,
+                TimeSpan.FromMinutes(5),
+                cancellationToken,
+                throwOnFailure: false);
+        if (ffmpegResult.ExitCode != 0
+            || !File.Exists(controlledPath)
+            || new FileInfo(controlledPath).Length <= 1_024
+            || !await ProbeAudioTrackAsync(controlledPath, cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "origin_dossier_media_controlled_shot_audio_failed");
+        }
+
+        File.Move(controlledPath, segmentPath, overwrite: true);
+        string outputSha256 = await Sha256FileAsync(segmentPath, cancellationToken);
+        var state = new
+        {
+            contractVersion = ControlledShotAudioContract,
+            requestId = request.RequestId,
+            shotIndex = index,
+            shotNumber = index + 1,
+            controlledAudioApplied = true,
+            providerOriginalAudioRemoved = true,
+            ambientBed = "continuous_rain_room_tone",
+            dialogueRequired = dialogue is not null,
+            dialogueSpeaker = dialogue?.Speaker,
+            dialogueListener = dialogue?.Listener,
+            dialogueLineSha256,
+            dialogueVoiceAlias = voiceAlias,
+            dialogueProviderReferenceHash = dialogueAudio?.ProviderReferenceHash,
+            dialogueAudioSha256 = dialogueAudio?.OutputSha256,
+            outputSha256,
+            generatedAtUtc = DateTimeOffset.UtcNow
+        };
+        await File.WriteAllTextAsync(
+            statePath,
+            JsonSerializer.Serialize(
+                state,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true })
+            + Environment.NewLine,
+            cancellationToken);
+        return new(
+            DialogueRequired: dialogue is not null,
+            DialogueLineSha256: dialogueLineSha256,
+            StateSha256: await Sha256FileAsync(statePath, cancellationToken));
+    }
+
+    private static async Task<ControlledShotAudioResult?> TryReuseControlledShotAudioAsync(
+        string statePath,
+        string segmentPath,
+        string requestId,
+        int index,
+        OriginDossierScreenplayDialogueTurn? dialogue,
+        string? dialogueLineSha256,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(statePath)
+            || !File.Exists(segmentPath)
+            || !await ProbeAudioTrackAsync(segmentPath, cancellationToken))
+        {
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(
+                await File.ReadAllTextAsync(statePath, cancellationToken));
+            JsonElement root = document.RootElement;
+            string outputSha256 = await Sha256FileAsync(segmentPath, cancellationToken);
+            bool expectedDialogue = dialogue is not null;
+            bool matches = root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("contractVersion", out JsonElement contractVersion)
+                && string.Equals(
+                    contractVersion.GetString(),
+                    ControlledShotAudioContract,
+                    StringComparison.Ordinal)
+                && root.TryGetProperty("requestId", out JsonElement stateRequestId)
+                && string.Equals(stateRequestId.GetString(), requestId, StringComparison.Ordinal)
+                && root.TryGetProperty("shotIndex", out JsonElement shotIndex)
+                && shotIndex.TryGetInt32(out int stateIndex)
+                && stateIndex == index
+                && root.TryGetProperty("controlledAudioApplied", out JsonElement applied)
+                && applied.ValueKind == JsonValueKind.True
+                && root.TryGetProperty("providerOriginalAudioRemoved", out JsonElement removed)
+                && removed.ValueKind == JsonValueKind.True
+                && root.TryGetProperty("dialogueRequired", out JsonElement required)
+                && required.ValueKind is JsonValueKind.True or JsonValueKind.False
+                && required.GetBoolean() == expectedDialogue
+                && root.TryGetProperty("outputSha256", out JsonElement stateOutputSha256)
+                && string.Equals(
+                    stateOutputSha256.GetString(),
+                    outputSha256,
+                    StringComparison.OrdinalIgnoreCase);
+            if (!matches)
+            {
+                return null;
+            }
+
+            if (expectedDialogue
+                && (!root.TryGetProperty(
+                        "dialogueLineSha256",
+                        out JsonElement stateDialogueLineSha256)
+                    || !string.Equals(
+                        stateDialogueLineSha256.GetString(),
+                        dialogueLineSha256,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                return null;
+            }
+
+            return new(
+                DialogueRequired: expectedDialogue,
+                DialogueLineSha256: dialogueLineSha256,
+                StateSha256: await Sha256FileAsync(statePath, cancellationToken));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    private string ResolveDialogueVoiceAlias(
+        OriginDossierScreenplayPlan plan,
+        string speaker)
+    {
+        int castIndex = plan.Cast
+            .Select((character, index) => new { character.Name, Index = index })
+            .Where(item => string.Equals(
+                item.Name,
+                speaker,
+                StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Index)
+            .DefaultIfEmpty(-1)
+            .First();
+        if (castIndex < 0)
+        {
+            throw new InvalidOperationException(
+                "origin_dossier_media_dialogue_speaker_unknown");
+        }
+
+        return _dialogueVoiceAliases[castIndex % _dialogueVoiceAliases.Count];
+    }
+
+    private static IReadOnlyList<string> LoadDialogueVoiceAliases()
+    {
+        string configured = Environment.GetEnvironmentVariable(
+            "CHUMMER_MEDIA_FACTORY_ORIGIN_DIALOGUE_VOICE_ALIASES")
+            ?? "voice-noir,voice-wire";
+        return configured.Split(
+            [',', ';', ' ', '\r', '\n', '\t'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    private static bool TryValidateScreenplaySegmentState(
+        string statePath,
+        string expectedPlanSha256,
+        string expectedPromptSha256,
+        string? expectedContinuityReferenceSha256)
+    {
+        if (!File.Exists(statePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(statePath));
+            JsonElement root = document.RootElement;
+            bool baseStateMatches = root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("contractVersion", out JsonElement contractVersion)
+                && string.Equals(
+                    contractVersion.GetString(),
+                    OriginDossierScreenplayContract.Version,
+                    StringComparison.Ordinal)
+                && root.TryGetProperty("screenplayPlanSha256", out JsonElement planSha256)
+                && string.Equals(
+                    planSha256.GetString(),
+                    expectedPlanSha256,
+                    StringComparison.OrdinalIgnoreCase)
+                && root.TryGetProperty("promptSha256", out JsonElement promptSha256)
+                && string.Equals(
+                    promptSha256.GetString(),
+                    expectedPromptSha256,
+                    StringComparison.OrdinalIgnoreCase);
+            if (!baseStateMatches)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(expectedContinuityReferenceSha256))
+            {
+                return !root.TryGetProperty(
+                        "continuityReferenceSha256",
+                        out JsonElement unusedReference)
+                    || unusedReference.ValueKind == JsonValueKind.Null
+                    || string.IsNullOrWhiteSpace(unusedReference.GetString());
+            }
+
+            return root.TryGetProperty(
+                    "continuityReferenceSha256",
+                    out JsonElement continuityReferenceSha256)
+                && string.Equals(
+                    continuityReferenceSha256.GetString(),
+                    expectedContinuityReferenceSha256,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryValidateProviderContinuityState(
+        string statePath,
+        string? expectedContinuityReferenceSha256)
+    {
+        if (!File.Exists(statePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(statePath));
+            JsonElement root = document.RootElement;
+            bool expectedApplied = !string.IsNullOrWhiteSpace(
+                expectedContinuityReferenceSha256);
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("firstFrameApplied", out JsonElement applied)
+                || applied.ValueKind is not JsonValueKind.True and not JsonValueKind.False
+                || applied.GetBoolean() != expectedApplied)
+            {
+                return false;
+            }
+
+            if (!expectedApplied)
+            {
+                return !root.TryGetProperty("firstFrameSha256", out JsonElement unusedHash)
+                    || unusedHash.ValueKind == JsonValueKind.Null
+                    || string.IsNullOrWhiteSpace(unusedHash.GetString());
+            }
+
+            return root.TryGetProperty("firstFrameSha256", out JsonElement firstFrameSha256)
+                && string.Equals(
+                    firstFrameSha256.GetString(),
+                    expectedContinuityReferenceSha256,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<ContinuityReferenceFrame> MaterializeContinuityReferenceFrameAsync(
+        string previousSegmentPath,
+        string segmentRoot,
+        int nextShotIndex,
+        CancellationToken cancellationToken)
+    {
+        string framePath = Path.Combine(
+            segmentRoot,
+            $"shot-{nextShotIndex + 1:D3}.continuity-first-frame.png");
+        UnmixrOriginDossierAudiobookRenderer.ProcessResult result =
+            await UnmixrOriginDossierAudiobookRenderer.RunProcessAsync(
+                "ffmpeg",
+                [
+                    "-y",
+                    "-v", "error",
+                    "-sseof", "-0.15",
+                    "-i", previousSegmentPath,
+                    "-frames:v", "1",
+                    "-vf", "format=rgb24",
+                    framePath
+                ],
+                TimeSpan.FromMinutes(2),
+                cancellationToken,
+                throwOnFailure: false);
+        if (result.ExitCode != 0
+            || !File.Exists(framePath)
+            || new FileInfo(framePath).Length <= 1_024)
+        {
+            throw new InvalidOperationException(
+                "origin_dossier_media_continuity_reference_frame_failed");
+        }
+
+        return new(
+            framePath,
+            await Sha256FileAsync(framePath, cancellationToken));
+    }
+
+    private static OriginDossierScreenplayPlan ValidateScreenplayPlan(
+        OriginDossierMediaDispatchRequest request,
+        int plannedShotCount)
+    {
         if (!string.Equals(
-                request.NarrativeScope,
-                OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                request.RenderScope,
+                OriginDossierMediaDispatchContract.ChapterRenderScope,
                 StringComparison.Ordinal)
             || !request.DialogueRequired
             || request.MinimumDialogueTurns < OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns)
@@ -869,205 +1508,61 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
             throw new InvalidOperationException("origin_dossier_media_chapter_dialogue_contract_invalid");
         }
 
-        string manuscript = await File.ReadAllTextAsync(request.ManuscriptPath, cancellationToken);
-        string chapter = ExtractSelectedChapter(manuscript, request);
-        IReadOnlyList<string> beats = ExtractNarrativeBeats(chapter);
-        IReadOnlyList<string> chapterDialogueTurns = ExtractDialogueTurns(chapter);
-        var dialogueTurns = chapterDialogueTurns.ToList();
-        if (dialogueTurns.Count < request.MinimumDialogueTurns)
+        OriginDossierScreenplayPlan plan = request.Screenplay
+            ?? throw new InvalidOperationException("origin_dossier_media_screenplay_missing");
+        bool valid = string.Equals(
+                request.ContractVersion,
+                OriginDossierMediaDispatchContract.Version,
+                StringComparison.Ordinal)
+            && string.Equals(
+                plan.ContractVersion,
+                OriginDossierScreenplayContract.Version,
+                StringComparison.Ordinal)
+            && string.Equals(
+                plan.RenderScope,
+                OriginDossierMediaDispatchContract.ChapterRenderScope,
+                StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(plan.Title)
+            && !string.IsNullOrWhiteSpace(plan.TimeOfDay)
+            && !string.IsNullOrWhiteSpace(plan.Weather)
+            && !string.IsNullOrWhiteSpace(plan.PrimaryLocation)
+            && !string.IsNullOrWhiteSpace(plan.WardrobeContinuity)
+            && !string.IsNullOrWhiteSpace(plan.ScreenDirectionContinuity)
+            && plan.Cast is { Count: >= 2 and <= 8 }
+            && plan.Cast.All(character =>
+                !string.IsNullOrWhiteSpace(character.Name)
+                && !string.IsNullOrWhiteSpace(character.Role)
+                && !string.IsNullOrWhiteSpace(character.VisualAnchor))
+            && plan.Cast.Select(character => character.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() == plan.Cast.Count
+            && plan.RenderBeats is { Count: >= 1 and <= 128 }
+            && plan.RenderBeats.All(beat =>
+                !string.IsNullOrWhiteSpace(beat)
+                && beat.Length <= OriginDossierScreenplayContract.MaximumNarrativeBeatCharacters + 1)
+            && plan.DialogueTurns.Count >= request.MinimumDialogueTurns
+            && plan.DialogueTurns.Count <= Math.Max(plan.PlannedShotCount - 2, 0)
+            && plan.DialogueTurns.All(turn =>
+                !string.IsNullOrWhiteSpace(turn.Speaker)
+                && !string.IsNullOrWhiteSpace(turn.Listener)
+                && !string.IsNullOrWhiteSpace(turn.Line)
+                && OriginDossierScreenplayContract.IsDialogueTurnRenderable(turn.Line)
+                && plan.Cast.Any(character =>
+                    string.Equals(character.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase))
+                && plan.Cast.Any(character =>
+                    string.Equals(character.Name, turn.Listener, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(turn.Speaker, turn.Listener, StringComparison.OrdinalIgnoreCase))
+            && plan.UsesSupportingCanonDialogue
+                == plan.DialogueTurns.Any(turn => turn.UsesSupportingCanonDialogue)
+            && plan.PlannedShotCount == plannedShotCount
+            && OriginDossierScreenplayContract.FingerprintMatches(request, plan);
+        if (!valid)
         {
-            foreach (string supportingTurn in ExtractSupportingDialogueTurns(manuscript, request))
-            {
-                if (!dialogueTurns.Contains(supportingTurn, StringComparer.OrdinalIgnoreCase))
-                {
-                    dialogueTurns.Add(supportingTurn);
-                }
-
-                if (dialogueTurns.Count >= request.MinimumDialogueTurns)
-                {
-                    break;
-                }
-            }
+            throw new InvalidOperationException("origin_dossier_media_screenplay_invalid");
         }
 
-        if (beats.Count == 0)
-        {
-            throw new InvalidOperationException("origin_dossier_media_chapter_beats_missing");
-        }
-
-        if (dialogueTurns.Count < request.MinimumDialogueTurns)
-        {
-            throw new InvalidOperationException("origin_dossier_media_chapter_dialogue_missing");
-        }
-
-        return new ChapterMoviePlan(
-            beats,
-            dialogueTurns,
-            UsesSupportingCanonDialogue: dialogueTurns.Count > chapterDialogueTurns.Count);
+        return plan;
     }
-
-    internal static string ExtractSelectedChapter(
-        string manuscript,
-        OriginDossierMediaDispatchRequest request)
-    {
-        Match chapterNumber = Regex.Match(
-            $"{request.SelectionId} {request.SelectionLabel}",
-            @"chapter[-_\s]*0*(?<number>\d+)",
-            RegexOptions.IgnoreCase);
-        MatchCollection headings = Regex.Matches(
-            manuscript,
-            @"(?im)^#{1,6}\s*(?:chapter|kapitel)\s*0*(?<number>\d+)\b[^\r\n]*");
-        Match? selectedHeading = chapterNumber.Success
-            ? headings.Cast<Match>().FirstOrDefault(candidate =>
-                int.TryParse(candidate.Groups["number"].Value, out int candidateNumber)
-                && int.TryParse(chapterNumber.Groups["number"].Value, out int selectedNumber)
-                && candidateNumber == selectedNumber)
-            : null;
-
-        if (selectedHeading is null)
-        {
-            string title = request.SelectionLabel
-                .Split(['—', '-', ':'], 2, StringSplitOptions.TrimEntries)
-                .LastOrDefault() ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                selectedHeading = Regex.Matches(manuscript, @"(?im)^#{1,6}\s*[^\r\n]+")
-                    .Cast<Match>()
-                    .FirstOrDefault(candidate => candidate.Value.Contains(title, StringComparison.OrdinalIgnoreCase));
-            }
-        }
-
-        if (selectedHeading is null)
-        {
-            throw new InvalidOperationException("origin_dossier_media_selected_chapter_missing");
-        }
-
-        Match? nextHeading = headings.Cast<Match>()
-            .FirstOrDefault(candidate => candidate.Index > selectedHeading.Index);
-        int end = nextHeading?.Index ?? manuscript.Length;
-        string chapter = manuscript[selectedHeading.Index..end].Trim();
-        if (chapter.Length < 100)
-        {
-            throw new InvalidOperationException("origin_dossier_media_selected_chapter_too_short");
-        }
-
-        return chapter;
-    }
-
-    internal static IReadOnlyList<string> ExtractDialogueTurns(string chapter)
-    {
-        var turns = new List<string>();
-        foreach (Match match in Regex.Matches(
-                     chapter,
-                     "[“\\\"](?<line>[^”\\\"\\r\\n]{3,240})[”\\\"]"))
-        {
-            Add(match.Groups["line"].Value);
-        }
-
-        foreach (Match match in Regex.Matches(
-                     chapter,
-                     @"(?im)^\s*(?!(?:chapter|kapitel)\b)(?:—|-|[\p{L}][\p{L}\p{N} _'’-]{1,30}:)\s*(?<line>[^\r\n]{3,240})$"))
-        {
-            Add(match.Groups["line"].Value);
-        }
-
-        return turns;
-
-        void Add(string value)
-        {
-            string normalized = Regex.Replace(value, @"\s+", " ").Trim();
-            if (normalized.Length >= 3
-                && !turns.Contains(normalized, StringComparer.OrdinalIgnoreCase))
-            {
-                turns.Add(normalized);
-            }
-        }
-    }
-
-    internal static IReadOnlyList<string> ExtractSupportingDialogueTurns(
-        string manuscript,
-        OriginDossierMediaDispatchRequest request)
-    {
-        string focusSource = $"{request.SelectionLabel} {request.SelectionSummary}";
-        HashSet<string> focusTokens = Regex.Matches(
-                focusSource,
-                @"\b\p{Lu}[\p{L}'’-]{2,}\b")
-            .Select(match => match.Value)
-            .Where(token => !SupportingDialogueStopWords.Contains(token))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var candidates = new List<(int Score, int Index, string Text)>();
-        int lineIndex = 0;
-        foreach (string line in Regex.Split(manuscript, @"\r?\n"))
-        {
-            int score = focusTokens.Count(token =>
-                line.Contains(token, StringComparison.OrdinalIgnoreCase));
-            foreach (Match match in Regex.Matches(
-                         line,
-                         "[“\\\"](?<line>[^”\\\"\\r\\n]{3,240})[”\\\"]"))
-            {
-                string normalized = Regex.Replace(match.Groups["line"].Value, @"\s+", " ").Trim();
-                if (normalized.Length >= 3)
-                {
-                    candidates.Add((score, lineIndex, normalized));
-                }
-            }
-
-            lineIndex++;
-        }
-
-        IReadOnlyList<(int Score, int Index, string Text)> focused = candidates
-            .Where(candidate => candidate.Score > 0)
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.Index)
-            .ToArray();
-        IEnumerable<(int Score, int Index, string Text)> ordered =
-            focused.Count >= request.MinimumDialogueTurns
-                ? focused
-                : focused.Concat(candidates
-                    .Where(candidate => candidate.Score == 0)
-                    .OrderBy(candidate => candidate.Index));
-        return ordered
-            .Select(candidate => candidate.Text)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static IReadOnlyList<string> ExtractNarrativeBeats(string chapter)
-    {
-        string[] paragraphs = Regex.Split(chapter, @"\r?\n\s*\r?\n");
-        return paragraphs
-            .Select(paragraph => Regex.Replace(paragraph, @"(?m)^\s*#{1,6}\s*", string.Empty))
-            .Select(paragraph => Regex.Replace(paragraph, @"\s+", " ").Trim())
-            .Where(paragraph => paragraph.Length >= 40)
-            .Select(paragraph => paragraph.Length <= MaximumBeatCharacters
-                ? paragraph
-                : paragraph[..MaximumBeatCharacters].TrimEnd() + "…")
-            .ToArray();
-    }
-
-    private static string BuildShotPrompt(
-        OriginDossierMediaDispatchRequest request,
-        ChapterMoviePlan plan,
-        int shotIndex,
-        int shotCount)
-        => string.Join(
-            " ",
-            new[]
-            {
-                $"Origin Dossier chapter movie: {request.SelectionLabel}.",
-                $"Continuity shot {shotIndex + 1} of {shotCount}; this is one continuous chapter adaptation, not a trailer.",
-                request.SelectionSummary,
-                $"Exact story beat: {plan.Beats[shotIndex % plan.Beats.Count]}",
-                $"Required audible spoken dialogue, verbatim: “{plan.DialogueTurns[shotIndex % plan.DialogueTurns.Count]}”",
-                plan.UsesSupportingCanonDialogue
-                    ? "Some exact dialogue is recalled from earlier canon context; stage it as a brief visual memory tied to this chapter, then return to the present chapter without changing canon."
-                    : "Keep every spoken turn inside the selected chapter's present action.",
-                "Stage the named dialogue as natural in-scene speech with synchronized voice, room tone, and character reaction.",
-                "Keep the same adult runner visually consistent throughout.",
-                "Near-future cyberpunk realism, grounded dramatic lighting, natural camera motion.",
-                "Continue directly from the previous shot and leave motion that can cut cleanly into the next shot.",
-                "No captions, no logos, no watermark, no character redesign, no unrelated montage, no silent footage."
-            });
 
     private static async Task AssembleChapterMovieAsync(
         IReadOnlyList<string> segmentPaths,
@@ -1138,28 +1633,14 @@ public sealed class MagicFitOriginDossierCinematicSceneRenderer : IOriginDossier
     private static string Sha256Text(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
-    private static readonly HashSet<string> SupportingDialogueStopWords = new(
-        [
-            "Chapter",
-            "Clinic",
-            "Door",
-            "Rain",
-            "Scene",
-            "Selected",
-            "The",
-            "Inside",
-            "Outside",
-            "When",
-            "Their",
-            "With",
-            "From"
-        ],
-        StringComparer.OrdinalIgnoreCase);
+    private sealed record ContinuityReferenceFrame(
+        string Path,
+        string Sha256);
 
-    private sealed record ChapterMoviePlan(
-        IReadOnlyList<string> Beats,
-        IReadOnlyList<string> DialogueTurns,
-        bool UsesSupportingCanonDialogue);
+    private sealed record ControlledShotAudioResult(
+        bool DialogueRequired,
+        string? DialogueLineSha256,
+        string StateSha256);
 
     private sealed record ChapterMovieSegmentResult(
         int Index,
