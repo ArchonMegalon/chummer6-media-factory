@@ -26,7 +26,10 @@ public sealed record OriginDossierMediaRenderResult(
     string OutputPath,
     string OutputContentType,
     double? ObservedDurationSeconds,
-    string ProviderExecutionRefHash);
+    string ProviderExecutionRefHash,
+    string NarrativeScope = "",
+    int DialogueTurnCount = 0,
+    bool AudioTrackVerified = false);
 
 public sealed class OriginDossierMediaInboxProcessor
 {
@@ -167,6 +170,7 @@ public sealed class OriginDossierMediaInboxProcessor
             {
                 throw new InvalidOperationException("origin_dossier_media_output_missing");
             }
+            ValidateRenderedResult(request, rendered);
 
             FileInfo output = new(outputPath);
             receipt = new OriginDossierMediaDispatchReceipt(
@@ -186,7 +190,10 @@ public sealed class OriginDossierMediaInboxProcessor
                 ObservedDurationSeconds: rendered.ObservedDurationSeconds,
                 RequestSha256: requestSha256,
                 ProviderExecutionRefHash: rendered.ProviderExecutionRefHash,
-                CompletedAtUtc: DateTimeOffset.UtcNow);
+                CompletedAtUtc: DateTimeOffset.UtcNow,
+                NarrativeScope: rendered.NarrativeScope,
+                DialogueTurnCount: rendered.DialogueTurnCount,
+                AudioTrackVerified: rendered.AudioTrackVerified);
             await WriteReceiptAsync(receipt, cancellationToken);
             MoveProcessed(processingPath, request.RequestId, "completed");
             return receipt;
@@ -262,6 +269,16 @@ public sealed class OriginDossierMediaInboxProcessor
         string outputPath = string.IsNullOrWhiteSpace(receipt.OutputPath)
             ? string.Empty
             : Path.GetFullPath(receipt.OutputPath);
+        bool durationValid = receipt.ObservedDurationSeconds is > 0
+            && (request.Kind != OriginDossierMediaDispatchKind.CinematicScene
+                || receipt.ObservedDurationSeconds >= OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds);
+        bool cinematicEvidenceValid = request.Kind != OriginDossierMediaDispatchKind.CinematicScene
+            || string.Equals(
+                receipt.NarrativeScope,
+                OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                StringComparison.Ordinal)
+            && receipt.DialogueTurnCount >= request.MinimumDialogueTurns
+            && receipt.AudioTrackVerified;
         if (!string.Equals(receipt.Status, "succeeded", StringComparison.Ordinal)
             || !string.Equals(receipt.ProviderClass, expectedProviderClass, StringComparison.Ordinal)
             || !string.Equals(receipt.OutputContentType, expectedContentType, StringComparison.Ordinal)
@@ -269,7 +286,8 @@ public sealed class OriginDossierMediaInboxProcessor
             || !IsUnderRoot(outputPath, _outputRoot)
             || !File.Exists(outputPath)
             || receipt.OutputBytes != new FileInfo(outputPath).Length
-            || receipt.ObservedDurationSeconds is null or <= 0
+            || !durationValid
+            || !cinematicEvidenceValid
             || string.IsNullOrWhiteSpace(receipt.ProviderExecutionRefHash)
             || !string.IsNullOrEmpty(receipt.ErrorCode))
         {
@@ -318,9 +336,57 @@ public sealed class OriginDossierMediaInboxProcessor
         ValidateSourcePath(request.SourcePacketPath, nameof(request.SourcePacketPath), required: true);
         ValidateSourcePath(request.CoverPath, nameof(request.CoverPath), required: false);
         ValidateSourcePath(request.StoryboardPath, nameof(request.StoryboardPath), required: false);
-        if (request.DurationTargetSeconds is < 1 or > 60)
+        if (request.Kind == OriginDossierMediaDispatchKind.CinematicScene)
+        {
+            if (request.DurationTargetSeconds is < OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds
+                or > OriginDossierMediaDispatchContract.MaximumCinematicDurationSeconds)
+            {
+                throw new InvalidOperationException("origin_dossier_media_duration_invalid");
+            }
+
+            if (!string.Equals(
+                    request.NarrativeScope,
+                    OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                    StringComparison.Ordinal)
+                || !request.DialogueRequired
+                || request.MinimumDialogueTurns < OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns)
+            {
+                throw new InvalidOperationException("origin_dossier_media_chapter_dialogue_contract_invalid");
+            }
+        }
+        else if (request.DurationTargetSeconds is < 1 or > OriginDossierMediaDispatchContract.MaximumCinematicDurationSeconds)
         {
             throw new InvalidOperationException("origin_dossier_media_duration_invalid");
+        }
+    }
+
+    private static void ValidateRenderedResult(
+        OriginDossierMediaDispatchRequest request,
+        OriginDossierMediaRenderResult rendered)
+    {
+        if (rendered.ObservedDurationSeconds is null or <= 0)
+        {
+            throw new InvalidOperationException("origin_dossier_media_duration_unverified");
+        }
+
+        if (request.Kind != OriginDossierMediaDispatchKind.CinematicScene)
+        {
+            return;
+        }
+
+        if (rendered.ObservedDurationSeconds < OriginDossierMediaDispatchContract.MinimumCinematicDurationSeconds)
+        {
+            throw new InvalidOperationException("origin_dossier_media_cinematic_too_short");
+        }
+
+        if (!string.Equals(
+                rendered.NarrativeScope,
+                OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+                StringComparison.Ordinal)
+            || rendered.DialogueTurnCount < request.MinimumDialogueTurns
+            || !rendered.AudioTrackVerified)
+        {
+            throw new InvalidOperationException("origin_dossier_media_cinematic_dialogue_unverified");
         }
     }
 

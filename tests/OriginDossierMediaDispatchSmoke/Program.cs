@@ -46,6 +46,46 @@ Assert(
 AssertThrows(
     () => voiceResolver.ResolveProviderVoiceId("11111111-1111-1111-1111-111111111111"),
     "Unknown voice aliases must fail closed before provider spend.");
+OriginDossierMediaDispatchRequest dialogueRequest = Request(
+        OriginDossierMediaDispatchKind.CinematicScene,
+        "chapter-8")
+    with
+    {
+        SelectionLabel = "Chapter 8 — Clinic Door in the Rain",
+        SelectionSummary = "Kestrel meets Vela at the street clinic."
+    };
+IReadOnlyList<string> supportingDialogue =
+    MagicFitOriginDossierCinematicSceneRenderer.ExtractSupportingDialogueTurns(
+        """
+        ## Chapter 2: The Clinic
+
+        "You're tracking mud inside," Vela said.
+        "I can wipe my boots," Kestrel said.
+        "Step in before the rain follows you," Vela said.
+        "I remember what I owe," Kestrel said.
+
+        ## Chapter 8: Nobody Left in the Rain
+
+        Kestrel stood at Vela's clinic door and remembered the old debt.
+        """,
+        dialogueRequest);
+Assert(
+    supportingDialogue.Count >= OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns,
+    "A dialogue-light selected chapter must be able to recall enough exact canon dialogue.");
+Assert(
+    supportingDialogue.Contains("You're tracking mud inside,", StringComparer.OrdinalIgnoreCase)
+    && supportingDialogue.Contains("I can wipe my boots,", StringComparer.OrdinalIgnoreCase),
+    "Supporting dialogue must stay verbatim and focused on named chapter characters.");
+IReadOnlyList<string> headingDialogue =
+    MagicFitOriginDossierCinematicSceneRenderer.ExtractDialogueTurns(
+        """
+        Chapter 8: Nobody Left in the Rain
+
+        Kestrel watched the clinic door.
+        """);
+Assert(
+    headingDialogue.Count == 0,
+    "A chapter heading must never be counted as spoken dialogue.");
 var processor = new OriginDossierMediaInboxProcessor(
     inboxRoot,
     receiptRoot,
@@ -89,8 +129,40 @@ OriginDossierMediaDispatchReceipt videoReceipt = videoReceipts[0];
 Assert(videoReceipt.Status == "succeeded", "Cinematic request should succeed.");
 Assert(videoReceipt.ProviderClass == "preferred_video", "Video provider must stay redacted.");
 Assert(videoReceipt.OutputContentType == "video/mp4", "Cinematic output must be MP4.");
-Assert(videoReceipt.ObservedDurationSeconds == 5.085, "Receipt must use observed duration.");
+Assert(
+    videoReceipt.ObservedDurationSeconds == 125.085,
+    "Chapter movie receipt must use the verified two-minute-plus duration.");
+Assert(
+    videoReceipt.NarrativeScope == OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+    "Chapter movie receipt must preserve chapter-scale scope.");
+Assert(
+    videoReceipt.DialogueTurnCount >= OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns,
+    "Chapter movie receipt must prove multiple dialogue turns.");
+Assert(videoReceipt.AudioTrackVerified, "Chapter movie receipt must prove an audio track.");
 Assert(cinematic.CallCount == 1, "Cinematic renderer should run exactly once.");
+
+string shortInboxRoot = Path.Combine(root, "short-inbox");
+string shortReceiptRoot = Path.Combine(root, "short-receipts");
+string shortOutputRoot = Path.Combine(root, "short-outputs");
+Directory.CreateDirectory(shortInboxRoot);
+var shortProcessor = new OriginDossierMediaInboxProcessor(
+    shortInboxRoot,
+    shortReceiptRoot,
+    shortOutputRoot,
+    [sourceRoot],
+    audiobook,
+    new FakeCinematicRenderer(observedDurationSeconds: 15));
+OriginDossierMediaDispatchRequest shortVideoRequest = Request(
+    OriginDossierMediaDispatchKind.CinematicScene,
+    "scene-too-short");
+await WriteRequestAsync(shortVideoRequest, shortInboxRoot);
+OriginDossierMediaDispatchReceipt shortVideoReceipt = AssertSingle(
+    await shortProcessor.ProcessPendingAsync(),
+    "A short chapter movie request should produce one failed receipt.");
+Assert(shortVideoReceipt.Status == "failed", "A chapter movie below two minutes must fail closed.");
+Assert(
+    shortVideoReceipt.ErrorCode == "origin_dossier_media_cinematic_too_short",
+    "The short chapter movie failure must stay machine-readable.");
 
 Directory.Delete(root, recursive: true);
 Console.WriteLine("Origin Dossier media dispatch smoke passed.");
@@ -121,7 +193,16 @@ OriginDossierMediaDispatchRequest Request(
         SourcePacketPath: packetPath,
         CoverPath: coverPath,
         StoryboardPath: storyboardPath,
-        DurationTargetSeconds: 10);
+        DurationTargetSeconds: kind == OriginDossierMediaDispatchKind.CinematicScene
+            ? OriginDossierMediaDispatchContract.DefaultCinematicDurationSeconds
+            : 1,
+        NarrativeScope: kind == OriginDossierMediaDispatchKind.CinematicScene
+            ? OriginDossierMediaDispatchContract.ChapterNarrativeScope
+            : OriginDossierMediaDispatchContract.FullBookNarrativeScope,
+        DialogueRequired: kind == OriginDossierMediaDispatchKind.CinematicScene,
+        MinimumDialogueTurns: kind == OriginDossierMediaDispatchKind.CinematicScene
+            ? OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns
+            : 0);
     return request with
     {
         RequestId = OriginDossierMediaDispatchContract.BuildRequestId(
@@ -133,14 +214,24 @@ OriginDossierMediaDispatchRequest Request(
     };
 }
 
-async Task WriteRequestAsync(OriginDossierMediaDispatchRequest request)
+async Task WriteRequestAsync(
+    OriginDossierMediaDispatchRequest request,
+    string? targetInboxRoot = null)
 {
-    string path = Path.Combine(inboxRoot, request.RequestId + ".request.json");
+    string path = Path.Combine(targetInboxRoot ?? inboxRoot, request.RequestId + ".request.json");
     await File.WriteAllTextAsync(
         path,
         JsonSerializer.Serialize(
             request,
             new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
+}
+
+static OriginDossierMediaDispatchReceipt AssertSingle(
+    IReadOnlyList<OriginDossierMediaDispatchReceipt> receipts,
+    string message)
+{
+    Assert(receipts.Count == 1, message);
+    return receipts[0];
 }
 
 static string Sha256File(string path)
@@ -195,6 +286,13 @@ sealed class FakeAudiobookRenderer : IOriginDossierAudiobookRenderer
 
 sealed class FakeCinematicRenderer : IOriginDossierCinematicSceneRenderer
 {
+    private readonly double _observedDurationSeconds;
+
+    public FakeCinematicRenderer(double observedDurationSeconds = 125.085)
+    {
+        _observedDurationSeconds = observedDurationSeconds;
+    }
+
     public int CallCount { get; private set; }
 
     public async Task<OriginDossierMediaRenderResult> RenderAsync(
@@ -213,7 +311,10 @@ sealed class FakeCinematicRenderer : IOriginDossierCinematicSceneRenderer
             "preferred_video",
             outputPath,
             "video/mp4",
-            5.085,
-            new string('d', 64));
+            _observedDurationSeconds,
+            new string('d', 64),
+            OriginDossierMediaDispatchContract.ChapterNarrativeScope,
+            OriginDossierMediaDispatchContract.MinimumCinematicDialogueTurns,
+            true);
     }
 }
