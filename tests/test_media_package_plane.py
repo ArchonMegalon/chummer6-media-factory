@@ -275,15 +275,30 @@ class MediaPackagePlaneTests(unittest.TestCase):
         content_hash = base64.b64decode(package_row["contentHash"], validate=True)
         self.assertEqual(bytes.fromhex(package["normalizedNupkgSha512"]), content_hash)
 
-    def test_nuget_configuration_allows_only_the_exact_local_package_feed(self) -> None:
+    def test_nuget_configuration_pins_contracts_locally_and_sdk_packs_officially(self) -> None:
         config = ET.parse(NUGET_CONFIG).getroot()
         sources = config.findall("./packageSources/add")
-        self.assertEqual(1, len(sources))
-        self.assertEqual(".tmp/package-feed", sources[0].attrib["value"])
+        self.assertEqual(
+            [
+                ("chummer-media-package-plane", ".tmp/package-feed"),
+                ("nuget.org", "https://api.nuget.org/v3/index.json"),
+            ],
+            [(source.attrib["key"], source.attrib["value"]) for source in sources],
+        )
         mappings = config.findall("./packageSourceMapping/packageSource")
-        self.assertEqual(1, len(mappings))
-        patterns = mappings[0].findall("./package")
-        self.assertEqual(["Chummer.Hub.Registry.Contracts"], [p.attrib["pattern"] for p in patterns])
+        self.assertEqual(
+            {
+                "chummer-media-package-plane": ["Chummer.Hub.Registry.Contracts"],
+                "nuget.org": ["Microsoft.*"],
+            },
+            {
+                mapping.attrib["key"]: [
+                    pattern.attrib["pattern"]
+                    for pattern in mapping.findall("./package")
+                ]
+                for mapping in mappings
+            },
+        )
 
     def test_package_normalization_is_independent_of_source_zip_compression(self) -> None:
         module = load_bootstrap_module()
