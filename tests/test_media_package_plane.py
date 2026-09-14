@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -33,7 +34,67 @@ def load_bootstrap_module():
     return module
 
 
+def assert_self_alias_retired(root: Path) -> None:
+    # Inspect the index even when core.symlinks=false or the worktree entry is gone.
+    indexed = subprocess.run(
+        ["git", "ls-files", "--stage", "-z", "--", "chummer-media-factory"],
+        cwd=root, check=True, capture_output=True, timeout=10,
+        env={"PATH": os.defpath, "GIT_CONFIG_NOSYSTEM": "1",
+             "GIT_CONFIG_GLOBAL": os.devnull, "GIT_NO_REPLACE_OBJECTS": "1",
+             "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": "",
+             "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"},
+    ).stdout
+    if indexed:
+        raise AssertionError("retired nested self-alias is still tracked")
+    try:
+        (root / "chummer-media-factory").lstat()
+    except FileNotFoundError:
+        return
+    raise AssertionError("retired nested self-alias was recreated in the worktree")
+
+
 class MediaPackagePlaneTests(unittest.TestCase):
+    def test_checkout_has_no_nested_self_alias(self) -> None:
+        assert_self_alias_retired(ROOT)
+
+    def test_self_alias_check_rejects_tracked_symlink_with_symlinks_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            subprocess.run(["git", "config", "core.symlinks", "false"], cwd=root, check=True)
+            target = b"../outside"
+            oid = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"], input=target,
+                cwd=root, check=True, capture_output=True,
+            ).stdout.decode("ascii").strip()
+            subprocess.run(
+                ["git", "update-index", "--add", "--cacheinfo",
+                 f"120000,{oid},chummer-media-factory"], cwd=root, check=True,
+            )
+            alias = root / "chummer-media-factory"
+            alias.write_bytes(target)  # Git's core.symlinks=false representation.
+            with self.assertRaisesRegex(AssertionError, "still tracked"):
+                assert_self_alias_retired(root)
+            alias.unlink()
+            with self.assertRaisesRegex(AssertionError, "still tracked"):
+                assert_self_alias_retired(root)
+
+    def test_self_alias_check_rejects_untracked_replacements(self) -> None:
+        for kind in ("file", "directory", "broken-link"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+                assert_self_alias_retired(root)
+                alias = root / "chummer-media-factory"
+                if kind == "file":
+                    alias.write_bytes(b"not a compatibility root")
+                elif kind == "directory":
+                    alias.mkdir()
+                else:
+                    alias.symlink_to(root / "missing")
+                with self.assertRaisesRegex(AssertionError, "recreated"):
+                    assert_self_alias_retired(root)
+
     def test_runtime_consumes_the_exact_owner_package_without_sibling_paths(self) -> None:
         lock = json.loads(LOCK.read_text(encoding="utf-8"))
         self.assertEqual(
