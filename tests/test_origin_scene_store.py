@@ -101,6 +101,55 @@ class OriginSceneTests(unittest.TestCase):
             self.render()
         self.assertEqual(0, self.calls)
 
+    def test_lifetime_limit_survives_restart_expiry_and_erasure(self):
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        self.render()
+        self.store.expire(now=self.now + 8 * 86400)
+        self.store.erase_owner(self.owner)
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        self.owner = "f" * 64
+        self.request = contract(owner=self.owner)
+        with self.assertRaisesRegex(PermissionError, "allowance is exhausted"):
+            self.render()
+        self.assertEqual(1, self.calls)
+
+    def test_lifetime_limit_counts_uncertain_attempts_and_is_atomic(self):
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        entered, release = Event(), Event()
+        def renderer(prompt):
+            self.provider(prompt)
+            entered.set()
+            release.wait(5)
+            raise TimeoutError()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            first = executor.submit(self.render, renderer)
+            try:
+                self.assertTrue(entered.wait(5))
+                with self.assertRaisesRegex(PermissionError, "allowance is exhausted"):
+                    self.store.render(self.owner, contract(text_digest="f" * 64), "e" * 64,
+                                      self.provider, still_authorized=self.current, now=self.now)
+            finally:
+                release.set()
+            with self.assertRaises(TimeoutError):
+                first.result(timeout=5)
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        self.assertEqual("uncertain", self.render()["state"])
+        self.assertEqual(1, self.calls)
+
+    def test_live_renderer_receives_exact_identity_after_committed_fence(self):
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        renderer = scene.OneMinSceneRenderer(self.database.parent)
+        def admitted(prompt, key, admission):
+            with self.store.connect() as connection:
+                row = connection.execute("SELECT state FROM origin_scenes WHERE id=?", (key,)).fetchone()
+                self.assertEqual("dispatching", row[0])
+            self.assertEqual("e" * 64, admission)
+            return self.provider(prompt)
+        renderer.render_admitted = admitted
+        self.assertEqual("review", self.render(renderer)["state"])
+        with self.assertRaises(PermissionError):
+            renderer("no durable admission")
+
     def test_unavailable_phygital_never_silently_spends_onemin_credits(self):
         self.request["preferredProvider"] = "phygital"
         with self.assertRaises(ValueError):

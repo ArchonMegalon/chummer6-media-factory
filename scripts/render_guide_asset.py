@@ -11,6 +11,7 @@ import json
 import os
 import re
 import socket
+import stat
 import subprocess
 import sys
 import urllib.error
@@ -193,6 +194,7 @@ def _write_attempt_status(
     size: str = "",
     detail: str = "",
     reference_image: Path | None = None,
+    provider_response: dict[str, object] | None = None,
 ) -> Path:
     ATTEMPTS_ROOT.mkdir(parents=True, exist_ok=True)
     attempt_path = ATTEMPTS_ROOT / f"{render_id}.json"
@@ -212,6 +214,8 @@ def _write_attempt_status(
         "detail": str(detail or "").strip()[:400],
         "reference_image_path": str(reference_image) if isinstance(reference_image, Path) else "",
     }
+    if provider_response is not None:
+        payload["provider_response"] = provider_response
     attempt_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     return attempt_path
 
@@ -1107,10 +1111,58 @@ def _download_asset(url: str, output_path: Path) -> None:
     output_path.write_bytes(data)
 
 
+def _origin_response_summary(body: object) -> dict[str, object]:
+    """Private recovery identity/shape only: never prose, account data or URLs."""
+    record = body.get("aiRecord") if isinstance(body, dict) else None
+    if not isinstance(record, dict):
+        return {"recordPresent": False}
+    detail = record.get("aiRecordDetail")
+    result = detail.get("resultObject") if isinstance(detail, dict) else None
+    identifier = record.get("uuid")
+    return {"recordPresent": True,
+            "uuid": identifier if isinstance(identifier, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", identifier) else None,
+            "status": record.get("status") if record.get("status") in ("SUCCESS", "PROCESSING", "FAILURE") else "unknown",
+            "resultType": type(result).__name__, "resultCount": len(result) if isinstance(result, list) else None}
+
+
+def _origin_asset_url(body: object) -> str:
+    """One result only; bind the documented signed URL to its exact asset path."""
+    if not isinstance(body, dict) or not isinstance(body.get("aiRecord"), dict):
+        raise RuntimeError("media_factory:origin_result_rejected")
+    record = body["aiRecord"]
+    detail = record.get("aiRecordDetail")
+    if record.get("status", "SUCCESS") != "SUCCESS" or not isinstance(detail, dict):
+        raise RuntimeError("media_factory:origin_result_rejected")
+    result = detail.get("resultObject")
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except ValueError:
+            result = [result]
+    if not isinstance(result, list) or len(result) != 1 or not isinstance(result[0], str):
+        raise RuntimeError("media_factory:origin_result_rejected")
+    asset = result[0]
+    if asset.startswith("https://"):
+        return asset  # The downloader enforces origins, TLS, byte limits and no redirects.
+    if not re.fullmatch(r"(?:(?:development|production)/)?images/[A-Za-z0-9_./-]+\.png", asset) or any(
+            part in ("", ".", "..") for part in asset.split("/")):
+        raise RuntimeError("media_factory:origin_result_rejected")
+    temporary = record.get("temporaryUrl")
+    if not isinstance(temporary, str):
+        raise RuntimeError("media_factory:origin_result_rejected")
+    parsed = urllib.parse.urlsplit(temporary)
+    expected_prefix = {"s3.us-east-1.amazonaws.com": "/asset.1min.ai/", "storage.1min.ai": "/"}.get(parsed.hostname)
+    if (parsed.scheme != "https" or expected_prefix is None
+            or parsed.path != expected_prefix + asset or parsed.fragment
+            or parsed.username or parsed.password or parsed.port not in (None, 443)):
+        raise RuntimeError("media_factory:origin_result_binding_rejected")
+    return temporary
+
+
 def _download_origin_asset(url: str, output_path: Path) -> None:
     """One bounded fetch; no redirect, proxy, DNS rebinding or broad S3 wildcard."""
     parsed = urllib.parse.urlsplit(url)
-    if (parsed.scheme != "https" or parsed.hostname not in {"api.1min.ai", "s3.us-east-1.amazonaws.com"}
+    if (parsed.scheme != "https" or parsed.hostname not in {"api.1min.ai", "storage.1min.ai", "s3.us-east-1.amazonaws.com"}
             or parsed.username or parsed.password or parsed.port not in (None, 443)):
         raise RuntimeError("media_factory:origin_asset_origin_rejected")
     addresses = {row[4][0] for row in socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)}
@@ -1202,6 +1254,35 @@ class _NoRenderRedirects(urllib.request.HTTPRedirectHandler):
         raise RuntimeError("media_factory:render_redirect_rejected")
 
 
+class OriginSceneAdmission:
+    """Internal Media dispatch context, not a client capability or credit balance.
+
+    OriginSceneStore constructs this only after committing the Hub admission and
+    local lifetime batch fence. No EA guide reservation or provider-key pool is
+    used. The isolated worker receives exactly one read-only credential file.
+    """
+    def __init__(self, scene_id: str, admission_digest: str, key_file: Path):
+        if not all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                   for value in (scene_id, admission_digest)):
+            raise ValueError("Invalid committed Origin admission.")
+        self.scene_id, self.admission_digest = scene_id, admission_digest
+        self.key_file = key_file
+
+    def read_key(self) -> str:
+        if not self.key_file.is_absolute():
+            raise ValueError("A dedicated absolute Origin credential file is required.")
+        descriptor = os.open(self.key_file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as handle:
+            info = os.fstat(handle.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077
+                    or info.st_uid != os.geteuid()):
+                raise ValueError("The Origin credential must be a private owned regular file.")
+            value = handle.read(513)
+        if not 16 <= len(value) <= 512 or any(byte < 33 or byte > 126 for byte in value):
+            raise ValueError("Invalid Origin credential file.")
+        return value.decode("ascii")
+
+
 def render_asset(
     *,
     prompt: str,
@@ -1211,8 +1292,12 @@ def render_asset(
     dry_run: bool = False,
     reference_image: Path | None = None,
     single_dispatch: bool = False,
+    origin_admission: OriginSceneAdmission | None = None,
 ) -> dict[str, object]:
-    _seed_runtime_env()
+    if origin_admission is not None and (not single_dispatch or reference_image is not None):
+        raise ValueError("Origin admission is restricted to one text-to-image scene.")
+    if origin_admission is None:
+        _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
     backend_provider = _selected_backend()
     if single_dispatch and (backend_provider != "onemin" or _onemin_endpoint() != "https://api.1min.ai/api/features"):
@@ -1229,6 +1314,14 @@ def render_asset(
     model_candidates = _model_candidates(submitted_prompt)
     selected_model = model_candidates[0] if model_candidates else ""
     quality = _default_quality(prompt=submitted_prompt, model=selected_model)
+    if origin_admission is not None:
+        # A fixed, small execution recipe keeps the local count allowance bounded;
+        # guide/model overrides cannot silently turn it into a costly variant.
+        if (width, height) != (1536, 1024):
+            raise ValueError("Origin scene dimensions differ from the admitted recipe.")
+        model_candidates = ["gpt-image-1-mini"]
+        selected_model, quality = model_candidates[0], "low"
+        manager_principal_id, manager_allow_reserve = "hub-admitted-origin", False
     payload = {
         "prompt": submitted_prompt,
         "aspect_ratio": _aspect_ratio(width, height),
@@ -1349,13 +1442,19 @@ def render_asset(
             raise
 
     reservation_request_id = f"media-factory-image-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{width}x{height}"
-    reservation = _reserve_onemin_image_slot(
+    reservation = None if origin_admission is not None else _reserve_onemin_image_slot(
         width=width,
         height=height,
         principal_id=manager_principal_id,
         allow_reserve=manager_allow_reserve,
     )
     reservation_source = "ea_http"
+    if origin_admission is not None:
+        # No refundable lease: the committed scene counts against the batch even
+        # after timeout, process death, rejection, expiry or owner erasure.
+        reservation = {"lease_id": "", "account_id": "origin-scoped-key",
+                       "slot_name": "origin-scoped-key", "secret_env_name": ""}
+        reservation_source = "hub_admission_and_media_lifetime_batch"
     local_manager = None
     # Private Origin requests already have a durable no-replay fence. Do not
     # cross that boundary using the guide-only, per-call memory manager: it
@@ -1392,7 +1491,7 @@ def render_asset(
     secret_env_name = str(reservation.get("secret_env_name") or "").strip()
     reserved_account_id = str(reservation.get("account_id") or reservation.get("account_name") or "").strip() or "onemin_unknown"
     reserved_slot_name = str(reservation.get("slot_name") or secret_env_name or "").strip() or "unknown"
-    api_key = str(os.environ.get(secret_env_name) or "").strip()
+    api_key = origin_admission.read_key() if origin_admission is not None else str(os.environ.get(secret_env_name) or "").strip()
     errors: list[str] = []
     if not api_key:
         detail = f"media_factory:reserved_slot_missing_local_key:{secret_env_name or 'unknown'}"
@@ -1445,6 +1544,7 @@ def render_asset(
         )
 
     result_json: dict[str, object] | None = None
+    provider_summary: dict[str, object] | None = None
     try:
         for slot_candidate in slot_candidates:
             if monotonic() - started_at > float(watchdog_seconds):
@@ -1458,7 +1558,7 @@ def render_asset(
                 if monotonic() - started_at > float(watchdog_seconds):
                     errors.append(f"watchdog:{watchdog_seconds}s")
                     break
-                sizes = _size_candidates(model, width=width, height=height)
+                sizes = ["1536x1024"] if origin_admission is not None else _size_candidates(model, width=width, height=height)
                 for size in (sizes[:1] if single_dispatch else sizes):
                     if monotonic() - started_at > float(watchdog_seconds):
                         errors.append(f"watchdog:{watchdog_seconds}s")
@@ -1499,7 +1599,7 @@ def render_asset(
                         if single_dispatch:
                             # Never forward the credential or repeat a paid POST
                             # through a provider redirect.
-                            opener = urllib.request.build_opener(_NoRenderRedirects())
+                            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
                             open_request = opener.open
                         else:
                             open_request = urllib.request.urlopen
@@ -1537,14 +1637,13 @@ def render_asset(
                             errors.append(f"{current_slot_name}:{model}:{size}:non_json_response:{detail}")
                             continue
                         if single_dispatch:
-                            # Strict Origin output is one documented result URL.
-                            result_object = body.get("aiRecord", {}).get("aiRecordDetail", {}).get("resultObject")
-                            if isinstance(result_object, str):
-                                try:
-                                    result_object = json.loads(result_object)
-                                except ValueError:
-                                    result_object = [result_object]
-                            asset_urls = result_object if isinstance(result_object, list) and len(result_object) == 1 and isinstance(result_object[0], str) else []
+                            provider_summary = _origin_response_summary(body)
+                            _write_attempt_status(render_id=render_id, phase="provider_responded",
+                                backend_provider=backend_provider, output_path=output_path, family=family,
+                                requested_prompt=str(prompt or ""), submitted_prompt=submitted_prompt,
+                                width=width, height=height, model=model, size=size,
+                                detail="response_received_no_redispatch", provider_response=provider_summary)
+                            asset_urls = [_origin_asset_url(body)]
                         else:
                             asset_urls = _collect_asset_urls(body)
                         if not asset_urls:
@@ -1568,6 +1667,12 @@ def render_asset(
                             "feature_type": "IMAGE_GENERATOR",
                             "tool_version": "v1",
                             "manager_lease_id": lease_id if current_is_reserved else "",
+                            **({"scene_id": origin_admission.scene_id,
+                                "hub_admission_digest": origin_admission.admission_digest,
+                                "reservation_source": reservation_source,
+                                "actual_credits_delta": None,
+                                "credential_sha256": hashlib.sha256(api_key.encode()).hexdigest()}
+                               if origin_admission is not None else {}),
                         },
                         "output_json": {
                             "asset_urls": asset_urls,
@@ -1683,6 +1788,19 @@ def render_asset(
             "receipt_path": str(receipt_path),
             "asset_url": asset_urls[0] if asset_urls else "",
         }
+    except Exception as error:
+        if single_dispatch:
+            # Preserve diagnosis even if parsing/download fails after a paid POST.
+            # Arbitrary exception text may contain private URLs or provider data.
+            safe_error = str(error)
+            if not re.fullmatch(r"media_factory:origin_[a-z_]+", safe_error):
+                safe_error = type(error).__name__
+            _write_attempt_status(render_id=render_id, phase="failed_no_retry",
+                backend_provider=backend_provider, output_path=output_path, family=family,
+                requested_prompt=str(prompt or ""), submitted_prompt=submitted_prompt,
+                width=width, height=height, model=selected_model, detail=safe_error,
+                provider_response=provider_summary)
+        raise
     finally:
         if lease_id:
             _release_onemin_image_slot(

@@ -1,0 +1,24 @@
+# Explicit opt-in overlay. No inbound TCP; Hub still uses the private socket.
+services:
+  origin-scene-media:
+    network_mode: bridge
+    command:
+      - --socket
+      - /private/socket/worker.sock
+      - --token-file
+      - /private/auth/worker.token
+      - --database
+      - /private/data/media.sqlite
+      - --private-render-directory
+      - /private/render
+      - --enable-dispatch
+      - --onemin-key-file
+      - /private/auth/onemin.key
+      - --dispatch-limit
+      - ${CHUMMER_ORIGIN_SCENE_DISPATCH_LIMIT:?Select the absolute lifetime scene limit}
+    volumes:
+      - type: bind
+        source: ${CHUMMER_ORIGIN_SCENE_ROOT}/auth/onemin.key
+        target: /private/auth/onemin.key
+        read_only: true
+        bind: {create_host_path: false}

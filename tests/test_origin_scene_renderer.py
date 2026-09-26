@@ -76,6 +76,67 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.module._release_onemin_image_slot.assert_called_once()
         self.assertIsNone(self.module._release_onemin_image_slot.call_args.kwargs["actual_credits_delta"])
 
+    def admission(self):
+        key = Path(self.temp.name) / "onemin.key"
+        key.write_text("scoped-synthetic-key-not-a-credential")
+        key.chmod(0o600)
+        return self.module.OriginSceneAdmission("a" * 64, "b" * 64, key)
+
+    def test_hub_admitted_scene_uses_one_scoped_key_and_not_the_ea_pool(self):
+        self.open.return_value = FakeResponse(b"png", {"Content-Type": "image/png"})
+        admission = self.admission()
+        result = self.render(origin_admission=admission)
+        self.assertEqual("hub_admission_and_media_lifetime_batch", result["manager_reservation_source"])
+        self.module._seed_runtime_env.assert_not_called()
+        self.module._reserve_onemin_image_slot.assert_not_called()
+        self.module._release_onemin_image_slot.assert_not_called()
+        self.module._configured_onemin_slots.assert_not_called()
+        self.assertEqual(1, self.open.call_count)
+        request = self.open.call_args.args[0]
+        self.assertEqual(admission.key_file.read_text(), request.get_header("Api-key"))
+        payload = json.loads(request.data)
+        self.assertEqual("gpt-image-1-mini", payload["model"])
+        self.assertEqual("low", payload["promptObject"]["quality"])
+        self.assertEqual(1, payload["promptObject"]["n"])
+        self.assertEqual("1536x1024", payload["promptObject"]["size"])
+        receipt = self.module._write_receipt.call_args.kwargs["result_json"]["receipt_json"]
+        self.assertEqual("a" * 64, receipt["scene_id"])
+        self.assertEqual("b" * 64, receipt["hub_admission_digest"])
+        self.assertIsNone(receipt["actual_credits_delta"])
+        self.assertNotIn(admission.key_file.read_text(), json.dumps(receipt))
+
+    def test_admitted_scene_timeout_never_releases_refills_or_retries(self):
+        self.open.side_effect = TimeoutError()
+        with self.assertRaises(RuntimeError):
+            self.render(origin_admission=self.admission())
+        self.assertEqual(1, self.open.call_count)
+        self.module._reserve_onemin_image_slot.assert_not_called()
+        self.module._release_onemin_image_slot.assert_not_called()
+
+    def test_scoped_key_rejects_links_permissions_and_oversized_material(self):
+        admission = self.admission()
+        admission.key_file.chmod(0o644)
+        with self.assertRaises(ValueError):
+            self.render(origin_admission=admission)
+        admission.key_file.chmod(0o600)
+        admission.key_file.write_text("x" * 513)
+        with self.assertRaises(ValueError):
+            self.render(origin_admission=admission)
+        link = admission.key_file.parent / "linked.key"
+        link.symlink_to(admission.key_file)
+        with self.assertRaises(OSError):
+            self.render(origin_admission=self.module.OriginSceneAdmission("a" * 64, "b" * 64, link))
+        self.open.assert_not_called()
+
+    def test_admission_cannot_enable_general_guide_or_another_recipe(self):
+        with self.assertRaises(ValueError):
+            self.module.render_asset(prompt="facts", output_path=self.output, width=1536, height=1024,
+                                     origin_admission=self.admission())
+        with self.assertRaises(ValueError):
+            self.module.render_asset(prompt="facts", output_path=self.output, width=4096, height=4096,
+                                     single_dispatch=True, origin_admission=self.admission())
+        self.open.assert_not_called()
+
     def test_known_provider_response_uses_strict_download_not_url_crawler(self):
         self.open.return_value = FakeResponse(json.dumps({"aiRecord": {"aiRecordDetail": {
             "resultObject": ["https://s3.us-east-1.amazonaws.com/example/scene.png"]}}}).encode(), {"Content-Type": "application/json"})
@@ -99,6 +160,49 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.assertNotIn("private childhood facts", receipt)
         self.assertNotIn("provider.invalid", receipt)
         self.assertEqual(self.module.hashlib.sha256(self.output.read_bytes()).hexdigest(), json.loads(receipt)["output_json"]["content_sha256"])
+
+    def test_documented_relative_result_uses_only_its_matching_temporary_url(self):
+        asset = "development/images/synthetic_scene.png"
+        url = "https://s3.us-east-1.amazonaws.com/asset.1min.ai/" + asset + "?signature=synthetic"
+        body = {"aiRecord": {"status": "SUCCESS", "temporaryUrl": url,
+                "aiRecordDetail": {"resultObject": [asset]}}}
+        self.open.return_value = FakeResponse(json.dumps(body).encode(), {"Content-Type": "application/json"})
+        self.module._download_origin_asset = Mock()
+        self.render(origin_admission=self.admission())
+        self.module._download_origin_asset.assert_called_once_with(url, self.output)
+        self.assertEqual(1, self.open.call_count)
+
+    def test_relative_result_cannot_redirect_to_another_asset_or_extra_results(self):
+        asset = "development/images/synthetic_scene.png"
+        for url in ("https://other.invalid/" + asset,
+                    "https://s3.us-east-1.amazonaws.com/another-bucket/" + asset,
+                    "https://s3.us-east-1.amazonaws.com/asset.1min.ai/development/images/other.png"):
+            with self.assertRaises(RuntimeError):
+                self.module._origin_asset_url({"aiRecord": {"temporaryUrl": url,
+                    "aiRecordDetail": {"resultObject": [asset]}}})
+        for result in ([asset, asset], ["development/images/../secret.png"], [], None):
+            with self.assertRaises(RuntimeError):
+                self.module._origin_asset_url({"aiRecord": {"aiRecordDetail": {"resultObject": result}}})
+
+    def test_documented_storage_host_preserves_exact_relative_asset_binding(self):
+        asset = "images/2026_09_26_scene.png"
+        url = "https://storage.1min.ai/" + asset + "?signature=synthetic"
+        self.assertEqual(url, self.module._origin_asset_url({"aiRecord": {"temporaryUrl": url,
+            "aiRecordDetail": {"resultObject": [asset]}}}))
+
+    def test_failed_response_preserves_private_recovery_identity_without_private_fields(self):
+        body = {"aiRecord": {"uuid": "synthetic-record-id", "status": "PROCESSING", "teamId": "private-account",
+                "temporaryUrl": "https://private.invalid/secret", "aiRecordDetail": {
+                    "promptObject": {"prompt": "private prose"}, "resultObject": []}}}
+        self.open.return_value = FakeResponse(json.dumps(body).encode(), {"Content-Type": "application/json"})
+        with self.assertRaises(RuntimeError):
+            self.render(origin_admission=self.admission())
+        attempt = self.module._write_attempt_status.call_args.kwargs
+        self.assertEqual("failed_no_retry", attempt["phase"])
+        self.assertEqual("synthetic-record-id", attempt["provider_response"]["uuid"])
+        self.assertEqual("PROCESSING", attempt["provider_response"]["status"])
+        self.assertNotIn("private", json.dumps(attempt["provider_response"]))
+        self.assertEqual(1, self.open.call_count)
 
     def test_non_json_private_response_never_enters_error_receipts(self):
         self.open.return_value = FakeResponse(b"private childhood facts", {"Content-Type": "text/plain"})
