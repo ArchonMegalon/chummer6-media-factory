@@ -59,6 +59,23 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.assertEqual(1, payload["promptObject"]["n"])
         self.assertEqual(1, self.open.call_count)
 
+    def test_missing_manager_does_not_fall_back_to_ephemeral_quota_or_spend(self):
+        self.module._reserve_onemin_image_slot.return_value = None
+        self.module._reserve_onemin_image_slot_locally = Mock(
+            side_effect=AssertionError("Private scenes cannot use per-call memory quota"))
+        with self.assertRaisesRegex(RuntimeError, "onemin_manager_capacity_unavailable"):
+            self.render()
+        self.module._reserve_onemin_image_slot_locally.assert_not_called()
+        self.open.assert_not_called()
+        self.module._write_receipt.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_image_success_does_not_report_an_estimate_as_observed_provider_spend(self):
+        self.open.return_value = FakeResponse(b"png-received-by-adapter", {"Content-Type": "image/png"})
+        self.render()
+        self.module._release_onemin_image_slot.assert_called_once()
+        self.assertIsNone(self.module._release_onemin_image_slot.call_args.kwargs["actual_credits_delta"])
+
     def test_known_provider_response_uses_strict_download_not_url_crawler(self):
         self.open.return_value = FakeResponse(json.dumps({"aiRecord": {"aiRecordDetail": {
             "resultObject": ["https://s3.us-east-1.amazonaws.com/example/scene.png"]}}}).encode(), {"Content-Type": "application/json"})
