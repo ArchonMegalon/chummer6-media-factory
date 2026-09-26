@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import http.client
 import ipaddress
 import importlib.util
 import json
@@ -1106,6 +1107,40 @@ def _download_asset(url: str, output_path: Path) -> None:
     output_path.write_bytes(data)
 
 
+def _download_origin_asset(url: str, output_path: Path) -> None:
+    """One bounded fetch; no redirect, proxy, DNS rebinding or broad S3 wildcard."""
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme != "https" or parsed.hostname not in {"api.1min.ai", "s3.us-east-1.amazonaws.com"}
+            or parsed.username or parsed.password or parsed.port not in (None, 443)):
+        raise RuntimeError("media_factory:origin_asset_origin_rejected")
+    addresses = {row[4][0] for row in socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)}
+    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise RuntimeError("media_factory:origin_asset_address_rejected")
+
+    class PinnedConnection(http.client.HTTPSConnection):
+        def connect(self):
+            raw = socket.create_connection((sorted(addresses)[0], 443), timeout=self.timeout)
+            try:
+                self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+            except BaseException:
+                raw.close()
+                raise
+
+    connection = PinnedConnection(parsed.hostname, timeout=40)
+    try:
+        connection.request("GET", parsed.path + ("?" + parsed.query if parsed.query else ""), headers={"Accept": "image/png"})
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError("media_factory:origin_asset_status_rejected")
+        if str(response.headers.get("Content-Type", "")).split(";")[0].strip() not in ("image/png", "application/octet-stream"):
+            raise RuntimeError("media_factory:origin_asset_content_type_rejected")
+        data = _read_response_bytes_with_limit(response, max_bytes=4 * 1024 * 1024, label="origin_asset")
+    finally:
+        connection.close()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+
+
 def _write_receipt(
     *,
     render_id: str,
@@ -1154,6 +1189,11 @@ def _write_receipt(
     return receipt_path
 
 
+class _NoRenderRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise RuntimeError("media_factory:render_redirect_rejected")
+
+
 def render_asset(
     *,
     prompt: str,
@@ -1162,17 +1202,22 @@ def render_asset(
     height: int,
     dry_run: bool = False,
     reference_image: Path | None = None,
+    single_dispatch: bool = False,
 ) -> dict[str, object]:
     _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
     backend_provider = _selected_backend()
+    if single_dispatch and (backend_provider != "onemin" or _onemin_endpoint() != "https://api.1min.ai/api/features"):
+        raise RuntimeError("media_factory:single_dispatch_requires_onemin")
     image_execution_enabled = _image_execution_enabled()
     manager_principal_id = _manager_principal_id()
     manager_allow_reserve = _manager_allow_reserve()
     family = _asset_family_for_output_path(output_path)
     watchdog_seconds = _render_watchdog_seconds(backend_provider)
     started_at = monotonic()
-    submitted_prompt = _prepare_onemin_prompt(prompt)
+    # Approved book scenes must not silently lose facts through guide-prompt
+    # shortening. The Origin intake bounds the exact prompt separately.
+    submitted_prompt = str(prompt) if single_dispatch else _prepare_onemin_prompt(prompt)
     model_candidates = _model_candidates(submitted_prompt)
     selected_model = model_candidates[0] if model_candidates else ""
     quality = _default_quality(prompt=submitted_prompt, model=selected_model)
@@ -1192,6 +1237,7 @@ def render_asset(
         return {
             "render_id": render_id,
             "dry_run": True,
+            "single_dispatch": single_dispatch,
             "provider": "media_factory",
             "backend_provider": "disabled" if not image_execution_enabled else backend_provider,
             "image_execution_enabled": image_execution_enabled,
@@ -1370,7 +1416,7 @@ def render_asset(
             "reserved": "1",
         }
     ]
-    for slot in _configured_onemin_slots():
+    for slot in ([] if single_dispatch else _configured_onemin_slots()):
         env_name = str(slot.get("env_name") or "").strip()
         key = str(slot.get("key") or "").strip()
         if not env_name or not key:
@@ -1397,11 +1443,12 @@ def render_asset(
             current_account_name = str(slot_candidate.get("provider_account_name") or "").strip() or reserved_account_id
             current_slot_name = str(slot_candidate.get("provider_key_slot") or "").strip() or reserved_slot_name
             current_is_reserved = str(slot_candidate.get("reserved") or "").strip() == "1"
-            for model in model_candidates:
+            for model in (model_candidates[:1] if single_dispatch else model_candidates):
                 if monotonic() - started_at > float(watchdog_seconds):
                     errors.append(f"watchdog:{watchdog_seconds}s")
                     break
-                for size in _size_candidates(model, width=width, height=height):
+                sizes = _size_candidates(model, width=width, height=height)
+                for size in (sizes[:1] if single_dispatch else sizes):
                     if monotonic() - started_at > float(watchdog_seconds):
                         errors.append(f"watchdog:{watchdog_seconds}s")
                         break
@@ -1438,15 +1485,22 @@ def render_asset(
                         method="POST",
                     )
                     try:
-                        with urllib.request.urlopen(request, timeout=_onemin_timeout_seconds()) as response:
+                        if single_dispatch:
+                            # Never forward the credential or repeat a paid POST
+                            # through a provider redirect.
+                            opener = urllib.request.build_opener(_NoRenderRedirects())
+                            open_request = opener.open
+                        else:
+                            open_request = urllib.request.urlopen
+                        with open_request(request, timeout=_onemin_timeout_seconds()) as response:
                             content_type = str(response.headers.get("Content-Type") or "").lower()
                             data = _read_response_bytes_with_limit(
                                 response,
-                                max_bytes=_max_asset_download_bytes(),
+                                max_bytes=4 * 1024 * 1024 if single_dispatch else _max_asset_download_bytes(),
                                 label="asset",
                             )
                     except urllib.error.HTTPError as exc:
-                        body = exc.read().decode("utf-8", errors="replace").strip()
+                        body = "" if single_dispatch else exc.read(4096).decode("utf-8", errors="replace").strip()
                         errors.append(f"{current_slot_name}:{model}:{size}:http_{exc.code}:{body[:180]}")
                         continue
                     except urllib.error.URLError as exc:
@@ -1470,11 +1524,24 @@ def render_asset(
                         except Exception:
                             errors.append(f"{current_slot_name}:{model}:{size}:non_json_response:{decoded[:180]}")
                             continue
-                        asset_urls = _collect_asset_urls(body)
+                        if single_dispatch:
+                            # Strict Origin output is one documented result URL.
+                            result_object = body.get("aiRecord", {}).get("aiRecordDetail", {}).get("resultObject")
+                            if isinstance(result_object, str):
+                                try:
+                                    result_object = json.loads(result_object)
+                                except ValueError:
+                                    result_object = [result_object]
+                            asset_urls = result_object if isinstance(result_object, list) and len(result_object) == 1 and isinstance(result_object[0], str) else []
+                        else:
+                            asset_urls = _collect_asset_urls(body)
                         if not asset_urls:
                             errors.append(f"{current_slot_name}:{model}:{size}:no_asset_urls")
                             continue
-                        _download_asset(asset_urls[0], output_path)
+                        if single_dispatch:
+                            _download_origin_asset(asset_urls[0], output_path)
+                        else:
+                            _download_asset(asset_urls[0], output_path)
                     result_json = {
                         "tool_name": "provider.onemin.image_generate",
                         "action_kind": "image.generate",
