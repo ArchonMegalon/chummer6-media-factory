@@ -132,7 +132,10 @@ class OriginSceneStore:
     backup (not a live bare-file copy) for this volume. No provider URLs are stored
     in client manifests; provider-private receipt custody remains in Media Factory.
     """
-    def __init__(self, database: Path):
+    def __init__(self, database: Path, *, dispatch_limit: int | None = None):
+        if dispatch_limit is not None and (type(dispatch_limit) is not int or not 0 <= dispatch_limit <= 2048):
+            raise ValueError("Invalid lifetime scene dispatch limit.")
+        self.dispatch_limit = dispatch_limit
         self.database = database
         if not database.is_absolute() or not database.parent.is_dir() or database.is_symlink():
             raise ValueError("An existing private media volume is required.")
@@ -228,6 +231,8 @@ class OriginSceneStore:
         require_sha(admission_digest)
         key, payload = capture(owner, contract)
         backend = getattr(renderer, "backend", "onemin")
+        if isinstance(renderer, OneMinSceneRenderer) and self.dispatch_limit is None:
+            raise PermissionError("Live rendering requires an explicit local lifetime allowance.")
         if backend not in ("onemin", "phygital") or contract.get("preferredProvider") not in (None, backend):
             raise ValueError("The requested scene provider is not available; no fallback is authorized.")
         request_digest = digest(encoded({"payload": payload, "backend": backend}))
@@ -247,13 +252,19 @@ class OriginSceneStore:
             if (connection.execute("SELECT count(*) FROM origin_scenes WHERE owner=?", (owner,)).fetchone()[0] >= 128
                     or connection.execute("SELECT count(*) FROM origin_scenes").fetchone()[0] >= 2048):
                 raise ValueError("Private scene storage is full; no provider call was made.")
+            if (self.dispatch_limit is not None and
+                    connection.execute("SELECT count(*) FROM origin_scenes").fetchone()[0] >= self.dispatch_limit):
+                raise PermissionError("The local lifetime scene allowance is exhausted; no provider call was made.")
             # Fence committed BEFORE entering a potentially paid provider call.
             connection.execute("INSERT INTO origin_scenes VALUES (?, ?, ?, 'dispatching', ?, NULL, NULL)",
                                (key, owner, request_digest, now + 7 * 86400))
         try:
             if not still_authorized():
                 raise PermissionError("Origin image consent/owner is no longer current.")
-            data, provider, receipt_digest = renderer(payload["prompt"])
+            if isinstance(renderer, OneMinSceneRenderer):
+                data, provider, receipt_digest = renderer.render_admitted(payload["prompt"], key, admission_digest)
+            else:
+                data, provider, receipt_digest = renderer(payload["prompt"])
             width, height = inspect_png(data)
             require_sha(receipt_digest)
             if provider != backend:
@@ -341,7 +352,7 @@ class OriginSceneStore:
 
 
 class OneMinSceneRenderer:
-    """Use the existing Media Factory adapter and its quota manager, once.
+    """Use Media Factory's image adapter after durable Hub/local admission, once.
 
     Configure that adapter's private state volume and credential source in the
     isolated worker, not in Hub or Android. Phygital remains unavailable until an
@@ -349,22 +360,29 @@ class OneMinSceneRenderer:
     """
     backend = "onemin"
 
-    def __init__(self, private_work_directory: Path):
+    def __init__(self, private_work_directory: Path, key_file: Path | None = None):
         if not private_work_directory.is_absolute() or not private_work_directory.is_dir():
             raise ValueError("An existing private worker directory is required.")
         self.directory = private_work_directory
+        self.key_file = key_file
 
     def __call__(self, prompt: str) -> tuple[bytes, str, str]:
-        from render_guide_asset import render_asset, STATE_ROOT
+        raise PermissionError("Live Origin rendering requires a committed scene admission.")
+
+    def render_admitted(self, prompt: str, scene_id: str, admission_digest: str) -> tuple[bytes, str, str]:
+        from render_guide_asset import render_asset, STATE_ROOT, OriginSceneAdmission
 
         text(prompt, 4096)
+        if self.key_file is None:
+            raise PermissionError("No scoped Origin credential is configured.")
+        admission = OriginSceneAdmission(scene_id, admission_digest, self.key_file)
         if (not os.environ.get("CHUMMER_MEDIA_FACTORY_STATE_DIR") or STATE_ROOT.resolve() != self.directory.resolve()
                 or self.directory.stat().st_mode & 0o077):
             raise ValueError("Configure the dedicated private Media Factory scene volume before execution.")
         with tempfile.TemporaryDirectory(prefix="origin-scene-", dir=self.directory) as temporary:
             output = Path(temporary) / "scene.png"
             result = render_asset(prompt=prompt, output_path=output, width=1536, height=1024,
-                                  single_dispatch=True)
+                                  single_dispatch=True, origin_admission=admission)
             with output.open("rb") as handle:
                 data = handle.read(MAX_IMAGE + 1)
             inspect_png(data)

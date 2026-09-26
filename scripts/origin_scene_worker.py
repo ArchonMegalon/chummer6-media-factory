@@ -199,8 +199,11 @@ class SceneHandler(BaseHTTPRequestHandler):
             with store.connect() as connection:
                 connection.execute("SELECT count(*) FROM origin_erased_owners").fetchone()
                 recovery = connection.execute("SELECT recovery_only FROM origin_store_mode WHERE id=1").fetchone()[0]
+                attempts = connection.execute("SELECT count(*) FROM origin_scenes").fetchone()[0]
+            remaining = None if store.dispatch_limit is None else max(0, store.dispatch_limit - attempts)
             return {"schema": "chummer.media.origin-scene-worker/v1", "accountErasureSupported": True,
-                    "dispatchEnabled": self.server.dispatch_enabled and not bool(recovery)}
+                    "dispatchEnabled": self.server.dispatch_enabled and not bool(recovery) and remaining != 0,
+                    "localAttemptsRemaining": remaining, "providerCreditBalance": None}
         fields = {
             "/v1/read": {"ownerDigest", "assetId"},
             "/v1/decide": {"ownerDigest", "assetId", "expectedHash", "approve", "explicitlyConfirmed"},
@@ -238,10 +241,18 @@ def main():
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--private-render-directory", type=Path, required=True)
     parser.add_argument("--enable-dispatch", action="store_true",
-                        help="Enable explicit admitted renders only after the private provider/quota route is configured.")
+                        help="Enable Hub-admitted renders within the explicit local lifetime allowance.")
+    parser.add_argument("--onemin-key-file", type=Path)
+    parser.add_argument("--dispatch-limit", type=int, default=0,
+                        help="Absolute maximum scene attempts in this database, never a per-restart refill.")
     args = parser.parse_args()
-    with SceneWorker(args.socket, args.token_file, OriginSceneStore(args.database),
-                     OneMinSceneRenderer(args.private_render_directory), dispatch_enabled=args.enable_dispatch) as server:
+    if args.enable_dispatch:
+        if args.onemin_key_file is None or not 1 <= args.dispatch_limit <= 2048:
+            parser.error("Dispatch requires one private key file and a positive lifetime limit.")
+        from render_guide_asset import OriginSceneAdmission
+        OriginSceneAdmission("0" * 64, "0" * 64, args.onemin_key_file).read_key()
+    with SceneWorker(args.socket, args.token_file, OriginSceneStore(args.database, dispatch_limit=args.dispatch_limit),
+                     OneMinSceneRenderer(args.private_render_directory, args.onemin_key_file), dispatch_enabled=args.enable_dispatch) as server:
         stopped = threading.Event()
         previous = {signum: signal.signal(signum, lambda *_: stopped.set())
                     for signum in (signal.SIGTERM, signal.SIGINT)}
