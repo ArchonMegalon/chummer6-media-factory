@@ -4,10 +4,13 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+from contextlib import closing
 
 from PIL import Image
 
@@ -42,7 +45,7 @@ class SceneWorkerTests(unittest.TestCase):
         Image.new("RGB", (24, 16), (180, 190, 200)).save(output, format="PNG")
         self.png = output.getvalue()
         self.calls = 0
-        self.server = SceneWorker(self.path, self.token_file, self.store, self.renderer)
+        self.server = SceneWorker(self.path, self.token_file, self.store, self.renderer, dispatch_enabled=True)
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
         self.addCleanup(self.cleanup)
@@ -117,6 +120,15 @@ class SceneWorkerTests(unittest.TestCase):
         self.assertFalse(health["dispatchEnabled"])
         self.assertTrue(health["accountErasureSupported"])
 
+    def test_disabled_dispatch_preserves_reads_and_erasure_without_new_record(self):
+        key = self.render()[1]["assetId"]
+        self.server.dispatch_enabled = False
+        self.assertFalse(self.send("health", {})[1]["dispatchEnabled"])
+        self.assertEqual(200, self.send("read", {"ownerDigest": "a" * 64, "assetId": key})[0])
+        self.assertEqual(503, self.render()[0])
+        self.assertEqual(1, self.calls)
+        self.assertEqual(1, self.send("erase-owner", {"ownerDigest": "a" * 64})[1]["recordsRemoved"])
+
     def test_owner_confusion_unknown_fields_and_chunked_input_fail_closed(self):
         key = self.render()[1]["assetId"]
         self.assertEqual(404, self.send("read", {"ownerDigest": "f" * 64, "assetId": key})[0])
@@ -132,6 +144,97 @@ class SceneWorkerTests(unittest.TestCase):
         self.token_file.chmod(0o644)
         with self.assertRaises(ValueError):
             load_token(self.token_file)
+
+    def test_live_socket_without_worker_lock_is_not_replaced(self):
+        path = self.root / "other.sock"
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as other:
+            other.bind(str(path))
+            other.listen(1)
+            identity = path.stat().st_ino
+            with self.assertRaisesRegex(ValueError, "live socket"):
+                SceneWorker(path, self.token_file, self.store, self.renderer)
+            self.assertEqual(identity, path.stat().st_ino)
+
+    def test_regular_file_or_symlink_is_never_reclaimed(self):
+        path = self.root / "not-a-socket"
+        path.write_text("preserve")
+        with self.assertRaises(ValueError):
+            SceneWorker(path, self.token_file, self.store, self.renderer)
+        self.assertEqual("preserve", path.read_text())
+        linked = self.root / "linked.sock"
+        linked.symlink_to(path)
+        with self.assertRaises(ValueError):
+            SceneWorker(linked, self.token_file, self.store, self.renderer)
+        self.assertTrue(linked.is_symlink())
+
+
+class SceneWorkerProcessTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.token = "synthetic-process-test-token-" + "y" * 32
+        self.token_file = self.root / "token"
+        self.token_file.write_text(self.token)
+        self.token_file.chmod(0o600)
+        self.path = self.root / "worker.sock"
+        self.database = self.root / "media.sqlite"
+        self.command = [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts/origin_scene_worker.py"),
+            "--socket", str(self.path), "--token-file", str(self.token_file),
+            "--database", str(self.database), "--private-render-directory", str(self.root)]
+
+    def start_worker(self):
+        process = subprocess.Popen(self.command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        def cleanup():
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+        self.addCleanup(cleanup)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            self.assertIsNone(process.poll(), "Worker exited before becoming ready.")
+            try:
+                if self.request("health", {})[0] == 200:
+                    return process
+            except OSError:
+                pass
+            time.sleep(0.02)
+        self.fail("Worker did not become ready.")
+
+    def request(self, route, packet):
+        with closing(LocalConnection(self.path)) as connection:
+            connection.request("POST", "/v1/" + route, json.dumps(packet),
+                {"Authorization": "Bearer " + self.token, "Content-Type": "application/json"})
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+
+    def test_sigterm_cleans_socket_and_cold_restart_preserves_erasure(self):
+        process = self.start_worker()
+        self.assertFalse(self.request("health", {})[1]["dispatchEnabled"])
+        self.assertEqual(200, self.request("erase-owner", {"ownerDigest": "a" * 64})[0])
+        process.terminate()
+        self.assertEqual(0, process.wait(timeout=5))
+        self.assertFalse(self.path.exists())
+        replacement = self.start_worker()
+        self.assertEqual(403, self.request("read", {"ownerDigest": "a" * 64, "assetId": "b" * 64})[0])
+        replacement.terminate()
+        self.assertEqual(0, replacement.wait(timeout=5))
+
+    def test_crash_socket_recovered_but_live_process_never_displaced(self):
+        process = self.start_worker()
+        self.assertEqual(200, self.request("erase-owner", {"ownerDigest": "a" * 64})[0])
+        identity = self.path.stat().st_ino
+        duplicate = subprocess.run(self.command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        self.assertNotEqual(0, duplicate.returncode)
+        self.assertEqual(identity, self.path.stat().st_ino)
+        self.assertEqual(200, self.request("health", {})[0])
+        process.kill()
+        process.wait(timeout=5)
+        self.assertTrue(self.path.exists())
+        replacement = self.start_worker()
+        self.assertEqual(403, self.request("read", {"ownerDigest": "a" * 64, "assetId": "b" * 64})[0])
+        replacement.terminate()
+        self.assertEqual(0, replacement.wait(timeout=5))
 
 
 if __name__ == "__main__":
