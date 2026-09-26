@@ -1,0 +1,2 @@
+# Exact CPython 3.12 Linux x64 wheel, same Pillow release as the local worker.
+Pillow==12.1.1 --hash=sha256:7aac39bcf8d4770d089588a2e1dd111cbaa42df5a94be3114222057d68336bd0
