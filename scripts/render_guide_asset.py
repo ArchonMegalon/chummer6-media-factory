@@ -1357,7 +1357,10 @@ def render_asset(
     )
     reservation_source = "ea_http"
     local_manager = None
-    if reservation is None:
+    # Private Origin requests already have a durable no-replay fence. Do not
+    # cross that boundary using the guide-only, per-call memory manager: it
+    # forgets previous reservations and can admit unknown balances at zero cost.
+    if reservation is None and not single_dispatch:
         reservation, local_manager = _reserve_onemin_image_slot_locally(
             width=width,
             height=height,
@@ -1617,7 +1620,8 @@ def render_asset(
                 lease_id=lease_id,
                 principal_id=manager_principal_id,
                 status="released",
-                actual_credits_delta=_estimate_onemin_image_credits(
+                # A successful image response is not a provider billing receipt.
+                actual_credits_delta=None if single_dispatch else _estimate_onemin_image_credits(
                     width=width,
                     height=height,
                     model=str((result_json.get("receipt_json") or {}).get("model") or ""),
@@ -1627,7 +1631,7 @@ def render_asset(
                 manager=local_manager,
                 lease_id=lease_id,
                 status="released",
-                actual_credits_delta=_estimate_onemin_image_credits(
+                actual_credits_delta=None if single_dispatch else _estimate_onemin_image_credits(
                     width=width,
                     height=height,
                     model=str((result_json.get("receipt_json") or {}).get("model") or ""),

@@ -20,6 +20,10 @@ separately reviewed local configuration must provide the existing quota-manager
 route and scoped OneMin credentials, network egress, and `--enable-dispatch`.
 Do not remove consent/admission checks, invent a quota manager or silently use a
 different provider. Phygital is not an implemented renderer here.
+Private Origin execution refuses the general guide adapter's per-call in-memory
+quota fallback. An unavailable manager cannot become a zero-cost local admission.
+An image response also does not prove its billed credit cost: observed usage stays
+unknown until provider reconciliation, rather than being filled with an estimate.
 
 Hub uses its `docker-compose.origin-scenes-local.yml` overlay. Mount only the
 socket directory and dedicated token read-only into Hub; never mount the image
