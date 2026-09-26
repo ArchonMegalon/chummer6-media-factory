@@ -13,6 +13,7 @@ from test_render_guide_asset_download_guard import FakeResponse, load_render_mod
 class OriginSceneRendererTests(unittest.TestCase):
     def setUp(self):
         self.module = load_render_module()
+        self.write_receipt = self.module._write_receipt
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.output = Path(self.temp.name) / "scene.png"
@@ -66,6 +67,28 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.render()
         self.module._download_origin_asset.assert_called_once()
         self.module._download_asset.assert_not_called()
+        self.assertTrue(self.module._write_receipt.call_args.kwargs["private_output"])
+
+    def test_private_receipt_retains_integrity_not_a_second_private_asset_or_prose_copy(self):
+        self.output.write_bytes(b"exact-local-asset")
+        self.module.RECEIPTS_ROOT = Path(self.temp.name) / "receipts"
+        path = self.write_receipt(render_id="synthetic", requested_prompt="private childhood facts",
+            submitted_prompt="private childhood facts", output_path=self.output, width=24, height=16,
+            backend_provider="onemin", quality="low", model_candidates=["gpt-image-1-mini"],
+            manager_principal_id="operator", manager_allow_reserve=False, private_output=True,
+            result_json={"receipt_json": {"model": "gpt-image-1-mini"}, "output_json": {
+                "asset_urls": ["https://provider.invalid/private-asset"], "preview_text": "private childhood facts"}})
+        receipt = path.read_text()
+        self.assertNotIn("private childhood facts", receipt)
+        self.assertNotIn("provider.invalid", receipt)
+        self.assertEqual(self.module.hashlib.sha256(self.output.read_bytes()).hexdigest(), json.loads(receipt)["output_json"]["content_sha256"])
+
+    def test_non_json_private_response_never_enters_error_receipts(self):
+        self.open.return_value = FakeResponse(b"private childhood facts", {"Content-Type": "text/plain"})
+        with self.assertRaises(RuntimeError) as error:
+            self.render()
+        self.assertNotIn("private childhood facts", str(error.exception))
+        self.assertNotIn("private childhood facts", str(self.module._write_attempt_status.call_args_list))
 
     def test_disabled_or_unapproved_backend_never_reserves_or_dispatches(self):
         for env in ({"CHUMMER_MEDIA_FACTORY_ENABLE_IMAGE_EXECUTION": "0"},

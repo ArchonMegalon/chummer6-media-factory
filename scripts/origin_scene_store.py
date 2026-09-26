@@ -14,7 +14,7 @@ import re
 import sqlite3
 import time
 import tempfile
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import Callable
 
@@ -102,7 +102,7 @@ def capture(owner: str, contract: dict) -> tuple[str, dict]:
     text(payload["prompt"], 4096)
     text(payload["altText"], 1024)
     key = identity(owner, payload)
-    source = "origin-scene:" + key
+    source = "origin-dossier:scene:" + key
     if (contract.get("sourceRef") != source or contract.get("workItemId") != key
             or artifact.get("deduplicationKey") != key or artifact.get("artifactId") != key
             or source not in contract.get("truthRefs", [])
@@ -147,17 +147,74 @@ class OriginSceneStore:
             connection.execute("""CREATE TABLE IF NOT EXISTS origin_scenes (
                 id TEXT PRIMARY KEY, owner TEXT NOT NULL, request_digest TEXT NOT NULL,
                 state TEXT NOT NULL, expires REAL NOT NULL, manifest BLOB, image BLOB)""")
+            connection.execute("CREATE TABLE IF NOT EXISTS origin_erased_owners (owner TEXT PRIMARY KEY)")
+            connection.execute("CREATE TABLE IF NOT EXISTS origin_store_mode (id INTEGER PRIMARY KEY CHECK(id=1), recovery_only INTEGER NOT NULL)")
+            connection.execute("INSERT OR IGNORE INTO origin_store_mode VALUES (1, 0)")
 
     @contextmanager
     def connect(self):
         connection = sqlite3.connect(self.database, timeout=5)
         connection.execute("PRAGMA synchronous=FULL")
+        connection.execute("PRAGMA secure_delete=ON")
         connection.row_factory = sqlite3.Row
         try:
             with connection:
                 yield connection
         finally:
             connection.close()
+
+    @staticmethod
+    def _require_owner(connection, owner):
+        if connection.execute("SELECT 1 FROM origin_erased_owners WHERE owner=?", (owner,)).fetchone():
+            raise PermissionError("Origin media for this owner has been erased.")
+
+    def erase_owner(self, owner: str) -> int:
+        """Idempotent deletion plus a durable fence against in-flight completion.
+
+        Trusted Hub account erasure only. Hashed no-replay identities remain;
+        chapter metadata, alt text, image bytes and receipt links are removed.
+        Provider-side history/backups require their separate retention controls.
+        """
+        require_sha(owner)
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("INSERT OR IGNORE INTO origin_erased_owners VALUES (?)", (owner,))
+            return connection.execute("""UPDATE origin_scenes SET state='erased', request_digest='',
+                expires=0, manifest=NULL, image=NULL WHERE owner=? AND state!='erased'""", (owner,)).rowcount
+
+    def backup(self, destination: Path) -> dict:
+        """Consistent private snapshot, readable but never eligible to dispatch.
+
+        An older backup cannot know about later paid jobs or account deletions.
+        Do not re-enable dispatch or expose it without reconciling current Hub
+        authorization, deletion history and the independent provider journal.
+        """
+        if (not destination.is_absolute() or not destination.parent.is_dir()
+                or destination.parent.stat().st_mode & 0o077):
+            raise ValueError("Backup requires a private directory.")
+        descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.close(descriptor)
+        try:
+            with self.connect() as source, closing(sqlite3.connect(destination)) as target:
+                source.backup(target)
+                target.execute("UPDATE origin_store_mode SET recovery_only=1 WHERE id=1")
+                target.commit()
+                if target.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise ValueError("Scene backup integrity check failed.")
+                count = target.execute("SELECT count(*) FROM origin_scenes").fetchone()[0]
+            with destination.open("rb") as handle:
+                checksum = hashlib.file_digest(handle, "sha256").hexdigest()
+                os.fsync(handle.fileno())
+            directory = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+            return {"sha256": checksum, "records": count, "dispatchEnabled": False}
+        except BaseException:
+            # Only the exclusively created, incomplete snapshot is ours to remove.
+            destination.unlink(missing_ok=True)
+            raise
 
     def render(self, owner: str, contract: dict, admission_digest: str,
                renderer: Callable[[str], tuple[bytes, str, str]], *,
@@ -177,11 +234,14 @@ class OriginSceneStore:
         now = time.time() if now is None else now
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            self._require_owner(connection, owner)
             row = connection.execute("SELECT * FROM origin_scenes WHERE id=?", (key,)).fetchone()
             if row:
                 if row["owner"] != owner or row["request_digest"] != request_digest:
                     raise ValueError("Existing scene is bound to a different request; it cannot be overwritten.")
                 return self._project(row, owner, still_authorized, now)[0]
+            if connection.execute("SELECT recovery_only FROM origin_store_mode WHERE id=1").fetchone()[0]:
+                raise PermissionError("Recovered media is read-only until paid-job and erasure history is reconciled.")
             if not still_authorized():
                 raise PermissionError("Origin image consent/owner is no longer current.")
             if (connection.execute("SELECT count(*) FROM origin_scenes WHERE owner=?", (owner,)).fetchone()[0] >= 128
@@ -210,6 +270,8 @@ class OriginSceneStore:
                 "publicationAuthorized": False,
             }
             with self.connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                self._require_owner(connection, owner)
                 connection.execute("UPDATE origin_scenes SET state='review', manifest=?, image=? WHERE id=? AND state='dispatching'",
                                    (encoded(manifest), data, key))
         except Exception:
@@ -223,8 +285,10 @@ class OriginSceneStore:
         require_sha(owner)
         require_sha(key)
         with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._require_owner(connection, owner)
             row = connection.execute("SELECT * FROM origin_scenes WHERE id=? AND owner=?", (key, owner)).fetchone()
-        return self._project(row, owner, still_authorized, time.time() if now is None else now)
+            return self._project(row, owner, still_authorized, time.time() if now is None else now)
 
     @staticmethod
     def _project(row, owner, still_authorized, now):
@@ -258,6 +322,7 @@ class OriginSceneStore:
         now = time.time() if now is None else now
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            self._require_owner(connection, owner)
             row = connection.execute("SELECT * FROM origin_scenes WHERE id=? AND owner=?", (key, owner)).fetchone()
             status, data = self._project(row, owner, still_authorized, now)
             if status["state"] not in ("review", "persisted") or status["manifest"]["contentHash"] != expected_hash:

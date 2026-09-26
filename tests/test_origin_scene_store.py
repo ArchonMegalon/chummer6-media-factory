@@ -25,8 +25,8 @@ def contract(owner="a" * 64, text_digest="b" * 64):
     return {"contractName": "chummer6-hub.horizon_governed_render_request.v1", "contractVersion": "2026-06-30",
             "orchestrationLane": "ea_governed_render", "horizonId": "origin-dossier", "capabilityId": "origin-dossier-media",
             "artifactKind": "dossier_media", "capabilitySlot": "approved_origin_media", "requestedBy": "origin-owner:" + owner,
-            "audience": "private", "preferredProvider": "onemin", "workItemId": key, "sourceRef": "origin-scene:" + key,
-            "truthRefs": ["origin-scene:" + key], "evidenceRefs": ["origin-text:" + text_digest],
+            "audience": "private", "preferredProvider": "onemin", "workItemId": key, "sourceRef": "origin-dossier:scene:" + key,
+            "truthRefs": ["origin-dossier:scene:" + key], "evidenceRefs": ["origin-text:" + text_digest],
             "artifacts": [{"artifactId": key, "role": "chapter_scene", "category": "origin/chapter-scene",
                            "payload": json.dumps(payload), "outputFormat": "png", "deduplicationKey": key,
                            "maxBytes": scene.MAX_IMAGE, "requiresApproval": True, "persistOnApproval": True, "allowPersistentPinning": False}]}
@@ -201,6 +201,66 @@ class OriginSceneTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.render()
         self.assertEqual(0, self.calls)
+
+    def test_account_erasure_survives_restart_and_fences_new_chapters(self):
+        key = self.render()["assetId"]
+        self.assertEqual(1, self.store.erase_owner(self.owner))
+        self.assertEqual(0, self.store.erase_owner(self.owner))
+        self.store = scene.OriginSceneStore(self.database)
+        with self.assertRaises(PermissionError):
+            self.store.read(self.owner, key, still_authorized=self.current, now=self.now)
+        self.request = contract(text_digest="f" * 64)
+        with self.assertRaises(PermissionError):
+            self.render()
+        with self.store.connect() as connection:
+            row = connection.execute("SELECT state, manifest, image, request_digest FROM origin_scenes").fetchone()
+        self.assertEqual(("erased", None, None, ""), tuple(row))
+        self.assertEqual(1, self.calls)
+
+    def test_account_erasure_during_paid_render_cannot_resurrect_private_bytes(self):
+        def renderer(prompt):
+            result = self.provider(prompt)
+            self.assertEqual(1, self.store.erase_owner(self.owner))
+            return result
+        with self.assertRaises(PermissionError):
+            self.render(renderer)
+        with self.store.connect() as connection:
+            self.assertEqual(("erased", None, None), tuple(connection.execute("SELECT state, image, manifest FROM origin_scenes").fetchone()))
+        self.assertEqual(1, self.calls)
+
+    def test_private_online_backup_restores_bytes_but_never_replays_new_paid_jobs(self):
+        key = self.render()["assetId"]
+        destination = self.database.parent / "recovery.sqlite"
+        result = self.store.backup(destination)
+        self.assertFalse(result["dispatchEnabled"])
+        self.assertEqual(scene.digest(destination.read_bytes()), result["sha256"])
+        self.assertEqual(0, destination.stat().st_mode & 0o077)
+        restored = scene.OriginSceneStore(destination)
+        self.assertEqual(self.png, restored.read(self.owner, key, still_authorized=self.current, now=self.now)[1])
+        with self.assertRaises(PermissionError):
+            restored.render(self.owner, contract(text_digest="f" * 64), "e" * 64, self.provider,
+                            still_authorized=self.current, now=self.now)
+        with self.assertRaises(FileExistsError):
+            self.store.backup(destination)
+        self.assertEqual(1, self.calls)
+
+    def test_backup_keeps_erasure_and_inflight_fences(self):
+        first = self.render()["assetId"]
+        self.store.erase_owner(self.owner)
+        self.owner = "f" * 64
+        self.request = contract(owner=self.owner)
+        def crash(prompt):
+            self.provider(prompt)
+            raise SystemExit()
+        with self.assertRaises(SystemExit):
+            self.render(crash)
+        destination = self.database.parent / "recovery.sqlite"
+        self.store.backup(destination)
+        self.store = scene.OriginSceneStore(destination)
+        with self.assertRaises(PermissionError):
+            self.store.read("a" * 64, first, still_authorized=self.current, now=self.now)
+        self.assertEqual("dispatching", self.render()["state"])
+        self.assertEqual(2, self.calls)
 
 
 if __name__ == "__main__":

@@ -1155,6 +1155,7 @@ def _write_receipt(
     manager_principal_id: str,
     manager_allow_reserve: bool,
     result_json: dict[str, object],
+    private_output: bool = False,
 ) -> Path:
     RECEIPTS_ROOT.mkdir(parents=True, exist_ok=True)
     receipt_path = RECEIPTS_ROOT / f"{render_id}.json"
@@ -1185,6 +1186,13 @@ def _write_receipt(
         "receipt_json": dict(result_json.get("receipt_json") or {}),
         "output_json": dict(result_json.get("output_json") or {}),
     }
+    if private_output:
+        # Private scene custody is the owner-bound media database. Keep only
+        # integrity/accounting evidence here, not a second copy of private prose
+        # or a provider URL which could survive account-media erasure.
+        with output_path.open("rb") as image:
+            image_digest = hashlib.file_digest(image, "sha256").hexdigest()
+        payload["output_json"] = {"content_sha256": image_digest, "content_length_bytes": output_path.stat().st_size}
     receipt_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     return receipt_path
 
@@ -1518,11 +1526,12 @@ def render_asset(
                         preview_text = str(output_path)
                     else:
                         decoded = data.decode("utf-8", errors="replace").strip()
-                        preview_text = decoded[:280]
+                        preview_text = "private_origin_scene" if single_dispatch else decoded[:280]
                         try:
                             body = json.loads(decoded)
                         except Exception:
-                            errors.append(f"{current_slot_name}:{model}:{size}:non_json_response:{decoded[:180]}")
+                            detail = "" if single_dispatch else decoded[:180]
+                            errors.append(f"{current_slot_name}:{model}:{size}:non_json_response:{detail}")
                             continue
                         if single_dispatch:
                             # Strict Origin output is one documented result URL.
@@ -1639,6 +1648,7 @@ def render_asset(
             manager_principal_id=manager_principal_id,
             manager_allow_reserve=manager_allow_reserve,
             result_json=result_json,
+            private_output=single_dispatch,
         )
         asset_urls = list((result_json.get("output_json") or {}).get("asset_urls") or [])
         _write_attempt_status(
