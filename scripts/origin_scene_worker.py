@@ -133,6 +133,7 @@ class SceneWorker(socketserver.ThreadingMixIn, HTTPServer):
             if stat.S_ISSOCK(current.st_mode) and (current.st_dev, current.st_ino) == self.socket_identity:
                 self.socket_path.unlink()
         finally:
+            self.socket_identity = None  # Repeated close must not touch a replacement worker.
             self.release_lifecycle_lock()
 
 

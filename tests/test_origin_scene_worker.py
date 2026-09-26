@@ -167,6 +167,16 @@ class SceneWorkerTests(unittest.TestCase):
             SceneWorker(linked, self.token_file, self.store, self.renderer)
         self.assertTrue(linked.is_symlink())
 
+    def test_repeated_close_leaves_replacement_socket_owned_by_new_worker(self):
+        self.server.shutdown()
+        self.server.server_close()
+        with SceneWorker(self.path, self.token_file, self.store, self.renderer) as replacement:
+            identity = self.path.stat().st_ino
+            self.server.server_close()
+            self.assertEqual(identity, self.path.stat().st_ino)
+            with self.assertRaises(ValueError):
+                SceneWorker(self.path, self.token_file, self.store, self.renderer)
+
 
 class SceneWorkerProcessTests(unittest.TestCase):
     def setUp(self):
