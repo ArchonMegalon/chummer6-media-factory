@@ -1,0 +1,44 @@
+# Local read/review/erasure service. Provider execution intentionally off by default.
+# The shared socket/token are also mounted READ-ONLY into the existing Hub.
+services:
+  origin-scene-media:
+    image: ${CHUMMER_ORIGIN_SCENE_IMAGE:?Set the verified local image ID}
+    pull_policy: never
+    user: "1000:1000"
+    restart: unless-stopped
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 512m
+    cpus: 0.5
+    stop_grace_period: 210s
+    ulimits:
+      core: 0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    volumes:
+      - type: bind
+        source: ${CHUMMER_ORIGIN_SCENE_ROOT:?Set pre-provisioned private runtime directory}/socket
+        target: /private/socket
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${CHUMMER_ORIGIN_SCENE_ROOT}/data
+        target: /private/data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${CHUMMER_ORIGIN_SCENE_ROOT}/render
+        target: /private/render
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${CHUMMER_ORIGIN_SCENE_ROOT}/auth/worker.token
+        target: /private/auth/worker.token
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, python3, /app/origin_scene_health.py, --socket, /private/socket/worker.sock, --token-file, /private/auth/worker.token]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

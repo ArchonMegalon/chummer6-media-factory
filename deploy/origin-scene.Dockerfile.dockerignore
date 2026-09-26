@@ -1,0 +1,6 @@
+**
+!scripts/
+!scripts/origin_scene_worker.py
+!scripts/origin_scene_store.py
+!scripts/origin_scene_health.py
+!scripts/render_guide_asset.py
