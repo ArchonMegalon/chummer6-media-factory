@@ -1283,6 +1283,33 @@ class OriginSceneAdmission:
         return value.decode("ascii")
 
 
+def _origin_reference_key(result: object, expected_size: int) -> str:
+    """Validate private upload custody; diagnostics contain no provider values.
+
+    Keep the exact rejection boundary in the private attempt receipt. A generic
+    rejection loses the only safe diagnosis before the paid edit is entered.
+    None of these failures authorizes a retry or a text-only replacement.
+    """
+    if not isinstance(result, dict):
+        raise RuntimeError("media_factory:origin_reference_shape_rejected")
+    asset, file_content = result.get("asset"), result.get("fileContent")
+    if not isinstance(asset, dict) or not isinstance(file_content, dict):
+        raise RuntimeError("media_factory:origin_reference_shape_rejected")
+    if asset.get("acl") != "private":
+        raise RuntimeError("media_factory:origin_reference_privacy_rejected")
+    if asset.get("mimetype") != "image/png":
+        raise RuntimeError("media_factory:origin_reference_mime_rejected")
+    if type(asset.get("size")) is not int or asset["size"] != expected_size:
+        raise RuntimeError("media_factory:origin_reference_size_rejected")
+    key = asset.get("key")
+    if (not isinstance(key, str) or len(key) > 512
+            or not re.fullmatch(r"(?:development/)?images/[A-Za-z0-9_-]+\.png", key)):
+        raise RuntimeError("media_factory:origin_reference_key_rejected")
+    if file_content.get("path") != key:
+        raise RuntimeError("media_factory:origin_reference_binding_rejected")
+    return key
+
+
 def _upload_origin_reference(data: bytes, api_key: str) -> str:
     """One private reference upload; never URLs supplied by a client or retries.
 
@@ -1301,15 +1328,7 @@ def _upload_origin_reference(data: bytes, api_key: str) -> str:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
     with opener.open(request, timeout=_onemin_timeout_seconds()) as response:
         result = json.loads(_read_response_bytes_with_limit(response, max_bytes=16 * 1024, label="origin_reference"))
-    asset = result.get("asset", {}) if isinstance(result, dict) else {}
-    key = asset.get("key")
-    if (asset.get("acl") != "private" or asset.get("mimetype") != "image/png"
-            or type(asset.get("size")) is not int or asset["size"] != len(data)
-            or not isinstance(key, str) or len(key) > 512
-            or not re.fullmatch(r"(?:development/)?images/[A-Za-z0-9_-]+\.png", key)
-            or result.get("fileContent", {}).get("path") != key):
-        raise RuntimeError("media_factory:origin_reference_rejected")
-    return key
+    return _origin_reference_key(result, len(data))
 
 
 def render_asset(

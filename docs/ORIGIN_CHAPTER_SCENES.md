@@ -1,9 +1,11 @@
 # Private Origin chapter illustrations
 
-Status: locally tested private worker and retention, **not a deployed
-automatic book worker or delivered Android feature**. Phygital+ has no verified
-adapter here. OneMinAI is the existing image adapter, with a narrow single-dispatch
-mode for private books. No provider call was made by the tests for this increment.
+Status, 28 September 2026: the automatic private worker and compatible Hub are
+locally deployed. Android integration is tested locally, **not delivered in a new
+Play release**. One real synthetic opening image persisted and cold-read correctly;
+the later-age attempt stopped at reference-upload validation, before an image-edit
+POST. Visual continuity is therefore **not yet verified**. Phygital+ has no verified
+adapter here. See [the bounded provider test](evidence/origin-continuity-canary-20260928.md).
 
 `scripts/origin_scene_store.py` consumes the existing
 `chummer6-hub.horizon_governed_render_request.v1` contract for
@@ -20,6 +22,9 @@ ID, canonical chapter digest and selected prose digest. NUL is forbidden in IDs.
 The legacy artifact payload is `chummer.origin.chapter-scene/v1`: those four chapter
 fields plus `prompt` and `altText`. New continuity-bound requests use
 `chummer.origin.chapter-scene/v2`, adding `protagonistId` and `referenceSceneId`.
+Automatic private-book requests use v3 with
+`insertionPolicy: automatic-private-book/v1`, covered by explicit illustrated-book
+consent. Legacy consent and existing manual images are not silently upgraded.
 The work item/artifact/deduplication identities
 are identical; truth includes `origin-dossier:scene:<identity>`, evidence includes
 `origin-text:<textDigest>`. This is not a mutable provider URL or character rule.
@@ -53,9 +58,11 @@ The client manifest records `protagonistId`, `referenceSceneId` and
 
 These bindings prove which reference was used, **not visual similarity**. A real
 multi-life-stage provider canary and visual review remain necessary before
-claiming that the resulting art preserves the face reliably. No live provider
-call or deployment was performed for this code change. The existing per-image
-review protocol has not yet been replaced with automatic book-level insertion.
+claiming that the resulting art preserves the face reliably. The first real pair
+test did not complete. No fallback generated an unrelated character. The v3
+policy automatically persists validated private images without pretending a
+per-image human review; the legacy manual-review protocol remains available only
+for existing legacy requests.
 
 ## Behavior
 
@@ -71,8 +78,9 @@ review protocol has not yet been replaced with automatic book-level insertion.
 - Downloads use a public-IP-pinned HTTPS connection, no redirects/proxies,
   an exact known host set and a 4 MiB stream limit. Still PNGs are fully decoded,
   with dimensions at most 4096 per side. Provider URLs stay private.
-- A manifest and exact bytes commit atomically, in `review`. Only explicit review
-  of the exact content hash may persist them. Rejection or expiry removes the
+- A manifest and exact bytes commit atomically. v3 automatic private-book images
+  commit as `persisted` after owner revalidation; legacy/manual images commit in
+  `review` and need explicit review of their exact hash. Rejection or expiry removes the
   deliverable blob while keeping a no-replay tombstone. Persisted images are not
   removed by the seven-day pending-image sweep.
 - Reads verify content length, SHA-256, owner and chapter identity. Reopening or
@@ -124,15 +132,17 @@ generation when full. Capacity maintenance must preserve no-replay history.
 ## Remaining delivery work
 
 The corresponding Hub change implements signed-install scene routes, exact
-quota admission/readback and account erasure. Both changes still need local
-deployment plus Android consent/download/review/adoption into its existing
-owner/chapter-bound scene store. No daemon has been enabled by this change.
-Do not advertise automatic Phygital+/OneMinAI illustration delivery from passing
-unit tests. Existing Android EPUB/manual image delivery is independent.
+quota admission/readback and account erasure. Compatible Hub/Media runtimes are
+deployed with original data and rollback images retained. Android's automatic
+reader/EPUB integration has focused managed checks; the current Debug APK passed
+the missing-full-chapter progress and process-restart route. It is not a Play
+release or a real two-age illustrated-book delivery. Resolve the reference-upload
+metadata mismatch without weakening private custody, then verify the actual
+older-age image and live reader/EPUB route. Existing uncertain jobs stay fenced.
 
 Focused checks:
 
 ```sh
-python3 -m unittest discover -s tests -p 'test_origin_scene*.py'
+PYTHONPATH=scripts python3 -m unittest discover -s tests -p 'test_origin_scene*.py'
 python3 -m unittest discover -s tests -p test_render_guide_asset_download_guard.py
 ```

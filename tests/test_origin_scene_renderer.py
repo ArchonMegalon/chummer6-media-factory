@@ -150,6 +150,36 @@ class OriginSceneRendererTests(unittest.TestCase):
             self.assertEqual(1, self.open.call_count)
             self.assertEqual("https://api.1min.ai/api/assets", self.open.call_args.args[0].full_url)
 
+    def test_rejected_reference_records_safe_boundary_without_paid_edit_or_private_values(self):
+        reference = self.reference()
+        key = "images/synthetic_character.png"
+        valid = {"asset": {"key": key, "acl": "private", "mimetype": "image/png", "size": len(reference)},
+                 "fileContent": {"path": key}}
+        cases = [(None, "shape"), ([], "shape"), ({"asset": [], "fileContent": {}}, "shape"),
+                 ({**valid, "fileContent": None}, "shape")]
+        for field, value, reason in (("acl", "public-read", "privacy"),
+                                     ("mimetype", "text/private-value", "mime"),
+                                     ("size", str(len(reference)), "size"),
+                                     ("size", True, "size"), ("size", len(reference) + 1, "size"),
+                                     ("key", "https://private.invalid/token", "key"),
+                                     ("key", "images/../private.png", "key")):
+            cases.append(({**valid, "asset": {**valid["asset"], field: value}}, reason))
+        cases.append(({**valid, "fileContent": {"path": "private-other-asset"}}, "binding"))
+        for reply, reason in cases:
+            with self.subTest(reason=reason, reply_type=type(reply).__name__):
+                self.open.reset_mock()
+                self.open.return_value = FakeResponse(json.dumps(reply).encode(), {})
+                expected = "media_factory:origin_reference_" + reason + "_rejected"
+                with self.assertRaisesRegex(RuntimeError, "^" + expected + "$"):
+                    self.render(origin_admission=self.admission(), origin_reference_png=reference)
+                self.assertEqual(1, self.open.call_count)
+                self.assertEqual("https://api.1min.ai/api/assets", self.open.call_args.args[0].full_url)
+                attempt = self.module._write_attempt_status.call_args.kwargs
+                self.assertEqual("failed_no_retry", attempt["phase"])
+                self.assertEqual(expected, attempt["detail"])
+                self.assertIsNone(attempt["provider_response"])
+        self.module._write_receipt.assert_not_called()
+
     def test_reference_requires_an_admission_and_valid_image_before_network(self):
         with self.assertRaises(ValueError):
             self.render(origin_reference_png=self.reference())
