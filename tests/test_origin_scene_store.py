@@ -44,6 +44,15 @@ def growing_contract(owner="a" * 64, text_digest="b" * 64, *, reference=None, wo
     return value
 
 
+def automatic_contract(*args, **kwargs):
+    value = growing_contract(*args, **kwargs)
+    artifact = value["artifacts"][0]
+    payload = json.loads(artifact["payload"])
+    payload.update(schema=scene.AUTOMATIC_SCHEMA, insertionPolicy=scene.AUTOMATIC_INSERTION)
+    artifact.update(payload=json.dumps(payload), requiresApproval=False, persistOnApproval=False)
+    return value
+
+
 class OriginSceneTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -70,6 +79,91 @@ class OriginSceneTests(unittest.TestCase):
     def render(self, provider=None):
         return self.store.render(self.owner, self.request, "e" * 64, provider or self.provider,
                                  still_authorized=self.current, now=self.now)
+
+    def test_automatic_book_scenes_persist_without_fabricated_human_review_and_keep_first_face(self):
+        self.request = automatic_contract()
+        first = self.render()
+        self.assertEqual("persisted", first["state"])
+        self.assertEqual(scene.AUTOMATIC_INSERTION, first["manifest"]["insertionPolicy"])
+        self.assertIs(False, first["publicationAuthorized"])
+        # The original is immediately usable as the exact next-stage reference,
+        # without any call to decide or fabricated explicitly_confirmed value.
+        renderer = scene.OneMinSceneRenderer(self.database.parent)
+        references = []
+        def admitted(prompt, key, admission, *, reference_png):
+            references.append(reference_png)
+            return self.png, "onemin", "d" * 64
+        renderer.render_admitted = admitted
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=2)
+        self.request = automatic_contract(text_digest="f" * 64, reference=first["assetId"])
+        second = self.render(renderer)
+        self.assertEqual("persisted", second["state"])
+        self.assertEqual([self.png], references)
+        self.assertEqual(first["manifest"]["protagonistId"], second["manifest"]["protagonistId"])
+        self.assertEqual(first["manifest"]["contentHash"], second["manifest"]["referenceImageHash"])
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=2)
+        self.assertEqual(second, self.render(renderer))
+        self.assertEqual(1, len(references))
+        self.assertEqual(0, self.store.expire(self.now + 8 * 86400))
+        retained, data = self.store.read(self.owner, first["assetId"], still_authorized=self.current,
+                                         now=self.now + 8 * 86400)
+        self.assertEqual("persisted", retained["state"])
+        self.assertEqual(self.png, data)
+
+    def test_automatic_policy_does_not_relax_consent_contract_or_image_validation(self):
+        changes = (
+            lambda a, p: a.update(requiresApproval=True),
+            lambda a, p: a.update(persistOnApproval=True),
+            lambda a, p: a.update(allowPersistentPinning=True),
+            lambda a, p: p.update(insertionPolicy="public"),
+            lambda a, p: p.pop("insertionPolicy"),
+            lambda a, p: p.update(schema=scene.CONTINUITY_SCHEMA),
+            lambda a, p: p.pop("referenceSceneId"),
+        )
+        for change in changes:
+            with self.subTest(change=change):
+                self.request = automatic_contract()
+                artifact = self.request["artifacts"][0]
+                payload = json.loads(artifact["payload"])
+                change(artifact, payload)
+                artifact["payload"] = json.dumps(payload)
+                with self.assertRaises(ValueError):
+                    self.render()
+        self.assertEqual(0, self.calls)
+        self.request = automatic_contract()
+        with self.assertRaises((ValueError, OSError)):
+            self.render(lambda _: (b"not a PNG", "onemin", "d" * 64))
+        self.assertEqual("uncertain", self.render()["state"])
+        self.assertEqual(0, self.calls)
+
+    def test_automatic_mode_cannot_replay_a_manual_order_or_reset_a_budget(self):
+        self.request = growing_contract()
+        original = self.render()
+        self.request = automatic_contract()
+        with self.assertRaisesRegex(ValueError, "different request"):
+            self.render()
+        self.assertEqual("review", self.store.read(self.owner, original["assetId"],
+            still_authorized=self.current, now=self.now)[0]["state"])
+        self.store = scene.OriginSceneStore(self.database, dispatch_limit=1)
+        self.request = automatic_contract(text_digest="f" * 64)
+        with self.assertRaisesRegex(PermissionError, "allowance"):
+            self.render()
+        self.assertEqual(1, self.calls)
+
+    def test_automatic_revocation_during_render_keeps_no_replay_fence_without_image(self):
+        self.request = automatic_contract()
+        def revoked(prompt):
+            result = self.provider(prompt)
+            self.authorized = False
+            return result
+        with self.assertRaises(PermissionError):
+            self.render(revoked)
+        self.authorized = True
+        self.store = scene.OriginSceneStore(self.database)
+        result = self.render()
+        self.assertEqual("uncertain", result["state"])
+        self.assertNotIn("manifest", result)
+        self.assertEqual(1, self.calls)
 
     def test_growing_character_always_reuses_first_reference_after_cold_restart(self):
         self.request = growing_contract()

@@ -25,6 +25,9 @@ MAX_IMAGE = 4 * 1024 * 1024
 MAX_PACKET = 64 * 1024
 SCHEMA = "chummer.origin.chapter-scene/v1"
 CONTINUITY_SCHEMA = "chummer.origin.chapter-scene/v2"
+AUTOMATIC_SCHEMA = "chummer.origin.chapter-scene/v3"
+AUTOMATIC_INSERTION = "automatic-private-book/v1"
+CONTINUITY_SCHEMAS = (CONTINUITY_SCHEMA, AUTOMATIC_SCHEMA)
 MANIFEST_SCHEMA = "chummer.media.origin-scene/v1"
 
 
@@ -86,26 +89,32 @@ def capture(owner: str, contract: dict) -> tuple[str, dict]:
     if not isinstance(artifacts, list) or len(artifacts) != 1 or not isinstance(artifacts[0], dict):
         raise ValueError("Exactly one scene is required per request.")
     artifact = artifacts[0]
+    payload = json.loads(text(artifact.get("payload"), 16 * 1024), object_pairs_hook=unique_object)
+    automatic = isinstance(payload, dict) and payload.get("schema") == AUTOMATIC_SCHEMA
     if (artifact.get("role") != "chapter_scene" or artifact.get("category") != "origin/chapter-scene"
             or artifact.get("outputFormat") != "png" or artifact.get("maxBytes") != MAX_IMAGE
-            or artifact.get("requiresApproval") is not True or artifact.get("persistOnApproval") is not True
+            or artifact.get("requiresApproval") is not (not automatic)
+            or artifact.get("persistOnApproval") is not (not automatic)
             or artifact.get("allowPersistentPinning") is not False):
         raise ValueError("Invalid Origin image/lifecycle policy.")
-    payload = json.loads(text(artifact.get("payload"), 16 * 1024), object_pairs_hook=unique_object)
     fields = {
         "schema", "workspaceId", "chapterId", "chapterDigest", "textDigest", "prompt", "altText"
     }
-    if isinstance(payload, dict) and payload.get("schema") == CONTINUITY_SCHEMA:
+    if isinstance(payload, dict) and payload.get("schema") in CONTINUITY_SCHEMAS:
         fields |= {"protagonistId", "referenceSceneId"}
-    if not isinstance(payload, dict) or set(payload) != fields or payload["schema"] not in (SCHEMA, CONTINUITY_SCHEMA):
+    if automatic:
+        fields |= {"insertionPolicy"}
+    if not isinstance(payload, dict) or set(payload) != fields or payload["schema"] not in (SCHEMA, *CONTINUITY_SCHEMAS):
         raise ValueError("Invalid chapter scene payload.")
+    if automatic and payload["insertionPolicy"] != AUTOMATIC_INSERTION:
+        raise ValueError("Automatic private retention requires the exact Hub policy.")
     text(payload["workspaceId"], 256)
     text(payload["chapterId"], 256)
     require_sha(payload["chapterDigest"])
     require_sha(payload["textDigest"])
     text(payload["prompt"], 4096)
     text(payload["altText"], 1024)
-    if payload["schema"] == CONTINUITY_SCHEMA:
+    if payload["schema"] in CONTINUITY_SCHEMAS:
         require_sha(payload["referenceSceneId"])
         if payload["protagonistId"] != digest((owner + "\0" + payload["workspaceId"] + "\0origin-protagonist/v1").encode()):
             raise ValueError("The protagonist belongs to another owner/book.")
@@ -272,9 +281,9 @@ class OriginSceneStore:
             protagonist = digest((owner + "\0" + payload["workspaceId"] + "\0origin-protagonist/v1").encode())
             reference = connection.execute("SELECT scene_id FROM origin_scene_references WHERE owner=? AND protagonist=?",
                 (owner, protagonist)).fetchone()
-            if payload["schema"] != CONTINUITY_SCHEMA and reference is not None:
+            if payload["schema"] not in CONTINUITY_SCHEMAS and reference is not None:
                 raise ValueError("This book already has a fixed character reference; legacy generation cannot bypass it.")
-            if payload["schema"] == CONTINUITY_SCHEMA:
+            if payload["schema"] in CONTINUITY_SCHEMAS:
                 if reference is None:
                     if payload["referenceSceneId"] != key:
                         raise ValueError("The original book reference has not been established.")
@@ -325,14 +334,19 @@ class OriginSceneStore:
                 "providerReceiptDigest": receipt_digest, "admissionDigest": admission_digest,
                 "publicationAuthorized": False,
             }
-            if payload["schema"] == CONTINUITY_SCHEMA:
+            if payload["schema"] in CONTINUITY_SCHEMAS:
                 manifest.update(protagonistId=payload["protagonistId"], referenceSceneId=payload["referenceSceneId"],
                                 referenceImageHash=reference_hash or digest(data))
+            automatic = payload["schema"] == AUTOMATIC_SCHEMA
+            if automatic:
+                manifest["insertionPolicy"] = AUTOMATIC_INSERTION
             with self.connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 self._require_owner(connection, owner)
-                connection.execute("UPDATE origin_scenes SET state='review', manifest=?, image=? WHERE id=? AND state='dispatching'",
-                                   (encoded(manifest), data, key))
+                if automatic and not still_authorized():
+                    raise PermissionError("Book illustration authorization changed before private retention.")
+                connection.execute("UPDATE origin_scenes SET state=?, manifest=?, image=? WHERE id=? AND state='dispatching'",
+                                   ("persisted" if automatic else "review", encoded(manifest), data, key))
         except Exception:
             with self.connect() as connection:
                 connection.execute("UPDATE origin_scenes SET state='uncertain' WHERE id=? AND state='dispatching'", (key,))
@@ -374,6 +388,9 @@ class OriginSceneStore:
             require_sha(manifest["referenceImageHash"])
             if manifest["referenceSceneId"] == row["id"] and manifest["referenceImageHash"] != manifest["contentHash"]:
                 raise ValueError("The first character reference was changed.")
+        if "insertionPolicy" in manifest and (manifest["insertionPolicy"] != AUTOMATIC_INSERTION
+                or "protagonistId" not in manifest or state != "persisted"):
+            raise ValueError("Retained automatic image policy differs.")
         if not still_authorized():
             raise PermissionError("Private image access is no longer authorized.")
         return {**status, "manifest": manifest}, data
