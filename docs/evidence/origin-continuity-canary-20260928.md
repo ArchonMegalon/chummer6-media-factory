@@ -54,7 +54,34 @@ retry or private response-value leakage. An initial bare-host invocation lacked
 the `scripts` import path and failed; it is not counted as a successful run.
 The diagnostic code is not yet deployed and cannot reconstruct the lost response.
 
-A new diagnostic upload needs explicit reconciliation/authority; the existing
-uncertain job must not be replayed. Keep the child/teen comparison, real automatic
-reader/EPUB flow and Android delivery open. Retain private artifacts only in the
-local test packet, not this repository or a public asset directory.
+### Approved upload-only diagnosis and correction
+
+Telegram question 5438 requested exactly one upload of the same synthetic PNG,
+with no generation, purchase, publication or fence/quota reset. The user approved
+that scope with a new direct `ja` on 28 September. A separately fenced local
+Docker process made that one asset POST. It retained the bounded response in
+the private local packet, never in repository logs. Response SHA-256:
+`7479077052de442f26574b2e08c1a6152be96ac9278026292fa7d71f1a1a7e94`.
+
+The response contained matching MIME, integer byte size, PNG key and file path,
+but **no `acl` field**; the safe rejection was `origin_reference_privacy_rejected`.
+The public asset documentation still describes `acl: private`. The actual
+provider response instead supplied a signed S3 URL. A bounded, read-only check
+of this exact uploaded synthetic object observed unsigned GET **403**, signed
+GET **200**, and the identical original PNG bytes/hash. No image edit was sent.
+
+The adapter correction accepts missing ACL metadata only with that exact-origin,
+bucket/path-bound access check and byte equality. It does not accept explicit
+public/null ACLs, redirects, anonymous success, missing objects or arbitrary URLs.
+OneMin credentials never go to S3; signed URLs and private values stay out of
+receipts. A live read-only invocation of the corrected adapter accepted the
+already uploaded object; it performed no further upload or generation.
+
+All **28 focused renderer tests** pass in network-disabled local Docker, including
+the new positive custody flow and negative URL, privacy, bounds and replay cases.
+The first run exposed a missing image Content-Type in the new mocked success
+fixture; the fixture was corrected and the same complete subset passed.
+The correction is not yet deployed. The earlier teenage attempt remains fenced,
+both synthetic admission slots remain used, and no quota or sponsorship changed.
+Visual child/teen comparison, real automatic reader/EPUB flow and Android delivery
+remain open. Private artifacts stay in the local test packet only.

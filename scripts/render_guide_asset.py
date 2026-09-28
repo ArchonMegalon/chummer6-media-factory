@@ -1283,7 +1283,58 @@ class OriginSceneAdmission:
         return value.decode("ascii")
 
 
-def _origin_reference_key(result: object, expected_size: int) -> str:
+def _verify_origin_reference_access(asset: dict, key: str, data: bytes) -> None:
+    """Admit the observed ACL-less S3 response only after actual custody checks.
+
+    Never infer privacy from a signed URL alone: the exact object must deny an
+    anonymous GET, then return our exact uploaded bytes with its signed GET.
+    Neither read receives the OneMin key. No redirects, retries or public URLs
+    enter receipts, and an explicit non-private ACL cannot use this path.
+    """
+    try:
+        location = asset.get("location")
+        if not isinstance(location, str) or len(location) > 4096:
+            raise ValueError()
+        parts = urllib.parse.urlsplit(location)
+        if (parts.scheme != "https" or parts.netloc != "s3.us-east-1.amazonaws.com"
+                or asset.get("bucket") != "asset.1min.ai"
+                or parts.path != "/asset.1min.ai/" + key or parts.fragment):
+            raise ValueError()
+        pairs = urllib.parse.parse_qsl(parts.query, strict_parsing=True, max_num_fields=16)
+        query = dict(pairs)
+        allowed = {"X-Amz-Algorithm", "X-Amz-Content-Sha256", "X-Amz-Credential",
+                   "X-Amz-Date", "X-Amz-Expires", "X-Amz-Signature", "X-Amz-SignedHeaders",
+                   "X-Amz-Security-Token", "x-amz-checksum-mode", "x-id"}
+        if (len(query) != len(pairs) or not set(query) <= allowed
+                or query.get("X-Amz-Algorithm") != "AWS4-HMAC-SHA256"
+                or query.get("X-Amz-SignedHeaders") != "host"
+                or not query.get("X-Amz-Credential") or not query.get("X-Amz-Date")
+                or not 0 < int(query.get("X-Amz-Expires", "0")) <= 604800
+                or not re.fullmatch(r"[a-f0-9]{64}", query.get("X-Amz-Signature", ""))):
+            raise ValueError()
+        _validate_download_asset_host_resolution(parts.hostname)
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
+        unsigned = urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+        try:
+            with opener.open(urllib.request.Request(unsigned, method="GET"), timeout=20):
+                raise ValueError()  # Any anonymous success rejects the object.
+        except urllib.error.HTTPError as error:
+            code = error.code
+            error.close()
+            if code != 403:
+                raise ValueError() from None
+        with opener.open(urllib.request.Request(location, method="GET"), timeout=30) as response:
+            if response.status != 200:
+                raise ValueError()
+            actual = _read_response_bytes_with_limit(response, max_bytes=len(data), label="origin_reference")
+        if actual != data:
+            raise ValueError()
+    except (ValueError, OSError, RuntimeError, http.client.HTTPException):
+        # Includes URL/HTTP/transport errors; never leak the signed capability.
+        raise RuntimeError("media_factory:origin_reference_privacy_rejected") from None
+
+
+def _origin_reference_key(result: object, expected_size: int, reference_data: bytes | None = None) -> str:
     """Validate private upload custody; diagnostics contain no provider values.
 
     Keep the exact rejection boundary in the private attempt receipt. A generic
@@ -1295,8 +1346,6 @@ def _origin_reference_key(result: object, expected_size: int) -> str:
     asset, file_content = result.get("asset"), result.get("fileContent")
     if not isinstance(asset, dict) or not isinstance(file_content, dict):
         raise RuntimeError("media_factory:origin_reference_shape_rejected")
-    if asset.get("acl") != "private":
-        raise RuntimeError("media_factory:origin_reference_privacy_rejected")
     if asset.get("mimetype") != "image/png":
         raise RuntimeError("media_factory:origin_reference_mime_rejected")
     if type(asset.get("size")) is not int or asset["size"] != expected_size:
@@ -1307,6 +1356,10 @@ def _origin_reference_key(result: object, expected_size: int) -> str:
         raise RuntimeError("media_factory:origin_reference_key_rejected")
     if file_content.get("path") != key:
         raise RuntimeError("media_factory:origin_reference_binding_rejected")
+    if asset.get("acl") != "private":
+        if "acl" in asset or reference_data is None or len(reference_data) != expected_size:
+            raise RuntimeError("media_factory:origin_reference_privacy_rejected")
+        _verify_origin_reference_access(asset, key, reference_data)
     return key
 
 
@@ -1328,7 +1381,7 @@ def _upload_origin_reference(data: bytes, api_key: str) -> str:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
     with opener.open(request, timeout=_onemin_timeout_seconds()) as response:
         result = json.loads(_read_response_bytes_with_limit(response, max_bytes=16 * 1024, label="origin_reference"))
-    return _origin_reference_key(result, len(data))
+    return _origin_reference_key(result, len(data), data)
 
 
 def render_asset(

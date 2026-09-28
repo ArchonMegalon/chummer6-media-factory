@@ -6,6 +6,10 @@ Play release**. One real synthetic opening image persisted and cold-read correct
 the later-age attempt stopped at reference-upload validation, before an image-edit
 POST. Visual continuity is therefore **not yet verified**. Phygital+ has no verified
 adapter here. See [the bounded provider test](evidence/origin-continuity-canary-20260928.md).
+The approved upload-only diagnosis found missing ACL metadata. The adapter now
+supports the observed signed-S3 response only after an anonymous access denial
+and exact-byte signed readback. This correction is locally tested; it does not
+replay the failed image or establish multi-age visual continuity.
 
 `scripts/origin_scene_store.py` consumes the existing
 `chummer6-hub.horizon_governed_render_request.v1` contract for
@@ -51,8 +55,16 @@ dispatch. Reopening an existing paid v1 request still returns its original state
 OneMinAI receives those actual PNG bytes through its authenticated private
 [asset endpoint](https://docs.1min.ai/docs/api/asset-api), followed by one
 `gpt-image-1-mini` `IMAGE_EDITOR` request using the returned asset key. This is
-not just a repeated text prompt. Upload/response bounds and private ACL readback
-are checked; ambiguous upload/edit outcomes never fall back to text generation.
+not just a repeated text prompt. Upload/response bounds and private custody are
+checked. The documented explicit `acl: private` response remains supported.
+If ACL metadata is absent, only the observed OneMin bucket/path on the exact S3
+origin is admitted: its unsigned GET must return 403 and its signed GET must
+return the identical uploaded bytes within the input-size bound. Both reads
+reject redirects and carry no OneMin API key. Explicit public/null ACLs, wrong
+paths, anonymous success, missing objects, changed bytes and transport failures
+stop before the edit. Signed links remain private. These are observed access
+checks, not a guarantee about future provider retention or configuration.
+Ambiguous upload/edit outcomes never fall back to text generation.
 The client manifest records `protagonistId`, `referenceSceneId` and
 `referenceImageHash`; provider URLs/asset keys are not public manifest fields.
 
@@ -136,8 +148,8 @@ quota admission/readback and account erasure. Compatible Hub/Media runtimes are
 deployed with original data and rollback images retained. Android's automatic
 reader/EPUB integration has focused managed checks; the current Debug APK passed
 the missing-full-chapter progress and process-restart route. It is not a Play
-release or a real two-age illustrated-book delivery. Resolve the reference-upload
-metadata mismatch without weakening private custody, then verify the actual
+release or a real two-age illustrated-book delivery. Deploy the locally tested
+reference-upload compatibility correction, then verify the actual
 older-age image and live reader/EPUB route. Existing uncertain jobs stay fenced.
 
 Focused checks:
