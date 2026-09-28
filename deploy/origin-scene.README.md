@@ -35,7 +35,18 @@ never delete/replace the database to reset it. Restored snapshots remain disable
 
 The recipe is one `gpt-image-1-mini`, low-quality, 1536x1024 image per admitted
 scene. No model/key/size retries, redirects, proxies, top-ups or purchases.
-No automatic adoption: the user still reviews the retained image in Chummer.
+An explicitly consented v3 `automatic-private-book/v1` request is retained for
+automatic private reader/EPUB insertion after PNG validation and owner recheck.
+It does not claim human image review. Legacy manual requests still require their
+existing review decision; paid orders and old consent are never relabelled.
+
+The opening image is retained as the book's original protagonist reference.
+Later scenes upload that exact private PNG to the reference-capable editor and
+keep its identity/digest, while the approved chapter determines the character's
+age, clothing and setting. A missing or uncertain original stops the sequence;
+it must not silently generate an unrelated replacement person. This reference
+binding is tested, but visual recognizability across real generated age stages
+still needs an actual provider-pair check.
 Do not remove consent/admission checks or silently use a different provider.
 Phygital is not an implemented renderer here. Private execution without the exact
 committed Origin context still refuses per-call in-memory quota fallback.
