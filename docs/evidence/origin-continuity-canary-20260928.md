@@ -1,8 +1,56 @@
 # Bounded real-provider continuity test — 28 September 2026
 
-Result: **opening image succeeds; reference-custody correction deployed;
-later-age visual comparison still open**.
-This is not a completed two-age visual proof or a Play release.
+Result: **child and youth images generated, original reference reused and cold
+read verified; real PNGs embedded in a synthetic EPUB smoke**.
+The visual comparison has the limitations below. This is not a completed real
+FirstBook book, physical Android observation or Play release.
+
+## Latest — 28 September 09:03 UTC
+
+The operator explicitly approved existing OneMin credit use as needed for Chummer
+illustrations and tests ("darfst du immer", "u can burn 1min ai credits at will").
+This resolves question5439 and supersedes the two-image operator budget, not
+user-fact consent, private artifact custody, no-replay rules or the separate
+interrupted FirstBook operation. No purchases or top-ups are authorized.
+
+One new, distinct `teen-comparison` request was dispatched through the actual
+compiled Hub admission/client and deployed Media7f11e065. The isolated synthetic
+allowance increased from two to three; both old used slots and fences remain.
+No production ledger, sponsorship or global worker cap changed. This was one
+private reference upload and one image edit, not a retry of the uncertain teen
+request. It completed with `automatic-private-book/v1`, no review picker and
+publication authorization false:
+
+- PNG SHA-256 `e4bb322eea16f56d29a1303684a79ffeb46aaa5e68d5124e20e8d655256a9df5`,
+  1,942,133 bytes, 1536 × 1024.
+- Exact original reference hash
+  `2c9895348c4a6a5f028d8a664f8f734568dd026d7f28eb73a77733dc7756ffe2`.
+- Original protagonist and reference-scene identities unchanged.
+- A separate cold client retrieved identical image bytes and bindings without
+  another provider request.
+
+Both images were visually inspected. The later scene retains a recognizable
+face, pointed ears, dark braided hair, teal clothes and childhood radio, with
+older facial proportions and a school setting. This is a qualitative continuity
+observation, not an exact-age or biometric guarantee. The provider did not
+reliably honor green eyes/freckle details, and it added imperfect lettering to
+the envelope despite the no-text prompt. Those quality limitations are retained,
+not hidden or called exact identity fidelity.
+
+A network-disabled smoke used the unchanged compiled Android reader/exporter
+with these two actual PNGs and their exact synthetic scene-input texts. Both
+selected texts remain readable; the EPUB includes both exact image hashes,
+working relative image references and complete selected fixture text. Output:
+3,930,783 bytes, SHA-256
+`0d6087b69a758d2529eb03bbf65914fff581ea549fa5caf96ba52d0a2fae16b4`.
+This is explicitly synthetic prose, not a new FirstBook result, user book or
+native-device smoke. The initial private helper failed on an incorrect reflected
+namespace and then an ambiguous method overload; correcting those helper-only
+lookups produced the passing result. No application code changed.
+
+All temporary test containers exited. Existing FirstBook5435 remains fenced;
+real illustrated-book workflow and Play50 upload are still open. Preview49 stays
+immutable. Historical entries below describe the earlier blocked observations.
 
 ## Scope and runtime
 
