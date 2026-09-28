@@ -1,6 +1,7 @@
 # Bounded real-provider continuity test — 28 September 2026
 
-Result: **opening image succeeds; later-age reference validation fails**.
+Result: **opening image succeeds; reference-custody correction deployed;
+later-age visual comparison still open**.
 This is not a completed two-age visual proof or a Play release.
 
 ## Scope and runtime
@@ -52,7 +53,8 @@ Twenty-four focused adapter tests pass in local, network-disabled Docker,
 including twelve rejected-response cases proving one upload and no image edit,
 retry or private response-value leakage. An initial bare-host invocation lacked
 the `scripts` import path and failed; it is not counted as a successful run.
-The diagnostic code is not yet deployed and cannot reconstruct the lost response.
+This was the initial diagnostic-only follow-up; the later correction and deployment
+below supersede its runtime status. It cannot reconstruct the lost response.
 
 ### Approved upload-only diagnosis and correction
 
@@ -81,7 +83,31 @@ All **28 focused renderer tests** pass in network-disabled local Docker, includi
 the new positive custody flow and negative URL, privacy, bounds and replay cases.
 The first run exposed a missing image Content-Type in the new mocked success
 fixture; the fixture was corrected and the same complete subset passed.
-The correction is not yet deployed. The earlier teenage attempt remains fenced,
-both synthetic admission slots remain used, and no quota or sponsorship changed.
+The earlier teenage attempt remains fenced, both synthetic admission slots remain
+used, and no quota or sponsorship changed.
 Visual child/teen comparison, real automatic reader/EPUB flow and Android delivery
 remain open. Private artifacts stay in the local test packet only.
+
+### Local deployment and remaining boundary
+
+Runtime source `7f11e065ecb8c6d7673fe917e58cbbbcad79a258` was deployed locally
+at 08:26:18 UTC in image
+`sha256:ae588cb1e77b3fa96e4e1169a6f1d0242241608d2e03a98e02068cb7b7891a42`.
+This is an incremental build on the previous verified image: only the renderer
+was replaced, with no dependency refresh or embedded credentials. An earlier
+full Dockerfile attempt with networking disabled could not fetch Pillow and is
+not a successful build. All four deployed Python files match the committed
+sources. The worker is healthy with zero restarts; private configuration, mounts,
+security/resource limits, original database and absolute lifetime cap of eight
+are unchanged. An integrity-checked SQLite backup and the prior image are retained.
+
+Question 5438 is consumed by the one upload-only diagnostic. A separate request
+for at most one additional private synthetic reference upload and image edit was
+delivered to the verified private operator chat at 08:29:07 UTC (question 5439).
+It awaits approval; no new image was generated, no uncertain attempt was retried,
+and neither used synthetic slots nor production sponsorship were reset.
+
+Android companion PR #180 merged normally as
+`49c3d6201167705d921b1f2b0231685c23ed1bbe`; its merge tree equals the reviewed
+head. Its native Life Modules completion/Career/restart result is separate from
+this still-incomplete provider visual test. There is no new AAB/signing/Play claim.
