@@ -1283,6 +1283,107 @@ class OriginSceneAdmission:
         return value.decode("ascii")
 
 
+def _verify_origin_reference_access(asset: dict, key: str, data: bytes) -> None:
+    """Admit the observed ACL-less S3 response only after actual custody checks.
+
+    Never infer privacy from a signed URL alone: the exact object must deny an
+    anonymous GET, then return our exact uploaded bytes with its signed GET.
+    Neither read receives the OneMin key. No redirects, retries or public URLs
+    enter receipts, and an explicit non-private ACL cannot use this path.
+    """
+    try:
+        location = asset.get("location")
+        if not isinstance(location, str) or len(location) > 4096:
+            raise ValueError()
+        parts = urllib.parse.urlsplit(location)
+        if (parts.scheme != "https" or parts.netloc != "s3.us-east-1.amazonaws.com"
+                or asset.get("bucket") != "asset.1min.ai"
+                or parts.path != "/asset.1min.ai/" + key or parts.fragment):
+            raise ValueError()
+        pairs = urllib.parse.parse_qsl(parts.query, strict_parsing=True, max_num_fields=16)
+        query = dict(pairs)
+        allowed = {"X-Amz-Algorithm", "X-Amz-Content-Sha256", "X-Amz-Credential",
+                   "X-Amz-Date", "X-Amz-Expires", "X-Amz-Signature", "X-Amz-SignedHeaders",
+                   "X-Amz-Security-Token", "x-amz-checksum-mode", "x-id"}
+        if (len(query) != len(pairs) or not set(query) <= allowed
+                or query.get("X-Amz-Algorithm") != "AWS4-HMAC-SHA256"
+                or query.get("X-Amz-SignedHeaders") != "host"
+                or not query.get("X-Amz-Credential") or not query.get("X-Amz-Date")
+                or not 0 < int(query.get("X-Amz-Expires", "0")) <= 604800
+                or not re.fullmatch(r"[a-f0-9]{64}", query.get("X-Amz-Signature", ""))):
+            raise ValueError()
+        _validate_download_asset_host_resolution(parts.hostname)
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
+        unsigned = urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+        try:
+            with opener.open(urllib.request.Request(unsigned, method="GET"), timeout=20):
+                raise ValueError()  # Any anonymous success rejects the object.
+        except urllib.error.HTTPError as error:
+            code = error.code
+            error.close()
+            if code != 403:
+                raise ValueError() from None
+        with opener.open(urllib.request.Request(location, method="GET"), timeout=30) as response:
+            if response.status != 200:
+                raise ValueError()
+            actual = _read_response_bytes_with_limit(response, max_bytes=len(data), label="origin_reference")
+        if actual != data:
+            raise ValueError()
+    except (ValueError, OSError, RuntimeError, http.client.HTTPException):
+        # Includes URL/HTTP/transport errors; never leak the signed capability.
+        raise RuntimeError("media_factory:origin_reference_privacy_rejected") from None
+
+
+def _origin_reference_key(result: object, expected_size: int, reference_data: bytes | None = None) -> str:
+    """Validate private upload custody; diagnostics contain no provider values.
+
+    Keep the exact rejection boundary in the private attempt receipt. A generic
+    rejection loses the only safe diagnosis before the paid edit is entered.
+    None of these failures authorizes a retry or a text-only replacement.
+    """
+    if not isinstance(result, dict):
+        raise RuntimeError("media_factory:origin_reference_shape_rejected")
+    asset, file_content = result.get("asset"), result.get("fileContent")
+    if not isinstance(asset, dict) or not isinstance(file_content, dict):
+        raise RuntimeError("media_factory:origin_reference_shape_rejected")
+    if asset.get("mimetype") != "image/png":
+        raise RuntimeError("media_factory:origin_reference_mime_rejected")
+    if type(asset.get("size")) is not int or asset["size"] != expected_size:
+        raise RuntimeError("media_factory:origin_reference_size_rejected")
+    key = asset.get("key")
+    if (not isinstance(key, str) or len(key) > 512
+            or not re.fullmatch(r"(?:development/)?images/[A-Za-z0-9_-]+\.png", key)):
+        raise RuntimeError("media_factory:origin_reference_key_rejected")
+    if file_content.get("path") != key:
+        raise RuntimeError("media_factory:origin_reference_binding_rejected")
+    if asset.get("acl") != "private":
+        if "acl" in asset or reference_data is None or len(reference_data) != expected_size:
+            raise RuntimeError("media_factory:origin_reference_privacy_rejected")
+        _verify_origin_reference_access(asset, key, reference_data)
+    return key
+
+
+def _upload_origin_reference(data: bytes, api_key: str) -> str:
+    """One private reference upload; never URLs supplied by a client or retries.
+
+    Official protocol: docs.1min.ai/docs/api/asset-api. The scene fence is
+    already committed. An ambiguous upload fails without an image-generation
+    fallback. Provider retention is separate from our local account erasure.
+    """
+    from origin_scene_store import inspect_png
+    inspect_png(data)
+    boundary = "chummer-origin-" + uuid.uuid4().hex
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"asset\"; filename=\"character.png\"\r\n"
+            "Content-Type: image/png\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request("https://api.1min.ai/api/assets", data=body, method="POST", headers={
+        "API-KEY": api_key, "Content-Type": "multipart/form-data; boundary=" + boundary,
+        "User-Agent": "Chummer-Media-Factory/1.0"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
+    with opener.open(request, timeout=_onemin_timeout_seconds()) as response:
+        result = json.loads(_read_response_bytes_with_limit(response, max_bytes=16 * 1024, label="origin_reference"))
+    return _origin_reference_key(result, len(data), data)
+
+
 def render_asset(
     *,
     prompt: str,
@@ -1293,9 +1394,15 @@ def render_asset(
     reference_image: Path | None = None,
     single_dispatch: bool = False,
     origin_admission: OriginSceneAdmission | None = None,
+    origin_reference_png: bytes | None = None,
 ) -> dict[str, object]:
     if origin_admission is not None and (not single_dispatch or reference_image is not None):
-        raise ValueError("Origin admission is restricted to one text-to-image scene.")
+        raise ValueError("Origin admission is restricted to one bounded private scene.")
+    if origin_reference_png is not None:
+        if origin_admission is None:
+            raise ValueError("A character reference requires a durable Origin admission.")
+        from origin_scene_store import inspect_png
+        inspect_png(origin_reference_png)
     if origin_admission is None:
         _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
@@ -1585,6 +1692,15 @@ def render_asset(
                         aspect_ratio=_aspect_ratio(width, height),
                         quality=quality,
                     )
+                    if origin_reference_png is not None:
+                        # Documented IMAGE_EDITOR protocol, not a text prompt
+                        # pretending to preserve the protagonist's identity.
+                        # Same fixed model/size/quality and one paid POST.
+                        reference_key = _upload_origin_reference(origin_reference_png, current_api_key)
+                        payload["type"] = "IMAGE_EDITOR"
+                        payload["promptObject"]["imageUrl"] = reference_key
+                        payload["promptObject"]["background"] = "auto"
+                        payload["promptObject"].pop("style", None)
                     request = urllib.request.Request(
                         _onemin_endpoint(),
                         headers={
@@ -1654,23 +1770,24 @@ def render_asset(
                         else:
                             _download_asset(asset_urls[0], output_path)
                     result_json = {
-                        "tool_name": "provider.onemin.image_generate",
-                        "action_kind": "image.generate",
+                        "tool_name": "provider.onemin.image_edit" if origin_reference_png is not None else "provider.onemin.image_generate",
+                        "action_kind": "image.edit" if origin_reference_png is not None else "image.generate",
                         "receipt_json": {
-                            "handler_key": "provider.onemin.image_generate",
+                            "handler_key": "provider.onemin.image_edit" if origin_reference_png is not None else "provider.onemin.image_generate",
                             "invocation_contract": "tool.v1",
                             "provider_key": "onemin",
                             "provider_backend": "1min",
                             "provider_account_name": current_account_name,
                             "provider_key_slot": current_slot_name,
                             "model": model,
-                            "feature_type": "IMAGE_GENERATOR",
+                            "feature_type": payload["type"],
                             "tool_version": "v1",
                             "manager_lease_id": lease_id if current_is_reserved else "",
                             **({"scene_id": origin_admission.scene_id,
                                 "hub_admission_digest": origin_admission.admission_digest,
                                 "reservation_source": reservation_source,
                                 "actual_credits_delta": None,
+                                "reference_image_sha256": hashlib.sha256(origin_reference_png).hexdigest() if origin_reference_png is not None else None,
                                 "credential_sha256": hashlib.sha256(api_key.encode()).hexdigest()}
                                if origin_admission is not None else {}),
                         },

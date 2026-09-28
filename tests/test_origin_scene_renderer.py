@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -6,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 import urllib.error
+from PIL import Image
 
 from test_render_guide_asset_download_guard import FakeResponse, load_render_module
 
@@ -112,6 +114,169 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.assertEqual(1, self.open.call_count)
         self.module._reserve_onemin_image_slot.assert_not_called()
         self.module._release_onemin_image_slot.assert_not_called()
+
+    def reference(self):
+        output = io.BytesIO()
+        Image.new("RGB", (24, 16), (150, 180, 150)).save(output, format="PNG")
+        return output.getvalue()
+
+    def test_character_reference_is_uploaded_privately_and_used_in_one_edit(self):
+        reference = self.reference()
+        key = "images/synthetic_character.png"
+        self.open.side_effect = [
+            FakeResponse(json.dumps({"asset": {"key": key, "acl": "private", "mimetype": "image/png", "size": len(reference)},
+                                     "fileContent": {"path": key}}).encode(), {"Content-Type": "application/json"}),
+            FakeResponse(b"rendered PNG", {"Content-Type": "image/png"})]
+        self.render(origin_admission=self.admission(), origin_reference_png=reference)
+        upload, edit = [call.args[0] for call in self.open.call_args_list]
+        self.assertEqual("https://api.1min.ai/api/assets", upload.full_url)
+        self.assertIn(reference, upload.data)
+        payload = json.loads(edit.data)
+        self.assertEqual("IMAGE_EDITOR", payload["type"])
+        self.assertEqual(key, payload["promptObject"]["imageUrl"])
+        self.assertEqual(1, payload["promptObject"]["n"])
+        receipt = self.module._write_receipt.call_args.kwargs["result_json"]["receipt_json"]
+        self.assertEqual("IMAGE_EDITOR", receipt["feature_type"])
+        self.assertEqual(self.module.hashlib.sha256(reference).hexdigest(), receipt["reference_image_sha256"])
+        self.assertNotIn(key, json.dumps(receipt))
+
+    def test_reference_upload_failure_never_generates_a_different_person_or_retries(self):
+        for reply in (TimeoutError(), FakeResponse(json.dumps({"asset": {"acl": "public-read"}}).encode(), {})):
+            self.open.reset_mock()
+            self.open.side_effect = reply if isinstance(reply, Exception) else None
+            self.open.return_value = reply
+            with self.assertRaises((RuntimeError, TimeoutError)):
+                self.render(origin_admission=self.admission(), origin_reference_png=self.reference())
+            self.assertEqual(1, self.open.call_count)
+            self.assertEqual("https://api.1min.ai/api/assets", self.open.call_args.args[0].full_url)
+
+    def test_rejected_reference_records_safe_boundary_without_paid_edit_or_private_values(self):
+        reference = self.reference()
+        key = "images/synthetic_character.png"
+        valid = {"asset": {"key": key, "acl": "private", "mimetype": "image/png", "size": len(reference)},
+                 "fileContent": {"path": key}}
+        cases = [(None, "shape"), ([], "shape"), ({"asset": [], "fileContent": {}}, "shape"),
+                 ({**valid, "fileContent": None}, "shape")]
+        for field, value, reason in (("acl", "public-read", "privacy"),
+                                     ("mimetype", "text/private-value", "mime"),
+                                     ("size", str(len(reference)), "size"),
+                                     ("size", True, "size"), ("size", len(reference) + 1, "size"),
+                                     ("key", "https://private.invalid/token", "key"),
+                                     ("key", "images/../private.png", "key")):
+            cases.append(({**valid, "asset": {**valid["asset"], field: value}}, reason))
+        cases.append(({**valid, "fileContent": {"path": "private-other-asset"}}, "binding"))
+        for reply, reason in cases:
+            with self.subTest(reason=reason, reply_type=type(reply).__name__):
+                self.open.reset_mock()
+                self.open.return_value = FakeResponse(json.dumps(reply).encode(), {})
+                expected = "media_factory:origin_reference_" + reason + "_rejected"
+                with self.assertRaisesRegex(RuntimeError, "^" + expected + "$"):
+                    self.render(origin_admission=self.admission(), origin_reference_png=reference)
+                self.assertEqual(1, self.open.call_count)
+                self.assertEqual("https://api.1min.ai/api/assets", self.open.call_args.args[0].full_url)
+                attempt = self.module._write_attempt_status.call_args.kwargs
+                self.assertEqual("failed_no_retry", attempt["phase"])
+                self.assertEqual(expected, attempt["detail"])
+                self.assertIsNone(attempt["provider_response"])
+        self.module._write_receipt.assert_not_called()
+
+    def test_reference_requires_an_admission_and_valid_image_before_network(self):
+        with self.assertRaises(ValueError):
+            self.render(origin_reference_png=self.reference())
+        with self.assertRaises((ValueError, OSError)):
+            self.render(origin_admission=self.admission(), origin_reference_png=b"not a PNG")
+        self.open.assert_not_called()
+
+    def acl_less_reference(self, data):
+        key = "images/synthetic_character.png"
+        location = ("https://s3.us-east-1.amazonaws.com/asset.1min.ai/" + key
+                    + "?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=synthetic"
+                    + "&X-Amz-Date=20260928T081600Z&X-Amz-Expires=3600"
+                    + "&X-Amz-SignedHeaders=host&X-Amz-Signature=" + "a" * 64)
+        return {"asset": {"key": key, "mimetype": "image/png", "size": len(data),
+                          "bucket": "asset.1min.ai", "location": location},
+                "fileContent": {"path": key}}
+
+    def reference_response(self, data, status=200, headers=None):
+        response = FakeResponse(data, headers)
+        response.status = status
+        return response
+
+    def anonymous_denial(self, status=403):
+        return urllib.error.HTTPError("https://s3.us-east-1.amazonaws.com", status,
+                                      "denied", {}, None)
+
+    def test_acl_less_reference_requires_denied_anonymous_and_exact_signed_bytes(self):
+        reference = self.reference()
+        reply = self.acl_less_reference(reference)
+        self.open.side_effect = [FakeResponse(json.dumps(reply).encode()), self.anonymous_denial(),
+                                 self.reference_response(reference),
+                                 FakeResponse(b"rendered PNG", {"Content-Type": "image/png"})]
+        with patch.object(self.module, "_validate_download_asset_host_resolution") as dns:
+            self.render(origin_admission=self.admission(), origin_reference_png=reference)
+        dns.assert_called_once_with("s3.us-east-1.amazonaws.com")
+        upload, anonymous, signed, edit = [call.args[0] for call in self.open.call_args_list]
+        self.assertEqual(["POST", "GET", "GET", "POST"],
+                         [r.get_method() for r in (upload, anonymous, signed, edit)])
+        self.assertNotIn("?", anonymous.full_url)
+        self.assertEqual(reply["asset"]["location"], signed.full_url)
+        self.assertIsNone(anonymous.get_header("Api-key"))
+        self.assertIsNone(signed.get_header("Api-key"))
+        self.assertEqual(reply["asset"]["key"], json.loads(edit.data)["promptObject"]["imageUrl"])
+        receipt = self.module._write_receipt.call_args.kwargs["result_json"]["receipt_json"]
+        self.assertNotIn("X-Amz-", json.dumps(receipt))
+
+    def test_acl_less_reference_rejects_unsafe_location_before_any_read(self):
+        reference = self.reference()
+        valid = self.acl_less_reference(reference)
+        location = valid["asset"]["location"]
+        cases = [{**valid["asset"], "acl": acl} for acl in (None, "public-read", "")]
+        cases += [{**valid["asset"], "location": url} for url in (
+            location.replace("https:", "http:"), location.replace("s3.us-east-1.amazonaws.com", "127.0.0.1"),
+            location.replace("s3.us-east-1.amazonaws.com", "s3.us-east-1.amazonaws.com.evil.invalid"),
+            location.replace("/asset.1min.ai/", "/other-bucket/"),
+            location.replace("synthetic_character.png", "other.png"), location + "#fragment",
+            location.split("?")[0], location + "&X-Amz-Expires=3600", location + "&unknown=value",
+            location.replace("Expires=3600", "Expires=999999999"),
+            location.replace("AWS4-HMAC-SHA256", "none"),
+        )]
+        cases += [{**valid["asset"], "bucket": "other-bucket"}]
+        for asset in cases:
+            with self.subTest(asset=asset):
+                self.open.reset_mock()
+                with self.assertRaisesRegex(RuntimeError, "^media_factory:origin_reference_privacy_rejected$"):
+                    self.module._origin_reference_key({**valid, "asset": asset}, len(reference), reference)
+                self.open.assert_not_called()
+
+    def test_acl_less_reference_rejects_public_missing_changed_or_unbounded_read(self):
+        reference = self.reference()
+        reply = self.acl_less_reference(reference)
+        cases = [[self.reference_response(reference)], [self.anonymous_denial(404)],
+                 [self.anonymous_denial(302)], [TimeoutError()],
+                 [self.anonymous_denial(), self.reference_response(b"different bytes")],
+                 [self.anonymous_denial(), self.reference_response(reference + b"x")],
+                 [self.anonymous_denial(), self.reference_response(reference, headers={"Content-Length": "99999999"})],
+                 [self.anonymous_denial(), self.reference_response(reference, status=206)],
+                 [self.anonymous_denial(), TimeoutError()],
+                 [self.anonymous_denial(), self.anonymous_denial(302)]]
+        with patch.object(self.module, "_validate_download_asset_host_resolution"):
+            for reads in cases:
+                with self.subTest(reads=len(reads)):
+                    self.open.reset_mock()
+                    self.open.side_effect = [FakeResponse(json.dumps(reply).encode()), *reads]
+                    with self.assertRaisesRegex(RuntimeError, "^media_factory:origin_reference_privacy_rejected$"):
+                        self.render(origin_admission=self.admission(), origin_reference_png=reference)
+                    self.assertEqual(1 + len(reads), self.open.call_count)
+                    self.assertEqual(1, sum(c.args[0].get_method() == "POST" for c in self.open.call_args_list))
+                    self.assertIsNone(self.module._write_attempt_status.call_args.kwargs["provider_response"])
+        self.module._write_receipt.assert_not_called()
+
+    def test_acl_less_reference_rejects_private_dns_without_network(self):
+        reference = self.reference()
+        with patch.object(self.module, "_validate_download_asset_host_resolution", side_effect=RuntimeError("private DNS")):
+            with self.assertRaisesRegex(RuntimeError, "^media_factory:origin_reference_privacy_rejected$"):
+                self.module._origin_reference_key(self.acl_less_reference(reference), len(reference), reference)
+        self.open.assert_not_called()
 
     def test_scoped_key_rejects_links_permissions_and_oversized_material(self):
         admission = self.admission()
