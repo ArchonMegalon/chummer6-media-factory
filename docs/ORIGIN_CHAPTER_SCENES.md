@@ -17,10 +17,45 @@ module, and never infer consent from the presence of an owner hash.
 The opaque owner digest is SHA-256 of the exact authenticated Hub subject UTF-8.
 Scene identity is SHA-256 of the NUL-delimited owner digest, workspace ID, chapter
 ID, canonical chapter digest and selected prose digest. NUL is forbidden in IDs.
-The artifact payload is `chummer.origin.chapter-scene/v1`: those four chapter
-fields plus `prompt` and `altText`. The work item/artifact/deduplication identities
+The legacy artifact payload is `chummer.origin.chapter-scene/v1`: those four chapter
+fields plus `prompt` and `altText`. New continuity-bound requests use
+`chummer.origin.chapter-scene/v2`, adding `protagonistId` and `referenceSceneId`.
+The work item/artifact/deduplication identities
 are identical; truth includes `origin-dossier:scene:<identity>`, evidence includes
 `origin-text:<textDigest>`. This is not a mutable provider URL or character rule.
+
+## One growing protagonist
+
+The protagonist ID is SHA-256 of the NUL-delimited owner digest, workspace ID
+and `origin-protagonist/v1`. Hub resolves the first reader-accepted chapter by
+following its exact owner-bound predecessor chain; its scene identity becomes
+the reference for every subsequent chapter. The prompt includes the initial
+character brief and the current accepted life stage. Identity remains stable;
+age, proportions, clothes and setting follow the chapter, without importing
+future scars, implants or choices into childhood.
+
+Media binds this first scene durably before dispatch. Another chapter, device or
+locale cannot silently create a different first reference for that book, even
+after an uncertain or rejected opening render. Later renders require the exact
+persisted reference's PNG, hash, owner and workspace. Missing, corrupt, foreign,
+expired or legacy v1 references fail before another provider call. Historical
+v1 images remain readable; they are not retrospectively declared continuous.
+Once a book has a v2 reference, new v1 requests for that book are refused before
+dispatch. Reopening an existing paid v1 request still returns its original state.
+
+OneMinAI receives those actual PNG bytes through its authenticated private
+[asset endpoint](https://docs.1min.ai/docs/api/asset-api), followed by one
+`gpt-image-1-mini` `IMAGE_EDITOR` request using the returned asset key. This is
+not just a repeated text prompt. Upload/response bounds and private ACL readback
+are checked; ambiguous upload/edit outcomes never fall back to text generation.
+The client manifest records `protagonistId`, `referenceSceneId` and
+`referenceImageHash`; provider URLs/asset keys are not public manifest fields.
+
+These bindings prove which reference was used, **not visual similarity**. A real
+multi-life-stage provider canary and visual review remain necessary before
+claiming that the resulting art preserves the face reliably. No live provider
+call or deployment was performed for this code change. The existing per-image
+review protocol has not yet been replaced with automatic book-level insertion.
 
 ## Behavior
 
@@ -30,7 +65,8 @@ are identical; truth includes `origin-dossier:scene:<identity>`, evidence includ
   cold reads, timeout recovery and process restart cannot repeat paid generation.
   `dispatching` after a crash or `uncertain` requires operator reconciliation.
 - OneMinAI single-dispatch uses one reserved account, model and size, exactly one
-  POST and no redirects. Guide-mode behavior remains separate. Phygital requests
+  image-feature POST and no redirects. Continuations first upload the bounded
+  private reference once. Guide-mode behavior remains separate. Phygital requests
   fail before generation when only the OneMinAI renderer is available.
 - Downloads use a public-IP-pinned HTTPS connection, no redirects/proxies,
   an exact known host set and a 4 MiB stream limit. Still PNGs are fully decoded,

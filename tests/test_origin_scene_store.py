@@ -32,6 +32,18 @@ def contract(owner="a" * 64, text_digest="b" * 64):
                            "maxBytes": scene.MAX_IMAGE, "requiresApproval": True, "persistOnApproval": True, "allowPersistentPinning": False}]}
 
 
+def growing_contract(owner="a" * 64, text_digest="b" * 64, *, reference=None, workspace="private-workspace"):
+    value = contract(owner, text_digest)
+    payload = json.loads(value["artifacts"][0]["payload"])
+    payload.update(schema=scene.CONTINUITY_SCHEMA, workspaceId=workspace,
+                   protagonistId=scene.digest((owner + "\0" + workspace + "\0origin-protagonist/v1").encode()))
+    key = scene.identity(owner, payload)
+    payload["referenceSceneId"] = reference or key
+    value.update(workItemId=key, sourceRef="origin-dossier:scene:" + key, truthRefs=["origin-dossier:scene:" + key])
+    value["artifacts"][0].update(artifactId=key, deduplicationKey=key, payload=json.dumps(payload))
+    return value
+
+
 class OriginSceneTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -58,6 +70,115 @@ class OriginSceneTests(unittest.TestCase):
     def render(self, provider=None):
         return self.store.render(self.owner, self.request, "e" * 64, provider or self.provider,
                                  still_authorized=self.current, now=self.now)
+
+    def test_growing_character_always_reuses_first_reference_after_cold_restart(self):
+        self.request = growing_contract()
+        first = self.render()
+        anchor = first["assetId"]
+        self.assertEqual(anchor, first["manifest"]["referenceSceneId"])
+        self.store.decide(self.owner, anchor, scene.digest(self.png), approve=True,
+                          explicitly_confirmed=True, still_authorized=self.current, now=self.now)
+        renderer = scene.OneMinSceneRenderer(self.database.parent)
+        references = []
+        different = io.BytesIO()
+        Image.new("RGB", (24, 16), (200, 120, 10)).save(different, format="PNG")
+        def admitted(prompt, key, admission, *, reference_png):
+            references.append(reference_png)
+            return different.getvalue(), "onemin", "d" * 64
+        renderer.render_admitted = admitted
+        for index in range(2):
+            self.store = scene.OriginSceneStore(self.database, dispatch_limit=8)
+            self.request = growing_contract(text_digest=scene.digest(str(index).encode()), reference=anchor)
+            result = self.render(renderer)
+            self.assertEqual(scene.digest(self.png), result["manifest"]["referenceImageHash"])
+            self.assertEqual(first["manifest"]["protagonistId"], result["manifest"]["protagonistId"])
+            self.store.decide(self.owner, result["assetId"], scene.digest(different.getvalue()), approve=True,
+                              explicitly_confirmed=True, still_authorized=self.current, now=self.now)
+        self.assertEqual([self.png, self.png], references)  # Never drift by referencing the latest output.
+        persisted = self.render(renderer)
+        self.assertEqual("persisted", persisted["state"])
+        self.assertEqual(result["manifest"], persisted["manifest"])
+        self.assertEqual(2, len(references))
+
+    def test_missing_rejected_or_foreign_character_reference_never_falls_back_to_text(self):
+        self.request = growing_contract()
+        first = self.render()
+        reference = first["assetId"]
+        for owner, workspace in ((self.owner, "private-workspace"), ("f" * 64, "private-workspace"),
+                                 (self.owner, "another-book")):
+            request = growing_contract(owner, text_digest="e" * 64, reference=reference, workspace=workspace)
+            with self.assertRaises((ValueError, KeyError)):
+                self.store.render(owner, request, "e" * 64, self.provider, still_authorized=self.current, now=self.now)
+        self.store.decide(self.owner, reference, scene.digest(self.png), approve=False,
+                          explicitly_confirmed=True, still_authorized=self.current, now=self.now)
+        self.request = growing_contract(text_digest="f" * 64, reference=reference)
+        with self.assertRaises(ValueError):
+            self.render()
+        self.assertEqual(1, self.calls)
+        with self.store.connect() as connection:
+            self.assertEqual(1, connection.execute("SELECT count(*) FROM origin_scenes").fetchone()[0])
+
+    def test_corrupt_reference_cannot_reach_renderer(self):
+        self.request = growing_contract()
+        first = self.render()
+        self.store.decide(self.owner, first["assetId"], scene.digest(self.png), approve=True,
+                          explicitly_confirmed=True, still_authorized=self.current, now=self.now)
+        with self.store.connect() as connection:
+            connection.execute("UPDATE origin_scenes SET image=? WHERE id=?", (b"corrupt", first["assetId"]))
+        self.request = growing_contract(text_digest="e" * 64, reference=first["assetId"])
+        with self.assertRaises(ValueError):
+            self.render()
+        self.assertEqual(1, self.calls)
+
+    def test_another_opening_cannot_reinvent_the_same_book_protagonist(self):
+        self.request = growing_contract()
+        first = self.render()
+        self.store.decide(self.owner, first["assetId"], scene.digest(self.png), approve=False,
+                          explicitly_confirmed=True, still_authorized=self.current, now=self.now)
+        self.store = scene.OriginSceneStore(self.database)
+        self.request = growing_contract(text_digest="f" * 64)  # Claims to be another first chapter.
+        with self.assertRaisesRegex(ValueError, "fixed character reference"):
+            self.render()
+        self.assertEqual(1, self.calls)
+
+    def test_uncertain_first_reference_does_not_authorize_a_fresh_protagonist(self):
+        self.request = growing_contract()
+        def failed(prompt):
+            self.calls += 1
+            raise TimeoutError("unknown outcome")
+        with self.assertRaises(TimeoutError):
+            self.render(failed)
+        self.store = scene.OriginSceneStore(self.database)
+        self.request = growing_contract(text_digest="f" * 64)
+        with self.assertRaisesRegex(ValueError, "fixed character reference"):
+            self.render()
+        self.assertEqual(1, self.calls)
+
+    def test_different_book_has_its_own_reference_not_the_other_character(self):
+        self.request = growing_contract()
+        first = self.render()
+        self.request = growing_contract(workspace="another-book")
+        second = self.render()
+        self.assertNotEqual(first["manifest"]["protagonistId"], second["manifest"]["protagonistId"])
+        self.assertNotEqual(first["assetId"], second["assetId"])
+        self.assertEqual(second["assetId"], second["manifest"]["referenceSceneId"])
+        self.assertEqual(2, self.calls)
+
+    def test_legacy_requests_cannot_bypass_an_established_book_reference(self):
+        legacy_request = self.request
+        legacy = self.render()
+        self.request = growing_contract(text_digest="c" * 64)
+        self.render()
+        self.store = scene.OriginSceneStore(self.database)
+        self.request = contract(text_digest="f" * 64)
+        with self.assertRaisesRegex(ValueError, "fixed character reference"):
+            self.render()
+        # Historical paid artifacts stay readable, without new paid dispatch or
+        # retrospectively acquiring v2 continuity claims.
+        self.request = legacy_request
+        self.assertEqual(legacy, self.render())
+        self.assertNotIn("protagonistId", legacy["manifest"])
+        self.assertEqual(2, self.calls)
 
     def test_render_reopen_review_and_persist_exact_bytes_without_replay(self):
         result = self.render()

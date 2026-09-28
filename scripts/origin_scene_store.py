@@ -24,6 +24,7 @@ from PIL import Image
 MAX_IMAGE = 4 * 1024 * 1024
 MAX_PACKET = 64 * 1024
 SCHEMA = "chummer.origin.chapter-scene/v1"
+CONTINUITY_SCHEMA = "chummer.origin.chapter-scene/v2"
 MANIFEST_SCHEMA = "chummer.media.origin-scene/v1"
 
 
@@ -91,9 +92,12 @@ def capture(owner: str, contract: dict) -> tuple[str, dict]:
             or artifact.get("allowPersistentPinning") is not False):
         raise ValueError("Invalid Origin image/lifecycle policy.")
     payload = json.loads(text(artifact.get("payload"), 16 * 1024), object_pairs_hook=unique_object)
-    if not isinstance(payload, dict) or set(payload) != {
+    fields = {
         "schema", "workspaceId", "chapterId", "chapterDigest", "textDigest", "prompt", "altText"
-    } or payload["schema"] != SCHEMA:
+    }
+    if isinstance(payload, dict) and payload.get("schema") == CONTINUITY_SCHEMA:
+        fields |= {"protagonistId", "referenceSceneId"}
+    if not isinstance(payload, dict) or set(payload) != fields or payload["schema"] not in (SCHEMA, CONTINUITY_SCHEMA):
         raise ValueError("Invalid chapter scene payload.")
     text(payload["workspaceId"], 256)
     text(payload["chapterId"], 256)
@@ -101,6 +105,10 @@ def capture(owner: str, contract: dict) -> tuple[str, dict]:
     require_sha(payload["textDigest"])
     text(payload["prompt"], 4096)
     text(payload["altText"], 1024)
+    if payload["schema"] == CONTINUITY_SCHEMA:
+        require_sha(payload["referenceSceneId"])
+        if payload["protagonistId"] != digest((owner + "\0" + payload["workspaceId"] + "\0origin-protagonist/v1").encode()):
+            raise ValueError("The protagonist belongs to another owner/book.")
     key = identity(owner, payload)
     source = "origin-dossier:scene:" + key
     if (contract.get("sourceRef") != source or contract.get("workItemId") != key
@@ -151,6 +159,9 @@ class OriginSceneStore:
                 id TEXT PRIMARY KEY, owner TEXT NOT NULL, request_digest TEXT NOT NULL,
                 state TEXT NOT NULL, expires REAL NOT NULL, manifest BLOB, image BLOB)""")
             connection.execute("CREATE TABLE IF NOT EXISTS origin_erased_owners (owner TEXT PRIMARY KEY)")
+            connection.execute("""CREATE TABLE IF NOT EXISTS origin_scene_references (
+                owner TEXT NOT NULL, protagonist TEXT NOT NULL, scene_id TEXT NOT NULL,
+                PRIMARY KEY(owner, protagonist))""")
             connection.execute("CREATE TABLE IF NOT EXISTS origin_store_mode (id INTEGER PRIMARY KEY CHECK(id=1), recovery_only INTEGER NOT NULL)")
             connection.execute("INSERT OR IGNORE INTO origin_store_mode VALUES (1, 0)")
 
@@ -182,6 +193,7 @@ class OriginSceneStore:
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute("INSERT OR IGNORE INTO origin_erased_owners VALUES (?)", (owner,))
+            connection.execute("DELETE FROM origin_scene_references WHERE owner=?", (owner,))
             return connection.execute("""UPDATE origin_scenes SET state='erased', request_digest='',
                 expires=0, manifest=NULL, image=NULL WHERE owner=? AND state!='erased'""", (owner,)).rowcount
 
@@ -237,6 +249,8 @@ class OriginSceneStore:
             raise ValueError("The requested scene provider is not available; no fallback is authorized.")
         request_digest = digest(encoded({"payload": payload, "backend": backend}))
         now = time.time() if now is None else now
+        reference_png = None
+        reference_hash = None
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._require_owner(connection, owner)
@@ -255,13 +269,44 @@ class OriginSceneStore:
             if (self.dispatch_limit is not None and
                     connection.execute("SELECT count(*) FROM origin_scenes").fetchone()[0] >= self.dispatch_limit):
                 raise PermissionError("The local lifetime scene allowance is exhausted; no provider call was made.")
+            protagonist = digest((owner + "\0" + payload["workspaceId"] + "\0origin-protagonist/v1").encode())
+            reference = connection.execute("SELECT scene_id FROM origin_scene_references WHERE owner=? AND protagonist=?",
+                (owner, protagonist)).fetchone()
+            if payload["schema"] != CONTINUITY_SCHEMA and reference is not None:
+                raise ValueError("This book already has a fixed character reference; legacy generation cannot bypass it.")
+            if payload["schema"] == CONTINUITY_SCHEMA:
+                if reference is None:
+                    if payload["referenceSceneId"] != key:
+                        raise ValueError("The original book reference has not been established.")
+                    # Bind even an uncertain/rejected opening attempt. Another
+                    # chapter/locale/device must not silently design a new face.
+                    connection.execute("INSERT INTO origin_scene_references VALUES (?, ?, ?)",
+                        (owner, payload["protagonistId"], key))
+                elif reference["scene_id"] != payload["referenceSceneId"]:
+                    raise ValueError("This book already has a different fixed character reference.")
+            if payload.get("referenceSceneId", key) != key:
+                anchor = connection.execute("SELECT * FROM origin_scenes WHERE id=? AND owner=?",
+                                            (payload["referenceSceneId"], owner)).fetchone()
+                status, reference_png = self._project(anchor, owner, still_authorized, now)
+                manifest = status.get("manifest", {})
+                if (status["state"] != "persisted" or manifest.get("workspaceId") != payload["workspaceId"]
+                        or manifest.get("protagonistId") != payload["protagonistId"]
+                        or manifest.get("referenceSceneId") != payload["referenceSceneId"]):
+                    raise ValueError("The exact book reference must be retained before the next illustration.")
+                reference_hash = manifest["contentHash"]
+                inspect_png(reference_png)
+                if not callable(getattr(renderer, "render_admitted", None)):
+                    raise ValueError("This renderer cannot use an exact character reference.")
             # Fence committed BEFORE entering a potentially paid provider call.
             connection.execute("INSERT INTO origin_scenes VALUES (?, ?, ?, 'dispatching', ?, NULL, NULL)",
                                (key, owner, request_digest, now + 7 * 86400))
         try:
             if not still_authorized():
                 raise PermissionError("Origin image consent/owner is no longer current.")
-            if isinstance(renderer, OneMinSceneRenderer):
+            if reference_png is not None:
+                data, provider, receipt_digest = renderer.render_admitted(
+                    payload["prompt"], key, admission_digest, reference_png=reference_png)
+            elif isinstance(renderer, OneMinSceneRenderer):
                 data, provider, receipt_digest = renderer.render_admitted(payload["prompt"], key, admission_digest)
             else:
                 data, provider, receipt_digest = renderer(payload["prompt"])
@@ -280,6 +325,9 @@ class OriginSceneStore:
                 "providerReceiptDigest": receipt_digest, "admissionDigest": admission_digest,
                 "publicationAuthorized": False,
             }
+            if payload["schema"] == CONTINUITY_SCHEMA:
+                manifest.update(protagonistId=payload["protagonistId"], referenceSceneId=payload["referenceSceneId"],
+                                referenceImageHash=reference_hash or digest(data))
             with self.connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 self._require_owner(connection, owner)
@@ -319,6 +367,13 @@ class OriginSceneStore:
                 or identity(owner, manifest) != row["id"] or manifest["publicationAuthorized"] is not False
                 or len(data) != manifest["contentLengthBytes"] or digest(data) != manifest["contentHash"]):
             raise ValueError("Retained image does not match its manifest.")
+        if "protagonistId" in manifest:
+            if manifest["protagonistId"] != digest((owner + "\0" + manifest["workspaceId"] + "\0origin-protagonist/v1").encode()):
+                raise ValueError("Retained protagonist binding differs.")
+            require_sha(manifest["referenceSceneId"])
+            require_sha(manifest["referenceImageHash"])
+            if manifest["referenceSceneId"] == row["id"] and manifest["referenceImageHash"] != manifest["contentHash"]:
+                raise ValueError("The first character reference was changed.")
         if not still_authorized():
             raise PermissionError("Private image access is no longer authorized.")
         return {**status, "manifest": manifest}, data
@@ -369,10 +424,13 @@ class OneMinSceneRenderer:
     def __call__(self, prompt: str) -> tuple[bytes, str, str]:
         raise PermissionError("Live Origin rendering requires a committed scene admission.")
 
-    def render_admitted(self, prompt: str, scene_id: str, admission_digest: str) -> tuple[bytes, str, str]:
+    def render_admitted(self, prompt: str, scene_id: str, admission_digest: str, *,
+                        reference_png: bytes | None = None) -> tuple[bytes, str, str]:
         from render_guide_asset import render_asset, STATE_ROOT, OriginSceneAdmission
 
         text(prompt, 4096)
+        if reference_png is not None:
+            inspect_png(reference_png)
         if self.key_file is None:
             raise PermissionError("No scoped Origin credential is configured.")
         admission = OriginSceneAdmission(scene_id, admission_digest, self.key_file)
@@ -382,7 +440,7 @@ class OneMinSceneRenderer:
         with tempfile.TemporaryDirectory(prefix="origin-scene-", dir=self.directory) as temporary:
             output = Path(temporary) / "scene.png"
             result = render_asset(prompt=prompt, output_path=output, width=1536, height=1024,
-                                  single_dispatch=True, origin_admission=admission)
+                                  single_dispatch=True, origin_admission=admission, origin_reference_png=reference_png)
             with output.open("rb") as handle:
                 data = handle.read(MAX_IMAGE + 1)
             inspect_png(data)

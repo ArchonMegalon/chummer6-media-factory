@@ -1283,6 +1283,35 @@ class OriginSceneAdmission:
         return value.decode("ascii")
 
 
+def _upload_origin_reference(data: bytes, api_key: str) -> str:
+    """One private reference upload; never URLs supplied by a client or retries.
+
+    Official protocol: docs.1min.ai/docs/api/asset-api. The scene fence is
+    already committed. An ambiguous upload fails without an image-generation
+    fallback. Provider retention is separate from our local account erasure.
+    """
+    from origin_scene_store import inspect_png
+    inspect_png(data)
+    boundary = "chummer-origin-" + uuid.uuid4().hex
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"asset\"; filename=\"character.png\"\r\n"
+            "Content-Type: image/png\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request("https://api.1min.ai/api/assets", data=body, method="POST", headers={
+        "API-KEY": api_key, "Content-Type": "multipart/form-data; boundary=" + boundary,
+        "User-Agent": "Chummer-Media-Factory/1.0"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRenderRedirects())
+    with opener.open(request, timeout=_onemin_timeout_seconds()) as response:
+        result = json.loads(_read_response_bytes_with_limit(response, max_bytes=16 * 1024, label="origin_reference"))
+    asset = result.get("asset", {}) if isinstance(result, dict) else {}
+    key = asset.get("key")
+    if (asset.get("acl") != "private" or asset.get("mimetype") != "image/png"
+            or type(asset.get("size")) is not int or asset["size"] != len(data)
+            or not isinstance(key, str) or len(key) > 512
+            or not re.fullmatch(r"(?:development/)?images/[A-Za-z0-9_-]+\.png", key)
+            or result.get("fileContent", {}).get("path") != key):
+        raise RuntimeError("media_factory:origin_reference_rejected")
+    return key
+
+
 def render_asset(
     *,
     prompt: str,
@@ -1293,9 +1322,15 @@ def render_asset(
     reference_image: Path | None = None,
     single_dispatch: bool = False,
     origin_admission: OriginSceneAdmission | None = None,
+    origin_reference_png: bytes | None = None,
 ) -> dict[str, object]:
     if origin_admission is not None and (not single_dispatch or reference_image is not None):
-        raise ValueError("Origin admission is restricted to one text-to-image scene.")
+        raise ValueError("Origin admission is restricted to one bounded private scene.")
+    if origin_reference_png is not None:
+        if origin_admission is None:
+            raise ValueError("A character reference requires a durable Origin admission.")
+        from origin_scene_store import inspect_png
+        inspect_png(origin_reference_png)
     if origin_admission is None:
         _seed_runtime_env()
     render_id = f"mf-{uuid.uuid4().hex}"
@@ -1585,6 +1620,15 @@ def render_asset(
                         aspect_ratio=_aspect_ratio(width, height),
                         quality=quality,
                     )
+                    if origin_reference_png is not None:
+                        # Documented IMAGE_EDITOR protocol, not a text prompt
+                        # pretending to preserve the protagonist's identity.
+                        # Same fixed model/size/quality and one paid POST.
+                        reference_key = _upload_origin_reference(origin_reference_png, current_api_key)
+                        payload["type"] = "IMAGE_EDITOR"
+                        payload["promptObject"]["imageUrl"] = reference_key
+                        payload["promptObject"]["background"] = "auto"
+                        payload["promptObject"].pop("style", None)
                     request = urllib.request.Request(
                         _onemin_endpoint(),
                         headers={
@@ -1654,23 +1698,24 @@ def render_asset(
                         else:
                             _download_asset(asset_urls[0], output_path)
                     result_json = {
-                        "tool_name": "provider.onemin.image_generate",
-                        "action_kind": "image.generate",
+                        "tool_name": "provider.onemin.image_edit" if origin_reference_png is not None else "provider.onemin.image_generate",
+                        "action_kind": "image.edit" if origin_reference_png is not None else "image.generate",
                         "receipt_json": {
-                            "handler_key": "provider.onemin.image_generate",
+                            "handler_key": "provider.onemin.image_edit" if origin_reference_png is not None else "provider.onemin.image_generate",
                             "invocation_contract": "tool.v1",
                             "provider_key": "onemin",
                             "provider_backend": "1min",
                             "provider_account_name": current_account_name,
                             "provider_key_slot": current_slot_name,
                             "model": model,
-                            "feature_type": "IMAGE_GENERATOR",
+                            "feature_type": payload["type"],
                             "tool_version": "v1",
                             "manager_lease_id": lease_id if current_is_reserved else "",
                             **({"scene_id": origin_admission.scene_id,
                                 "hub_admission_digest": origin_admission.admission_digest,
                                 "reservation_source": reservation_source,
                                 "actual_credits_delta": None,
+                                "reference_image_sha256": hashlib.sha256(origin_reference_png).hexdigest() if origin_reference_png is not None else None,
                                 "credential_sha256": hashlib.sha256(api_key.encode()).hexdigest()}
                                if origin_admission is not None else {}),
                         },

@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -6,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 import urllib.error
+from PIL import Image
 
 from test_render_guide_asset_download_guard import FakeResponse, load_render_module
 
@@ -112,6 +114,48 @@ class OriginSceneRendererTests(unittest.TestCase):
         self.assertEqual(1, self.open.call_count)
         self.module._reserve_onemin_image_slot.assert_not_called()
         self.module._release_onemin_image_slot.assert_not_called()
+
+    def reference(self):
+        output = io.BytesIO()
+        Image.new("RGB", (24, 16), (150, 180, 150)).save(output, format="PNG")
+        return output.getvalue()
+
+    def test_character_reference_is_uploaded_privately_and_used_in_one_edit(self):
+        reference = self.reference()
+        key = "images/synthetic_character.png"
+        self.open.side_effect = [
+            FakeResponse(json.dumps({"asset": {"key": key, "acl": "private", "mimetype": "image/png", "size": len(reference)},
+                                     "fileContent": {"path": key}}).encode(), {"Content-Type": "application/json"}),
+            FakeResponse(b"rendered PNG", {"Content-Type": "image/png"})]
+        self.render(origin_admission=self.admission(), origin_reference_png=reference)
+        upload, edit = [call.args[0] for call in self.open.call_args_list]
+        self.assertEqual("https://api.1min.ai/api/assets", upload.full_url)
+        self.assertIn(reference, upload.data)
+        payload = json.loads(edit.data)
+        self.assertEqual("IMAGE_EDITOR", payload["type"])
+        self.assertEqual(key, payload["promptObject"]["imageUrl"])
+        self.assertEqual(1, payload["promptObject"]["n"])
+        receipt = self.module._write_receipt.call_args.kwargs["result_json"]["receipt_json"]
+        self.assertEqual("IMAGE_EDITOR", receipt["feature_type"])
+        self.assertEqual(self.module.hashlib.sha256(reference).hexdigest(), receipt["reference_image_sha256"])
+        self.assertNotIn(key, json.dumps(receipt))
+
+    def test_reference_upload_failure_never_generates_a_different_person_or_retries(self):
+        for reply in (TimeoutError(), FakeResponse(json.dumps({"asset": {"acl": "public-read"}}).encode(), {})):
+            self.open.reset_mock()
+            self.open.side_effect = reply if isinstance(reply, Exception) else None
+            self.open.return_value = reply
+            with self.assertRaises((RuntimeError, TimeoutError)):
+                self.render(origin_admission=self.admission(), origin_reference_png=self.reference())
+            self.assertEqual(1, self.open.call_count)
+            self.assertEqual("https://api.1min.ai/api/assets", self.open.call_args.args[0].full_url)
+
+    def test_reference_requires_an_admission_and_valid_image_before_network(self):
+        with self.assertRaises(ValueError):
+            self.render(origin_reference_png=self.reference())
+        with self.assertRaises((ValueError, OSError)):
+            self.render(origin_admission=self.admission(), origin_reference_png=b"not a PNG")
+        self.open.assert_not_called()
 
     def test_scoped_key_rejects_links_permissions_and_oversized_material(self):
         admission = self.admission()
