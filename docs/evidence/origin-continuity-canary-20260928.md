@@ -7,6 +7,15 @@ FirstBook book, physical Android observation or Play release.
 
 ## Latest — 28 September 09:03 UTC
 
+Delivery addendum, 28 September: the companion Android Preview 50 was observed
+Available/Active on Play Internal at 09:56:40 UTC. Its signed AAB SHA-256 is
+`547728730f2c7bd6b15789f3de45a1e88bb424cd73ecaa60b32edf649abe469e`;
+Android's `play/evidence/preview50-internal-observation.md` records that separate
+transaction. This does not turn the synthetic continuity check into a completed
+FirstBook book or physical Play-installed test. The interrupted successor and
+its no-replay boundary remain unresolved. The historical upload-pending entries
+below are retained as observations at their stated times.
+
 The operator explicitly approved existing OneMin credit use as needed for Chummer
 illustrations and tests ("darfst du immer", "u can burn 1min ai credits at will").
 This resolves question5439 and supersedes the two-image operator budget, not
