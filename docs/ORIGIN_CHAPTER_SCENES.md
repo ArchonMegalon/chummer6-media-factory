@@ -141,6 +141,17 @@ separate retention/backup policy; do not copy a live bare database file.
 The store has a bounded 128 records per owner / 2048 globally and fails before
 generation when full. Capacity maintenance must preserve no-replay history.
 
+The dispatch overlay also requires an explicit absolute lifetime allowance through
+`CHUMMER_ORIGIN_SCENE_DISPATCH_LIMIT` (1–2048). This is local admission capacity,
+not the provider's credit balance: health deliberately reports
+`providerCreditBalance: null`. Exhausting a small test allowance disables new
+dispatch even when existing provider credits remain. Under an explicit standing
+existing-credit approval, deployment may raise this allowance up to the existing
+2048-record safety ceiling. Keep the same database, provider journal, erasure
+fences and protagonist references; never reset the counter or replay uncertain
+jobs. Persist the selected deployment setting and its approval reference. This
+does not purchase credits, authorize automatic top-ups or alter provider quotas.
+
 ## Remaining delivery work
 
 The corresponding Hub change implements signed-install scene routes, exact
