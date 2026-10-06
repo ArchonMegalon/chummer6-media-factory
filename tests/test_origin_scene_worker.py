@@ -120,6 +120,39 @@ class SceneWorkerTests(unittest.TestCase):
         self.assertFalse(health["dispatchEnabled"])
         self.assertTrue(health["accountErasureSupported"])
 
+    def test_approved_limit_increase_preserves_history_and_never_replays_uncertain_jobs(self):
+        self.server.store = OriginSceneStore(self.root / "media.sqlite", dispatch_limit=8)
+        requests = [contract(text_digest=digest(f"synthetic-chapter-{i}".encode())) for i in range(9)]
+        def uncertain(prompt):
+            self.renderer(prompt)
+            raise TimeoutError("synthetic uncertain provider result")
+        with self.assertRaises(TimeoutError):
+            self.server.store.render("a" * 64, requests[0], "e" * 64, uncertain,
+                                     still_authorized=lambda: True)
+        for request in requests[1:8]:
+            self.server.store.render("a" * 64, request, "e" * 64, self.renderer,
+                                     still_authorized=lambda: True)
+        health = self.send("health", {})[1]
+        self.assertFalse(health["dispatchEnabled"])
+        self.assertEqual(0, health["localAttemptsRemaining"])
+        self.assertIsNone(health["providerCreditBalance"])
+
+        # Explicit deployment approval changes the allowance, never the ledger.
+        self.server.store = OriginSceneStore(self.root / "media.sqlite", dispatch_limit=2048)
+        health = self.send("health", {})[1]
+        self.assertTrue(health["dispatchEnabled"])
+        self.assertEqual(2040, health["localAttemptsRemaining"])
+        self.assertIsNone(health["providerCreditBalance"])
+        status, previous = self.send("render", {"ownerDigest": "a" * 64,
+            "contract": requests[0], "admissionDigest": "e" * 64})
+        self.assertEqual(200, status)
+        self.assertEqual("uncertain", previous["state"])
+        self.assertEqual(8, self.calls)
+        self.assertEqual(200, self.send("render", {"ownerDigest": "a" * 64,
+            "contract": requests[8], "admissionDigest": "e" * 64})[0])
+        self.assertEqual(9, self.calls)
+        self.assertEqual(2039, self.send("health", {})[1]["localAttemptsRemaining"])
+
     def test_disabled_dispatch_preserves_reads_and_erasure_without_new_record(self):
         key = self.render()[1]["assetId"]
         self.server.dispatch_enabled = False
