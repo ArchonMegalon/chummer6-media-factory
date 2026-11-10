@@ -83,6 +83,12 @@ var metadataReplayed = await previews.RenderAsync(request with
     Source = "replay-exchange-preview-smoke-replayed",
     RequestedAtUtc = request.RequestedAtUtc.AddHours(4)
 });
+Assert(metadataReplayed.Source == "replay-exchange-preview-smoke-replayed" &&
+    metadataReplayed.RequestedAtUtc == request.RequestedAtUtc.AddHours(4),
+    "Replay/exchange outer receipts must retain current caller attribution and request time.");
+Assert(receipt.Artifacts.All(artifact => assets.Resolve(artifact.AssetId!)?.Source ==
+    jobs.ExportBackup().Jobs.Single(job => job.JobId == artifact.JobId).DeduplicationKey),
+    "Replay/exchange asset provenance must retain the bundle lineage and artifact scope.");
 Assert(
     receipt.Artifacts.Select(static artifact => artifact.JobId).SequenceEqual(metadataReplayed.Artifacts.Select(static artifact => artifact.JobId)),
     "Replay/exchange preview job ids should stay stable when only source and requested timestamps drift.");

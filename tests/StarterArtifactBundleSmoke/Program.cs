@@ -36,6 +36,12 @@ var metadataReplayed = await starterBundles.RenderAsync(request with
     Source = "starter-artifacts-smoke-replayed",
     RequestedAtUtc = request.RequestedAtUtc.AddMinutes(45)
 });
+Assert(metadataReplayed.Source == "starter-artifacts-smoke-replayed" &&
+    metadataReplayed.RequestedAtUtc == request.RequestedAtUtc.AddMinutes(45),
+    "Starter artifact outer receipts must retain current caller attribution and request time.");
+Assert(receipt.Artifacts.All(artifact => assets.Resolve(artifact.AssetId!)?.Source ==
+    jobs.ExportBackup().Jobs.Single(job => job.JobId == artifact.JobId).DeduplicationKey),
+    "Starter asset provenance must retain the approved source-pack and artifact scope.");
 Assert(
     receipt.Artifacts.Select(static artifact => artifact.ReceiptId).SequenceEqual(metadataReplayed.Artifacts.Select(static artifact => artifact.ReceiptId)),
     "Starter artifact source and requested timestamp metadata should stay outside receipt identity.");
@@ -185,6 +191,8 @@ var textPayloadReceipt = await starterBundles.RenderAsync(BuildRequest(
     artifactMutator: artifact => artifact.ArtifactRef == "starter://en-US/video"
         ? artifact with
         {
+            // This is a different render payload, not a retry of the earlier JSON artifact.
+            DeduplicationKey = "starter-video-text-payload-scope",
             Payload = "approvedStarterSourcePackId=starter-pack-001 sourcePackRevisionId=starter-pack-rev-001 starterLaneId=starter-lane-001 locale=en-US"
         }
         : artifact));

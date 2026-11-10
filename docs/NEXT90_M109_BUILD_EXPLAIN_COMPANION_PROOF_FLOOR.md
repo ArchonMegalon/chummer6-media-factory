@@ -30,6 +30,7 @@ Current closure posture:
 - receipt hashes include caption and preview refs with length-prefixed segments so delimiter-heavy refs cannot collapse distinct companion outputs onto one receipt id.
 - normalized sibling ordering keeps receipt ids, companion refs, ready refs, and grouped role/caption/preview receipt rows stable even when callers reorder the same approved explain packet artifacts.
 - source or requested timestamp drift cannot rewrite stable job ids, receipt ids, ready refs, or grouped role receipts for the same approved explain packet siblings.
+- outer receipts retain caller source and request time; job and asset provenance use the stable scoped artifact identity derived from the approved packet, revision, rendering, and sibling fields. Changed payloads or effective render policies under that identity are rejected without dispatch.
 - grouped receipt rows preserve aggregate `JobIds`, grouped companion refs, first-class caption refs, preview refs, lifecycle truth, and direct asset urls so downstream shelves do not need to reconstruct explain evidence from raw artifact rows.
 - `RenderedAtUtc` resolves to emitted media-job completion timestamps so later deduped retries cannot rewrite the bundle render time with a newer request timestamp.
 - build explain package authority requires exactly one canonical queue row per mirror and exactly one registry task block.

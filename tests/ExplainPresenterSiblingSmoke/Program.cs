@@ -49,6 +49,12 @@ var delayedReplay = await presenter.RenderAsync(request with
     Source = "explain-presenter-smoke-updated-source",
     RequestedAtUtc = request.RequestedAtUtc.AddHours(4)
 });
+Assert(delayedReplay.Source == "explain-presenter-smoke-updated-source" &&
+    delayedReplay.RequestedAtUtc == request.RequestedAtUtc.AddHours(4),
+    "Explain presenter outer receipts must retain current caller attribution and request time.");
+Assert(receipt.Artifacts.All(artifact => assets.Resolve(artifact.AssetId!)?.Source ==
+    jobs.ExportBackup().Jobs.Single(job => job.JobId == artifact.JobId).DeduplicationKey),
+    "Explain presenter asset provenance must retain the approved artifact scope.");
 Assert(
     receipt.Artifacts.Select(static artifact => artifact.JobId).SequenceEqual(delayedReplay.Artifacts.Select(static artifact => artifact.JobId)),
     "Explain presenter sibling job ids should stay stable when only source and requested timestamps drift.");

@@ -36,13 +36,16 @@ public sealed class StarterArtifactBundleService : IStarterArtifactBundleService
         foreach (var artifact in normalized.Artifacts)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Artifact provenance follows the approved source-pack/revision and sibling scope.
+            // Caller Source remains request attribution on the outer receipt.
+            var artifactSource = BuildScopedDeduplicationKey(normalized, artifact);
             var enqueued = await _jobs.EnqueueAsync(
                 new MediaRenderJobEnqueueRequest(
                     JobType: ToJobType(artifact.BundleKind, artifact.Role),
-                    DeduplicationKey: BuildScopedDeduplicationKey(normalized, artifact),
+                    DeduplicationKey: artifactSource,
                     Category: artifact.Category,
                     Payload: artifact.Payload,
-                    Source: normalized.Source,
+                    Source: artifactSource,
                     CacheTtl: artifact.CacheTtl,
                     MaxBytes: artifact.MaxBytes,
                     RequiresApproval: artifact.RequiresApproval,
