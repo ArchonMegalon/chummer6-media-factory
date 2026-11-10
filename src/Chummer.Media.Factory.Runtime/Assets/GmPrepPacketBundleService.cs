@@ -109,13 +109,15 @@ public sealed class GmPrepPacketBundleService : IGmPrepPacketBundleService
         GmPrepPacketArtifactRenderRequest artifact,
         CancellationToken cancellationToken)
     {
+        // Caller source is receipt attribution; job and asset provenance use the approved artifact scope.
+        var artifactSource = BuildScopedDeduplicationKey(request, entry, role, artifact);
         var enqueued = await _jobs.EnqueueAsync(
             new MediaRenderJobEnqueueRequest(
                 JobType: ToJobType(entry.SubjectKind, role),
-                DeduplicationKey: BuildScopedDeduplicationKey(request, entry, role, artifact),
+                DeduplicationKey: artifactSource,
                 Category: artifact.Category,
                 Payload: artifact.Payload,
-                Source: request.Source,
+                Source: artifactSource,
                 CacheTtl: artifact.CacheTtl,
                 MaxBytes: artifact.MaxBytes,
                 RequiresApproval: artifact.RequiresApproval,

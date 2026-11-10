@@ -147,6 +147,69 @@ var collisionPreviewReceipts = collisionReceipt.RoutePreviewArtifactReceipts
 Assert(collisionPreviewJobs.Length == 2, "Delimiter-heavy route preview variants must not collapse onto one media job.");
 Assert(collisionPreviewReceipts.Length == 2, "Delimiter-heavy route preview variants must not collapse onto one receipt id.");
 
+// Finish the original enqueue receipts before checking storage counts and provenance.
+foreach (var artifact in receipt.Artifacts)
+{
+    for (var attempt = 0; jobs.Get(artifact.JobId)?.State != MediaRenderJobState.Succeeded; attempt++)
+    {
+        Assert(attempt < 100, "Original runsite job must finish before replay checks.");
+        await Task.Delay(20);
+    }
+}
+
+// Caller attribution and request time may drift without changing the approved render.
+var beforeMetadataReplay = jobs.ExportBackup();
+var metadataReplay = await bundles.RenderAsync(request with
+{
+    Source = "  runsite-orientation-other-surface  ",
+    RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
+});
+Assert(metadataReplay.Source == "runsite-orientation-other-surface" &&
+    metadataReplay.RequestedAtUtc == request.RequestedAtUtc.AddHours(6),
+    "Metadata replay must retain the current caller attribution and request timestamp.");
+Assert(receipt.Artifacts.Select(row => (row.ReceiptId, row.JobId)).SequenceEqual(
+    metadataReplay.Artifacts.Select(row => (row.ReceiptId, row.JobId))),
+    "Metadata replay must reuse artifact receipt and job identities.");
+Assert(jobs.ExportBackup().EnqueueCount == beforeMetadataReplay.EnqueueCount,
+    "Metadata replay must not dispatch another render.");
+foreach (var artifact in receipt.Artifacts)
+{
+    var job = jobs.ExportBackup().Jobs.Single(row => row.JobId == artifact.JobId);
+    Assert(job.Source == job.DeduplicationKey && job.Source.StartsWith("runsite-orientation:", StringComparison.Ordinal),
+        "Job provenance must use the approved artifact scope.");
+    Assert(assets.Resolve(jobs.Get(artifact.JobId)!.AssetId!)?.Source == job.Source,
+        "Stored runsite asset provenance must match the approved scope.");
+}
+
+var beforeConflicts = jobs.ExportBackup();
+var assetCountBeforeConflicts = assets.List().Count;
+foreach (var changedArtifact in new[]
+{
+    request.Artifacts[0] with { Payload = request.Artifacts[0].Payload.Replace("{", "{ ") },
+    request.Artifacts[0] with { RequiresApproval = !request.Artifacts[0].RequiresApproval },
+    request.Artifacts[0] with { CacheTtl = TimeSpan.FromMinutes(20) }
+})
+{
+    try
+    {
+        await bundles.RenderAsync(request with
+        {
+            Artifacts = request.Artifacts.Select((artifact, index) => index == 0
+                ? changedArtifact : artifact).ToArray()
+        });
+        throw new InvalidOperationException("Changed content or policy must conflict under the same artifact key.");
+    }
+    catch (MediaRenderJobConflictException conflict)
+    {
+        Assert(conflict.Code == "media-render-idempotency-conflict" &&
+            receipt.Artifacts.Any(row => row.JobId == conflict.ExistingJobId),
+            "Typed conflicts must identify the existing reserved artifact job.");
+    }
+}
+Assert(jobs.ExportBackup().EnqueueCount == beforeConflicts.EnqueueCount && assets.List().Count == assetCountBeforeConflicts,
+    "Conflicting requests must not dispatch or store another asset.");
+
+
 Console.WriteLine("runsite orientation bundle smoke ok");
 
 static async Task<MediaRenderJobStatus> WaitForSucceededJobAsync(IMediaRenderJobService jobs, string jobId)

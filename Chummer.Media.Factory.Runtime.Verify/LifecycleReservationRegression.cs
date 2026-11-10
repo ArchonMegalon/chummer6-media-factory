@@ -13,7 +13,8 @@ internal static class LifecycleReservationRegression
         await UncertainDispatchIsNotReplayedAsync();
         await FailedOwnerCannotRemoveReplacementAsync();
         await PredispatchFailureCanBeRetriedAsync();
-        Console.WriteLine("lifecycle/reservation regressions ok (6 groups; fake storage dispatch only)");
+        await ModeratedTestimonialReplayAsync();
+        Console.WriteLine("lifecycle/reservation regressions ok (7 groups; fake storage dispatch only)");
     }
 
     private static async Task RejectedMutationsAreAtomicAsync()
@@ -220,6 +221,59 @@ internal static class LifecycleReservationRegression
             "Known pre-dispatch failures may release only their own reservation.");
         Check(jobs.GetMediaPipelineProjection().Idempotency.TrackedKeys == 0,
             "Known pre-dispatch failures must release their keys.");
+    }
+
+    private static async Task ModeratedTestimonialReplayAsync()
+    {
+        var assets = new AssetLifecycleService();
+        var jobs = new MediaRenderJobService(assets);
+        var renderer = new ModeratedTestimonialRenderingService(jobs);
+        var request = new ModeratedTestimonialRenderRequest(
+            "testimonial-render", "publication", "moderation-case", "source-receipt", "consent-receipt",
+            "first-surface", DateTimeOffset.UtcNow,
+            Enum.GetValues<ModeratedTestimonialArtifactRole>().Select(role =>
+                new ModeratedTestimonialArtifactRenderRequest(
+                    role, "testimonial/" + role,
+                    "{\"publicationId\":\"publication\",\"moderationCaseId\":\"moderation-case\",\"sourceReceiptId\":\"source-receipt\",\"consentReceiptId\":\"consent-receipt\"}",
+                    "test", "testimonial://" + role, ["caption://test"], ["preview://test"],
+                    "artifact-" + role, TimeSpan.FromMinutes(10), 4096)).ToArray());
+        var first = await renderer.RenderAsync(request);
+        var before = jobs.ExportBackup();
+        var replay = await renderer.RenderAsync(request with
+        {
+            Source = "  second-surface  ", RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
+        });
+        Check(replay.Source == "second-surface" && replay.RequestedAtUtc == request.RequestedAtUtc.AddHours(6) &&
+            replay.RenderedAtUtc == first.RenderedAtUtc && jobs.ExportBackup().EnqueueCount == before.EnqueueCount,
+            "Testimonial replay must retain caller attribution and reuse the completed render.");
+        Check(first.Artifacts.Select(row => (row.ReceiptId, row.JobId, row.AssetId)).SequenceEqual(
+            replay.Artifacts.Select(row => (row.ReceiptId, row.JobId, row.AssetId))),
+            "Testimonial replay must retain receipt, job, and asset identities.");
+        foreach (var artifact in first.Artifacts)
+        {
+            var job = before.Jobs.Single(row => row.JobId == artifact.JobId);
+            Check(job.Source == job.DeduplicationKey && job.Source.StartsWith("moderated-testimonial:", StringComparison.Ordinal) &&
+                assets.Resolve(artifact.AssetId!)?.Source == job.Source,
+                "Testimonial job and asset provenance must retain the approved artifact scope.");
+        }
+        var assetCount = assets.List().Count;
+        foreach (var changed in new[]
+        {
+            request.Artifacts[0] with { Payload = request.Artifacts[0].Payload.Replace("{", "{ ") },
+            request.Artifacts[0] with { RequiresApproval = false },
+            request.Artifacts[0] with { CacheTtl = TimeSpan.FromMinutes(20) }
+        })
+        {
+            var conflict = await ThrowsAsync<MediaRenderJobConflictException>(() => renderer.RenderAsync(request with
+            {
+                Artifacts = request.Artifacts.Select((artifact, index) => index == 0 ? changed : artifact).ToArray()
+            }));
+            Check(conflict.Code == "media-render-idempotency-conflict" &&
+                first.Artifacts.Any(row => row.JobId == conflict.ExistingJobId),
+                "Testimonial conflicts must identify the existing artifact reservation.");
+        }
+        Check(jobs.ExportBackup().EnqueueCount == before.EnqueueCount && assets.List().Count == assetCount,
+            "Testimonial content and policy conflicts must not dispatch or store again.");
     }
 
     private static MediaRenderJobEnqueueRequest Request() => new(

@@ -329,10 +329,10 @@ var textFallback = await promo.RenderAsync(request with
 });
 Assert(textFallback.JobIds.Count == 3, "Non-JSON creator promo payloads should still render when they carry the approved manifest scope text.");
 
-var padded = await promo.RenderAsync(request with
+var paddedPayloadScope = await promo.RenderAsync(request with
 {
-    // creator-promo-padded-request keeps this whitespace-normalization proof easy to grep without changing render identity.
-    RenderingId = "  creator-promo-render-001  ",
+    // Scope parser coverage uses its own render identity because these payload bytes differ.
+    RenderingId = "creator-promo-payload-scope-padding",
     ApprovedManifestId = "  approved-creator-manifest-001  ",
     ManifestRevisionId = "  creator-manifest-r7  ",
     Source = "  creator-promo-kit-smoke  ",
@@ -352,6 +352,32 @@ var padded = await promo.RenderAsync(request with
         request.Artifacts[2] with
         {
             Payload = "approvedManifestId=' approved-creator-manifest-001 ' manifestRevisionId=' creator-manifest-r7 '",
+            PreviewRefs = ["  preview://manifest-001/card  "]
+        }
+    ]
+});
+Assert(paddedPayloadScope.Artifacts.Count == 3, "Padded JSON and keyed text scope values should remain valid under a distinct render identity.");
+
+var padded = await promo.RenderAsync(request with
+{
+    // creator-promo-padded-request keeps this whitespace-normalization proof easy to grep without changing render identity.
+    RenderingId = "  creator-promo-render-001  ",
+    ApprovedManifestId = "  approved-creator-manifest-001  ",
+    ManifestRevisionId = "  creator-manifest-r7  ",
+    Source = "  creator-promo-kit-smoke  ",
+    Artifacts =
+    [
+        request.Artifacts[0] with
+        {
+            CaptionRefs = ["  caption://manifest-001/en-US.vtt  "],
+            PreviewRefs = ["  preview://manifest-001/card  "]
+        },
+        request.Artifacts[1] with
+        {
+            PreviewRefs = ["  preview://manifest-001/card  "]
+        },
+        request.Artifacts[2] with
+        {
             PreviewRefs = ["  preview://manifest-001/card  "]
         }
     ]
@@ -388,6 +414,60 @@ Assert(caseFoldedRefs.PreviewRefs.Count == 1, "Mixed-case creator promo preview 
 Assert(caseFoldedRefs.CaptionRefReceipts.Count == 1, "Mixed-case creator promo caption refs should stay grouped under one receipt row.");
 Assert(caseFoldedRefs.PreviewRefReceipts.Count == 1, "Mixed-case creator promo preview refs should stay grouped under one receipt row.");
 Assert(caseFoldedRefs.PreviewRefReceipts[0].ReceiptIds.Count == 3, "Mixed-case creator promo preview refs should still point at video, poster, and preview-card receipts.");
+
+// Caller attribution and request time may drift without changing the approved render.
+var beforeMetadataReplay = jobs.ExportBackup();
+var metadataReplay = await promo.RenderAsync(request with
+{
+    Source = "  creator-promo-kit-other-surface  ",
+    RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
+});
+Assert(metadataReplay.RequestedAtUtc == request.RequestedAtUtc.AddHours(6),
+    "Metadata replay must retain the current request timestamp.");
+Assert(metadataReplay.Source == "creator-promo-kit-other-surface" && metadataReplay.RenderedAtUtc == receipt.RenderedAtUtc,
+    "Outer receipt attribution may change while render completion time remains stable.");
+Assert(receipt.Artifacts.Select(row => (row.ReceiptId, row.JobId)).SequenceEqual(
+    metadataReplay.Artifacts.Select(row => (row.ReceiptId, row.JobId))),
+    "Metadata replay must reuse artifact receipt and job identities.");
+Assert(jobs.ExportBackup().EnqueueCount == beforeMetadataReplay.EnqueueCount,
+    "Metadata replay must not dispatch another render.");
+foreach (var artifact in receipt.Artifacts)
+{
+    var job = jobs.ExportBackup().Jobs.Single(row => row.JobId == artifact.JobId);
+    Assert(job.Source == job.DeduplicationKey && job.Source.StartsWith("creator-promo-kit:", StringComparison.Ordinal),
+        "Job provenance must use the approved artifact scope.");
+    Assert(assets.Resolve(artifact.AssetId!)?.Source == job.Source,
+        "Stored asset provenance must match the reserved job scope.");
+}
+
+var beforeConflicts = jobs.ExportBackup();
+var assetCountBeforeConflicts = assets.List().Count;
+foreach (var changedArtifact in new[]
+{
+    request.Artifacts[0] with { Payload = request.Artifacts[0].Payload.Replace("{", "{ ") },
+    request.Artifacts[0] with { RequiresApproval = !request.Artifacts[0].RequiresApproval },
+    request.Artifacts[0] with { CacheTtl = TimeSpan.FromMinutes(20) }
+})
+{
+    try
+    {
+        await promo.RenderAsync(request with
+        {
+            Artifacts = request.Artifacts.Select((artifact, index) => index == 0
+                ? changedArtifact : artifact).ToArray()
+        });
+        throw new InvalidOperationException("Changed content or policy must conflict under the same artifact key.");
+    }
+    catch (MediaRenderJobConflictException conflict)
+    {
+        Assert(conflict.Code == "media-render-idempotency-conflict" &&
+            receipt.Artifacts.Any(row => row.JobId == conflict.ExistingJobId),
+            "Typed conflicts must identify the existing reserved artifact job.");
+    }
+}
+Assert(jobs.ExportBackup().EnqueueCount == beforeConflicts.EnqueueCount && assets.List().Count == assetCountBeforeConflicts,
+    "Conflicting requests must not dispatch or store another asset.");
+
 
 static async Task WaitForSucceededJobAsync(IMediaRenderJobService jobs, string jobId)
 {

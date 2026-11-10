@@ -270,6 +270,60 @@ catch (ArgumentException exception) when (exception.Message.Contains("only one f
 {
 }
 
+// Caller attribution and request time may drift without changing the approved render.
+var beforeMetadataReplay = jobs.ExportBackup();
+var metadataReplay = await bundles.RenderAsync(request with
+{
+    Source = "  campaign-briefing-other-surface  ",
+    RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
+});
+Assert(metadataReplay.RequestedAtUtc == request.RequestedAtUtc.AddHours(6),
+    "Metadata replay must retain the current request timestamp.");
+Assert(metadataReplay.Source == "campaign-briefing-other-surface" && metadataReplay.RenderedAtUtc == receipt.RenderedAtUtc,
+    "Outer receipt attribution may change while render completion time remains stable.");
+Assert(receipt.ArtifactReceipts.Select(row => (row.ReceiptId, row.JobId)).SequenceEqual(
+    metadataReplay.ArtifactReceipts.Select(row => (row.ReceiptId, row.JobId))),
+    "Metadata replay must reuse artifact receipt and job identities.");
+Assert(jobs.ExportBackup().EnqueueCount == beforeMetadataReplay.EnqueueCount,
+    "Metadata replay must not dispatch another render.");
+foreach (var artifact in receipt.ArtifactReceipts)
+{
+    var job = jobs.ExportBackup().Jobs.Single(row => row.JobId == artifact.JobId);
+    Assert(job.Source == job.DeduplicationKey && job.Source.StartsWith("campaign-briefing:", StringComparison.Ordinal),
+        "Job provenance must use the approved artifact scope.");
+    Assert(assets.Resolve(artifact.AssetId!)?.Source == job.Source,
+        "Stored asset provenance must match the reserved job scope.");
+}
+
+var beforeConflicts = jobs.ExportBackup();
+var assetCountBeforeConflicts = assets.List().Count;
+foreach (var changedArtifact in new[]
+{
+    request.Entries[0].Media with { Payload = request.Entries[0].Media.Payload.Replace("{", "{ ") },
+    request.Entries[0].Media with { RequiresApproval = !request.Entries[0].Media.RequiresApproval },
+    request.Entries[0].Media with { CacheTtl = TimeSpan.FromMinutes(20) }
+})
+{
+    try
+    {
+        await bundles.RenderAsync(request with
+        {
+            Entries = request.Entries.Select((entry, index) => index == 0
+                ? entry with { Media = changedArtifact } : entry).ToArray()
+        });
+        throw new InvalidOperationException("Changed content or policy must conflict under the same artifact key.");
+    }
+    catch (MediaRenderJobConflictException conflict)
+    {
+        Assert(conflict.Code == "media-render-idempotency-conflict" &&
+            receipt.ArtifactReceipts.Any(row => row.JobId == conflict.ExistingJobId),
+            "Typed conflicts must identify the existing reserved artifact job.");
+    }
+}
+Assert(jobs.ExportBackup().EnqueueCount == beforeConflicts.EnqueueCount && assets.List().Count == assetCountBeforeConflicts,
+    "Conflicting requests must not dispatch or store another asset.");
+
+
 Console.WriteLine("campaign briefing bundle smoke ok");
 
 static CampaignBriefingBundleEntryRequest BuildEntry(
