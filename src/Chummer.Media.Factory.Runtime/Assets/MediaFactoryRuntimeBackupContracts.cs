@@ -61,7 +61,8 @@ public sealed record AssetLifecycleBackupAsset(
     bool IsPinned,
     DateTimeOffset? LastAccessedAtUtc,
     int CacheHitCount,
-    DateTimeOffset? ApprovedAtUtc);
+    DateTimeOffset? ApprovedAtUtc,
+    bool? ExplicitPersist = null);
 
 public sealed record MediaRenderJobBackupPackage(
     string ContractFamily,
@@ -83,4 +84,6 @@ public sealed record MediaRenderJobBackupRow(
     DateTimeOffset? CompletedAtUtc,
     string? AssetId,
     string? Error,
-    MediaRenderJobState State);
+    MediaRenderJobState State,
+    string? OwnerId = null,
+    bool? DispatchStarted = null);

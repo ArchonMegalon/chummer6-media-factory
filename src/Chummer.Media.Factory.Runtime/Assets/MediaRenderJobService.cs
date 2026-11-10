@@ -2,6 +2,8 @@ using Chummer.Media.Contracts;
 using Chummer.Run.Contracts.Observability;
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace Chummer.Run.AI.Services.Assets;
 
@@ -18,6 +20,11 @@ public interface IMediaRenderJobService
     void RestoreBackup(MediaRenderJobBackupPackage backup);
 }
 
+/// <summary>
+/// Instance-local job reservations. Hosts must share one instance per intake lane.
+/// This store has no cross-process uniqueness or crash-durable dispatch fence; it
+/// must not be used to claim multi-process exactly-once provider execution.
+/// </summary>
 public sealed class MediaRenderJobService : IMediaRenderJobService
 {
     private sealed class MediaRenderJobRow
@@ -25,6 +32,9 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         public required string JobId { get; init; }
         public required MediaRenderJobType JobType { get; init; }
         public required string DeduplicationKey { get; init; }
+        public string? OwnerId { get; init; }
+        public required string RequestFingerprint { get; init; }
+        public bool DispatchStarted { get; set; }
         public required string Category { get; init; }
         public required string Payload { get; init; }
         public required string Source { get; init; }
@@ -39,7 +49,11 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     }
 
     private readonly ConcurrentDictionary<string, MediaRenderJobRow> _jobs = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, string> _jobIdsByDeduplicationKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly record struct ReservationKey(string? OwnerId, string Key);
+
+    // Only accessed under _sync. A row reference is the reservation ownership token,
+    // including when a backup reuses a job ID while an old continuation is in flight.
+    private readonly Dictionary<ReservationKey, MediaRenderJobRow> _reservations = new();
     private readonly ConcurrentQueue<PipelineDeadLetterEntry> _deadLetters = new();
     private readonly IAssetLifecycleService _assetLifecycle;
     private readonly object _sync = new();
@@ -58,28 +72,44 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         cancellationToken.ThrowIfCancellationRequested();
         var normalizedRequest = Normalize(request);
 
-        if (TryGetReusableJob(normalizedRequest.DeduplicationKey, out var existing))
+        var policy = BuildPolicy(normalizedRequest);
+        var fingerprint = BuildRequestFingerprint(normalizedRequest.JobType, normalizedRequest.Category,
+            normalizedRequest.Payload, normalizedRequest.Source, policy);
+        MediaRenderJobRow row;
+        lock (_sync)
         {
-            Interlocked.Increment(ref _dedupeReuseCount);
-            return Task.FromResult(ToStatus(existing));
+            var key = BuildReservationKey(normalizedRequest.OwnerId, normalizedRequest.DeduplicationKey);
+            if (TryGetReusableJob(key, out var existing))
+            {
+                if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    EnqueueDeadLetter(existing.JobId, "deduplication-request-conflict", fingerprint);
+                    throw new MediaRenderJobConflictException(existing.JobId);
+                }
+
+                Interlocked.Increment(ref _dedupeReuseCount);
+                return Task.FromResult(ToStatus(existing));
+            }
+
+            row = new MediaRenderJobRow
+            {
+                JobId = $"job_{Guid.NewGuid():N}",
+                JobType = normalizedRequest.JobType,
+                DeduplicationKey = normalizedRequest.DeduplicationKey,
+                OwnerId = normalizedRequest.OwnerId,
+                RequestFingerprint = fingerprint,
+                Category = normalizedRequest.Category,
+                Payload = normalizedRequest.Payload,
+                Source = normalizedRequest.Source,
+                Policy = policy,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                State = MediaRenderJobState.Queued
+            };
+
+            _jobs[row.JobId] = row;
+            _reservations.Add(key, row);
+            Interlocked.Increment(ref _enqueueCount);
         }
-
-        var row = new MediaRenderJobRow
-        {
-            JobId = $"job_{Guid.NewGuid():N}",
-            JobType = normalizedRequest.JobType,
-            DeduplicationKey = normalizedRequest.DeduplicationKey,
-            Category = normalizedRequest.Category,
-            Payload = normalizedRequest.Payload,
-            Source = normalizedRequest.Source,
-            Policy = BuildPolicy(normalizedRequest),
-            CreatedAtUtc = DateTimeOffset.UtcNow,
-            State = MediaRenderJobState.Queued
-        };
-
-        _jobs[row.JobId] = row;
-        _jobIdsByDeduplicationKey[row.DeduplicationKey] = row.JobId;
-        Interlocked.Increment(ref _enqueueCount);
 
         _ = ProcessAsync(row);
 
@@ -109,53 +139,56 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
 
     public PipelineProjection GetMediaPipelineProjection()
     {
-        var queued = 0;
-        var running = 0;
-        var succeeded = 0;
-        var failed = 0;
-        var expired = 0;
-        foreach (var row in _jobs.Values)
+        lock (_sync)
         {
-            RefreshExpiry(row);
-            switch (row.State)
+            var queued = 0;
+            var running = 0;
+            var succeeded = 0;
+            var failed = 0;
+            var expired = 0;
+            foreach (var row in _jobs.Values)
             {
-                case MediaRenderJobState.Queued:
-                    queued++;
-                    break;
-                case MediaRenderJobState.Running:
-                    running++;
-                    break;
-                case MediaRenderJobState.Succeeded:
-                    succeeded++;
-                    break;
-                case MediaRenderJobState.Failed:
-                    failed++;
-                    break;
-                case MediaRenderJobState.Expired:
-                    expired++;
-                    break;
+                RefreshExpiry(row);
+                switch (row.State)
+                {
+                    case MediaRenderJobState.Queued:
+                        queued++;
+                        break;
+                    case MediaRenderJobState.Running:
+                        running++;
+                        break;
+                    case MediaRenderJobState.Succeeded:
+                        succeeded++;
+                        break;
+                    case MediaRenderJobState.Failed:
+                        failed++;
+                        break;
+                    case MediaRenderJobState.Expired:
+                        expired++;
+                        break;
+                }
             }
-        }
 
-        return new PipelineProjection(
-            Pipeline: "media",
-            Observability: new PipelineObservabilityProjection(
-                ProcessedCount: ToInt(_enqueueCount),
-                ActiveCount: queued + running,
-                SucceededCount: succeeded,
-                FailedCount: failed,
-                DuplicateCount: ToInt(_dedupeReuseCount),
-                IgnoredCount: expired),
-            Idempotency: new PipelineIdempotencyProjection(
-                TrackedKeys: _jobIdsByDeduplicationKey.Count,
-                ReplayCount: ToInt(_dedupeReuseCount),
-                LastReplayAtUtc: null),
-            Cost: new PipelineCostProjection(
-                EstimatedUsd: 0,
-                BudgetUnitsConsumed: 0),
+            return new PipelineProjection(
+                Pipeline: "media",
+                Observability: new PipelineObservabilityProjection(
+                    ProcessedCount: ToInt(_enqueueCount),
+                    ActiveCount: queued + running,
+                    SucceededCount: succeeded,
+                    FailedCount: failed,
+                    DuplicateCount: ToInt(_dedupeReuseCount),
+                    IgnoredCount: expired),
+                Idempotency: new PipelineIdempotencyProjection(
+                    TrackedKeys: _reservations.Count,
+                    ReplayCount: ToInt(_dedupeReuseCount),
+                    LastReplayAtUtc: null),
+                Cost: new PipelineCostProjection(
+                    EstimatedUsd: 0,
+                    BudgetUnitsConsumed: 0),
                 DeadLetter: new PipelineDeadLetterProjection(
                     Count: _deadLetters.Count,
                     Recent: _deadLetters.Take(25).ToArray()));
+        }
     }
 
     public MediaRenderJobBackupPackage ExportBackup()
@@ -179,7 +212,9 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                         CompletedAtUtc: row.CompletedAtUtc,
                         AssetId: row.AssetId,
                         Error: row.Error,
-                        State: row.State))
+                        State: row.State,
+                        OwnerId: row.OwnerId,
+                        DispatchStarted: row.DispatchStarted))
                     .ToArray(),
                 EnqueueCount: _enqueueCount,
                 DedupeReuseCount: _dedupeReuseCount,
@@ -197,12 +232,8 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
 
         lock (_sync)
         {
-            _jobs.Clear();
-            _jobIdsByDeduplicationKey.Clear();
-            while (_deadLetters.TryDequeue(out _))
-            {
-            }
-
+            var restoredJobs = new Dictionary<string, MediaRenderJobRow>(StringComparer.OrdinalIgnoreCase);
+            var restoredReservations = new Dictionary<ReservationKey, MediaRenderJobRow>();
             foreach (var job in backup.Jobs)
             {
                 var restored = new MediaRenderJobRow
@@ -210,6 +241,10 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                     JobId = job.JobId,
                     JobType = job.JobType,
                     DeduplicationKey = job.DeduplicationKey,
+                    OwnerId = NormalizeOwner(job.OwnerId),
+                    RequestFingerprint = BuildRequestFingerprint(job.JobType, job.Category, job.Payload, job.Source, job.Policy),
+                    // A legacy failed row cannot prove that no dispatch happened.
+                    DispatchStarted = job.DispatchStarted ?? job.State != MediaRenderJobState.Queued,
                     Category = job.Category,
                     Payload = job.Payload,
                     Source = job.Source,
@@ -222,12 +257,30 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                     Error = job.Error,
                     State = job.State
                 };
-                _jobs[restored.JobId] = restored;
-                RefreshExpiry(restored);
-                if (restored.State is not MediaRenderJobState.Failed and not MediaRenderJobState.Expired)
+                restoredJobs.Add(restored.JobId, restored);
+                if (restored.State != MediaRenderJobState.Expired &&
+                    (restored.State != MediaRenderJobState.Failed || restored.DispatchStarted))
                 {
-                    _jobIdsByDeduplicationKey[restored.DeduplicationKey] = restored.JobId;
+                    if (!restoredReservations.TryAdd(BuildReservationKey(restored.OwnerId, restored.DeduplicationKey), restored))
+                    {
+                        throw new InvalidOperationException("Backup contains duplicate active owner-scoped reservations.");
+                    }
                 }
+            }
+
+            // Validate all reservations before replacing live state.
+            _jobs.Clear();
+            _reservations.Clear();
+            foreach (var (id, row) in restoredJobs)
+            {
+                _jobs[id] = row;
+            }
+            foreach (var (key, row) in restoredReservations)
+            {
+                _reservations.Add(key, row);
+            }
+            while (_deadLetters.TryDequeue(out _))
+            {
             }
 
             foreach (var deadLetter in backup.DeadLetters)
@@ -246,7 +299,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         {
             lock (_sync)
             {
-                if (row.State != MediaRenderJobState.Queued)
+                if (row.State != MediaRenderJobState.Queued || !OwnsReservation(row))
                 {
                     return;
                 }
@@ -259,6 +312,17 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             if (row.Policy.MaxBytes > 0 && payloadBytes > row.Policy.MaxBytes)
             {
                 throw new InvalidOperationException($"Payload exceeds MaxBytes policy ({row.Policy.MaxBytes}).");
+            }
+
+            lock (_sync)
+            {
+                if (!OwnsReservation(row))
+                {
+                    return;
+                }
+                // Once dispatch begins, a thrown exception has an uncertain outcome.
+                // Keep its reservation so enqueue cannot automatically replay it.
+                row.DispatchStarted = true;
             }
 
             var asset = await _assetLifecycle.StoreAsync(
@@ -285,35 +349,30 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 row.State = MediaRenderJobState.Failed;
                 row.CompletedAtUtc = DateTimeOffset.UtcNow;
                 row.RestoredAtUtc = null;
+                EnqueueDeadLetter(row.JobId, exception.Message, row.RequestFingerprint);
+                if (!row.DispatchStarted)
+                {
+                    ReleaseReservation(row);
+                }
             }
-
-            _deadLetters.Enqueue(new PipelineDeadLetterEntry(
-                ItemId: row.JobId,
-                Reason: exception.Message,
-                OccurredAtUtc: DateTimeOffset.UtcNow,
-                Fingerprint: row.DeduplicationKey));
-            while (_deadLetters.Count > 200 && _deadLetters.TryDequeue(out _))
-            {
-            }
-
-            _jobIdsByDeduplicationKey.TryRemove(row.DeduplicationKey, out _);
         }
     }
 
-    private bool TryGetReusableJob(string deduplicationKey, out MediaRenderJobRow row)
+    // Caller holds _sync for the complete lookup/create/reserve operation.
+    private bool TryGetReusableJob(ReservationKey key, out MediaRenderJobRow row)
     {
-        row = null!;
-
-        if (!_jobIdsByDeduplicationKey.TryGetValue(deduplicationKey, out var jobId) ||
-            !_jobs.TryGetValue(jobId, out var existing))
+        if (!_reservations.TryGetValue(key, out var existing))
         {
+            row = null!;
             return false;
         }
 
         RefreshExpiry(existing);
-        if (existing.State is MediaRenderJobState.Failed or MediaRenderJobState.Expired)
+        if (existing.State == MediaRenderJobState.Expired ||
+            (existing.State == MediaRenderJobState.Failed && !existing.DispatchStarted))
         {
-            _jobIdsByDeduplicationKey.TryRemove(deduplicationKey, out _);
+            ReleaseReservation(existing);
+            row = null!;
             return false;
         }
 
@@ -321,28 +380,68 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         return true;
     }
 
+    private bool OwnsReservation(MediaRenderJobRow row) =>
+        _reservations.TryGetValue(BuildReservationKey(row.OwnerId, row.DeduplicationKey), out var owner)
+        && ReferenceEquals(owner, row);
+
+    private void ReleaseReservation(MediaRenderJobRow row)
+    {
+        if (OwnsReservation(row))
+        {
+            _reservations.Remove(BuildReservationKey(row.OwnerId, row.DeduplicationKey));
+        }
+    }
+
+    private void EnqueueDeadLetter(string jobId, string reason, string fingerprint)
+    {
+        _deadLetters.Enqueue(new PipelineDeadLetterEntry(jobId, reason, DateTimeOffset.UtcNow, fingerprint));
+        while (_deadLetters.Count > 200 && _deadLetters.TryDequeue(out _))
+        {
+        }
+    }
+
+    private static ReservationKey BuildReservationKey(string? ownerId, string key) =>
+        new(ownerId, key.Trim().ToUpperInvariant());
+
+    private static string? NormalizeOwner(string? ownerId)
+    {
+        if (ownerId is not null && string.IsNullOrWhiteSpace(ownerId))
+        {
+            throw new ArgumentException("OwnerId must be nonempty when supplied.", nameof(ownerId));
+        }
+        return ownerId?.Trim();
+    }
+
+    private static string BuildRequestFingerprint(MediaRenderJobType jobType, string category,
+        string payload, string source, AssetLifecyclePolicy policy) =>
+        Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Version = 1,
+            JobType = (int)jobType,
+            Category = category,
+            Payload = payload,
+            Source = source,
+            CacheTtlTicks = policy.CacheTtl.Ticks,
+            policy.LongTermCache,
+            policy.MaxBytes,
+            policy.RequiresApproval,
+            policy.PersistOnApproval,
+            StorageClass = (int)policy.StorageClass,
+            policy.AllowPersistentPinning
+        })));
+
     private void RefreshExpiry(MediaRenderJobRow row)
     {
-        var expiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
-        if (row.State != MediaRenderJobState.Succeeded ||
-            row.Policy.LongTermCache ||
-            row.Policy.CacheTtl <= TimeSpan.Zero ||
-            expiryAnchorUtc is not { } ||
-            expiryAnchorUtc + row.Policy.CacheTtl > DateTimeOffset.UtcNow)
-        {
-            return;
-        }
-
         lock (_sync)
         {
-            var refreshedExpiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
-            if (row.State == MediaRenderJobState.Succeeded &&
-                refreshedExpiryAnchorUtc is { } &&
-                refreshedExpiryAnchorUtc + row.Policy.CacheTtl <= DateTimeOffset.UtcNow)
+            var expiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
+            if (row.State == MediaRenderJobState.Succeeded && !row.Policy.LongTermCache &&
+                row.Policy.CacheTtl > TimeSpan.Zero && expiryAnchorUtc is { } &&
+                expiryAnchorUtc + row.Policy.CacheTtl <= DateTimeOffset.UtcNow)
             {
                 row.State = MediaRenderJobState.Expired;
                 row.RestoredAtUtc = null;
-                _jobIdsByDeduplicationKey.TryRemove(row.DeduplicationKey, out _);
+                ReleaseReservation(row);
             }
         }
     }
@@ -371,6 +470,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
 
         return request with
         {
+            OwnerId = NormalizeOwner(request.OwnerId),
             DeduplicationKey = request.DeduplicationKey.Trim(),
             Category = request.Category.Trim(),
             Payload = request.Payload.Trim(),
@@ -420,4 +520,12 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     }
 
     private static int ToInt(long value) => value > int.MaxValue ? int.MaxValue : (int)value;
+}
+
+/// <summary>A reserved owner/key cannot be reused for a different canonical render request.</summary>
+public sealed class MediaRenderJobConflictException(string existingJobId)
+    : InvalidOperationException("The deduplication key is already reserved for a different render request.")
+{
+    public string Code => "media-render-idempotency-conflict";
+    public string ExistingJobId { get; } = existingJobId;
 }

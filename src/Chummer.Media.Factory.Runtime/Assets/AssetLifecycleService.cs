@@ -36,6 +36,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
         public AssetApprovalState ApprovalState { get; set; }
         public AssetRetentionState RetentionState { get; set; }
         public bool IsPinned { get; set; }
+        public bool ExplicitPersist { get; set; }
         public DateTimeOffset? LastAccessedAtUtc { get; set; }
         public int CacheHitCount { get; set; }
         public DateTimeOffset? ApprovedAtUtc { get; set; }
@@ -185,30 +186,34 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                 return Task.FromResult<AssetCatalogItem?>(null);
             }
 
+            var proposedApproval = assetState.ApprovalState;
+            var proposedApprovedAtUtc = assetState.ApprovedAtUtc;
+            var proposedPin = assetState.IsPinned;
+            var proposedPersist = request.Persist ?? assetState.ExplicitPersist;
             if (request.ApprovalState is { } approvalState)
             {
                 switch (approvalState)
                 {
                     case AssetApprovalState.Approved:
-                        assetState.ApprovalState = AssetApprovalState.Approved;
-                        assetState.ApprovedAtUtc = DateTimeOffset.UtcNow;
+                        proposedApproval = AssetApprovalState.Approved;
+                        proposedApprovedAtUtc = DateTimeOffset.UtcNow;
                         break;
                     case AssetApprovalState.Rejected:
-                        assetState.ApprovalState = AssetApprovalState.Rejected;
-                        assetState.ApprovedAtUtc = null;
-                        assetState.IsPinned = false;
+                        proposedApproval = AssetApprovalState.Rejected;
+                        proposedApprovedAtUtc = null;
+                        proposedPin = false;
                         break;
                     default:
-                        assetState.ApprovalState = AssetApprovalState.Pending;
-                        assetState.ApprovedAtUtc = null;
-                        assetState.IsPinned = false;
+                        proposedApproval = AssetApprovalState.Pending;
+                        proposedApprovedAtUtc = null;
+                        proposedPin = false;
                         break;
                 }
             }
 
             if (request.Persist is true &&
                 assetState.Policy.RequiresApproval &&
-                assetState.ApprovalState != AssetApprovalState.Approved)
+                proposedApproval != AssetApprovalState.Approved)
             {
                 EnqueueDeadLetter(assetId, "approval-required-before-persist", BuildMutationFingerprint(assetId, request));
                 throw new InvalidOperationException("Asset must be approved before it can be persisted.");
@@ -222,24 +227,33 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                     throw new InvalidOperationException("Asset policy does not allow pinning.");
                 }
 
-                if (assetState.Policy.RequiresApproval && assetState.ApprovalState != AssetApprovalState.Approved)
+                if (assetState.Policy.RequiresApproval && proposedApproval != AssetApprovalState.Approved)
                 {
                     EnqueueDeadLetter(assetId, "approval-required-before-pinning", BuildMutationFingerprint(assetId, request));
                     throw new InvalidOperationException("Asset must be approved before it can be pinned.");
                 }
 
-                assetState.IsPinned = true;
+                proposedPin = true;
             }
             else if (request.Pin is false)
             {
-                assetState.IsPinned = false;
+                proposedPin = false;
             }
 
-            var explicitPersist = request.Persist ?? false;
-            assetState.RetentionState = DetermineRetentionState(assetState.Policy, assetState.ApprovalState, assetState.IsPinned, explicitPersist);
-            assetState.StorageClass = DetermineStorageClass(assetState.Policy, assetState.RetentionState);
-            assetState.StorageKey = BuildStorageKey(assetState.StorageClass, assetState.Category, assetState.AssetId, assetState.Version);
-            assetState.Url = BuildSignedAssetUrl(assetState.AssetId, assetState.Version);
+            var proposedRetention = DetermineRetentionState(assetState.Policy, proposedApproval, proposedPin, proposedPersist);
+            var proposedStorageClass = DetermineStorageClass(assetState.Policy, proposedRetention);
+            var proposedStorageKey = BuildStorageKey(proposedStorageClass, assetState.Category, assetState.AssetId, assetState.Version);
+            var proposedUrl = BuildSignedAssetUrl(assetState.AssetId, assetState.Version);
+
+            // Commit only after the entire proposed transition has passed validation.
+            assetState.ApprovalState = proposedApproval;
+            assetState.ApprovedAtUtc = proposedApprovedAtUtc;
+            assetState.IsPinned = proposedPin;
+            assetState.ExplicitPersist = proposedPersist;
+            assetState.RetentionState = proposedRetention;
+            assetState.StorageClass = proposedStorageClass;
+            assetState.StorageKey = proposedStorageKey;
+            assetState.Url = proposedUrl;
             Interlocked.Increment(ref _lifecycleMutations);
             TrackMutationReplay(assetId, request);
             return Task.FromResult<AssetCatalogItem?>(ToCatalogItem(assetState));
@@ -320,7 +334,8 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                         IsPinned: state.IsPinned,
                         LastAccessedAtUtc: state.LastAccessedAtUtc,
                         CacheHitCount: state.CacheHitCount,
-                        ApprovedAtUtc: state.ApprovedAtUtc))
+                        ApprovedAtUtc: state.ApprovedAtUtc,
+                        ExplicitPersist: state.ExplicitPersist))
                     .ToArray(),
                 StoreCount: _storeCount,
                 LifecycleMutations: _lifecycleMutations,
@@ -366,6 +381,8 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                     ApprovalState = asset.ApprovalState,
                     RetentionState = asset.RetentionState,
                     IsPinned = asset.IsPinned,
+                    ExplicitPersist = asset.ExplicitPersist ?? (asset.RetentionState == AssetRetentionState.Persisted
+                        && !asset.Policy.PersistOnApproval && !asset.Policy.LongTermCache),
                     LastAccessedAtUtc = asset.LastAccessedAtUtc,
                     CacheHitCount = asset.CacheHitCount,
                     ApprovedAtUtc = asset.ApprovedAtUtc
