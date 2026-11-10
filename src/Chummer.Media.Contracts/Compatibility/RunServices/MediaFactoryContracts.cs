@@ -65,6 +65,7 @@ public sealed record AssetRenderResult(
 public sealed record AssetLifecycleMutationRequest(
     AssetApprovalState? ApprovalState = null,
     bool? Pin = null,
+    // Null preserves manual persistence intent; false clears it without overriding policy.
     bool? Persist = null,
     string? Reason = null);
 
@@ -164,7 +165,10 @@ public sealed record MediaRenderJobEnqueueRequest(
     int MaxBytes = 0,
     bool RequiresApproval = false,
     bool PersistOnApproval = false,
-    bool AllowPersistentPinning = true);
+    bool AllowPersistentPinning = true,
+    // Supplied by trusted orchestration. Null is the legacy, single-owner namespace;
+    // it must not be used for shared multi-tenant intake. Owner IDs are case-sensitive.
+    string? OwnerId = null);
 
 public sealed record MediaRenderJobStatus(
     string JobId,

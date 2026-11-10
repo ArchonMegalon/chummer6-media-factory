@@ -105,6 +105,8 @@ var expiredJob = restoredJobs.Get(succeededJob.JobId);
 Assert(expiredJob is not null, "Expired render jobs must remain inspectable after restore.");
 Assert(expiredJob!.State == MediaRenderJobState.Expired, "Succeeded render jobs must transition to expired after TTL progression.");
 
+await LifecycleReservationRegression.RunAsync();
+
 Console.WriteLine("runtime verify ok");
 
 static async Task<MediaRenderJobStatus> WaitForSucceededJobAsync(IMediaRenderJobService jobs, string jobId)
