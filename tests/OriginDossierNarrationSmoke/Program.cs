@@ -244,6 +244,60 @@ Assert(
     providerReceiptsElement.GetArrayLength() == 2,
     "Origin dossier narration request-file receipt should embed both provider execution receipts.");
 
+// Caller attribution and request time may drift without changing the approved render.
+var beforeMetadataReplay = jobs.ExportBackup();
+var metadataReplay = await narration.RenderAsync(request with
+{
+    Source = "  origin-dossier-narration-other-surface  ",
+    RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
+});
+Assert(metadataReplay.RequestedAtUtc == request.RequestedAtUtc.AddHours(6),
+    "Metadata replay must retain the current request timestamp.");
+Assert(metadataReplay.Source == "origin-dossier-narration-other-surface" && metadataReplay.RenderedAtUtc == receipt.RenderedAtUtc,
+    "Outer receipt attribution may change while render completion time remains stable.");
+Assert(receipt.Artifacts.Select(row => (row.ReceiptId, row.JobId)).SequenceEqual(
+    metadataReplay.Artifacts.Select(row => (row.ReceiptId, row.JobId))),
+    "Metadata replay must reuse artifact receipt and job identities.");
+Assert(jobs.ExportBackup().EnqueueCount == beforeMetadataReplay.EnqueueCount,
+    "Metadata replay must not dispatch another render.");
+foreach (var artifact in receipt.Artifacts)
+{
+    var job = jobs.ExportBackup().Jobs.Single(row => row.JobId == artifact.JobId);
+    Assert(job.Source == job.DeduplicationKey && job.Source.StartsWith("origin-dossier-narration:", StringComparison.Ordinal),
+        "Job provenance must use the approved artifact scope.");
+    Assert(assets.Resolve(artifact.AssetId!)?.Source == job.Source,
+        "Stored asset provenance must match the reserved job scope.");
+}
+
+var beforeConflicts = jobs.ExportBackup();
+var assetCountBeforeConflicts = assets.List().Count;
+foreach (var changedArtifact in new[]
+{
+    request.Artifacts[0] with { Payload = request.Artifacts[0].Payload.Replace("{", "{ ") },
+    request.Artifacts[0] with { RequiresApproval = !request.Artifacts[0].RequiresApproval },
+    request.Artifacts[0] with { CacheTtl = TimeSpan.FromMinutes(20) }
+})
+{
+    try
+    {
+        await narration.RenderAsync(request with
+        {
+            Artifacts = request.Artifacts.Select((artifact, index) => index == 0
+                ? changedArtifact : artifact).ToArray()
+        });
+        throw new InvalidOperationException("Changed content or policy must conflict under the same artifact key.");
+    }
+    catch (MediaRenderJobConflictException conflict)
+    {
+        Assert(conflict.Code == "media-render-idempotency-conflict" &&
+            receipt.Artifacts.Any(row => row.JobId == conflict.ExistingJobId),
+            "Typed conflicts must identify the existing reserved artifact job.");
+    }
+}
+Assert(jobs.ExportBackup().EnqueueCount == beforeConflicts.EnqueueCount && assets.List().Count == assetCountBeforeConflicts,
+    "Conflicting requests must not dispatch or store another asset.");
+
+
 return;
 
 static OriginDossierNarrationRenderRequest CreateBaseRequest() =>

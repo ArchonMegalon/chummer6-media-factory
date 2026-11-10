@@ -132,13 +132,15 @@ public sealed class CampaignBriefingBundleService : ICampaignBriefingBundleServi
         CampaignBriefingBundleArtifactRequest artifact,
         CancellationToken cancellationToken)
     {
+        // Caller source is receipt attribution; job and asset provenance use the approved artifact scope.
+        var artifactSource = BuildScopedDeduplicationKey(request, entry, kind, artifact);
         var enqueued = await _jobs.EnqueueAsync(
             new MediaRenderJobEnqueueRequest(
                 JobType: ToJobType(entry.Slot, kind),
-                DeduplicationKey: BuildScopedDeduplicationKey(request, entry, kind, artifact),
+                DeduplicationKey: artifactSource,
                 Category: artifact.Category,
                 Payload: artifact.Payload,
-                Source: request.Source,
+                Source: artifactSource,
                 CacheTtl: artifact.CacheTtl,
                 MaxBytes: artifact.MaxBytes,
                 RequiresApproval: artifact.RequiresApproval,

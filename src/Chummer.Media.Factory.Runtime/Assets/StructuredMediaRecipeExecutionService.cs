@@ -31,13 +31,15 @@ public sealed class StructuredMediaRecipeExecutionService : IStructuredMediaReci
         foreach (var artifact in normalized.Artifacts)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Caller source is receipt attribution; job and asset provenance use the approved artifact scope.
+            var artifactSource = BuildScopedDeduplicationKey(normalized, artifact);
             var enqueued = await _jobs.EnqueueAsync(
                 new MediaRenderJobEnqueueRequest(
                     JobType: ToJobType(artifact.Role),
-                    DeduplicationKey: BuildScopedDeduplicationKey(normalized, artifact),
+                    DeduplicationKey: artifactSource,
                     Category: artifact.Category,
                     Payload: artifact.Payload,
-                    Source: normalized.Source,
+                    Source: artifactSource,
                     CacheTtl: artifact.CacheTtl,
                     MaxBytes: artifact.MaxBytes,
                     RequiresApproval: artifact.RequiresApproval,
