@@ -716,11 +716,25 @@ Assert(
                 row.JobId))),
     "Companion ready refs should stay stable when only top-level request whitespace changes.");
 
+var beforeMetadataReplay = jobs.ExportBackup();
 var metadataDrifted = await explain.RenderAsync(request with
 {
     Source = "build-explain-companion-smoke-replayed-from-another-surface",
     RequestedAtUtc = request.RequestedAtUtc.AddHours(6)
 });
+Assert(metadataDrifted.Source == "build-explain-companion-smoke-replayed-from-another-surface" &&
+    metadataDrifted.RequestedAtUtc == request.RequestedAtUtc.AddHours(6),
+    "Build explain outer receipts must retain the current caller attribution and request timestamp.");
+Assert(metadataDrifted.RenderedAtUtc == receipt.RenderedAtUtc &&
+    jobs.ExportBackup().EnqueueCount == beforeMetadataReplay.EnqueueCount,
+    "Build explain metadata replay must not dispatch again or rewrite render completion time.");
+foreach (var artifact in receipt.Artifacts)
+{
+    var job = jobs.ExportBackup().Jobs.Single(row => row.JobId == artifact.JobId);
+    Assert(job.Source == job.DeduplicationKey && job.Source.StartsWith("build-explain-companion:", StringComparison.Ordinal) &&
+        assets.Resolve(artifact.AssetId!)?.Source == job.Source,
+        "Build explain asset provenance must retain the scoped approved artifact identity rather than caller attribution.");
+}
 Assert(
     receipt.Artifacts.Select(static artifact => artifact.JobId).SequenceEqual(metadataDrifted.Artifacts.Select(static artifact => artifact.JobId)),
     "Build explain companion job ids should stay stable when only source and requested timestamps drift.");
@@ -753,6 +767,34 @@ Assert(
                 ReceiptIds: string.Join("|", group.ReceiptIds),
                 JobIds: string.Join("|", group.JobIds)))),
     "Role receipt groups should stay stable when only source and requested timestamps drift.");
+
+var beforeConflicts = jobs.ExportBackup();
+var assetCountBeforeConflicts = assets.List().Count;
+foreach (var changedArtifact in new[]
+{
+    request.Artifacts[0] with { Payload = request.Artifacts[0].Payload.Replace("\"artifact\":\"video\"", "\"artifact\":\"changed-video\"") },
+    request.Artifacts[0] with { RequiresApproval = true },
+    request.Artifacts[0] with { CacheTtl = TimeSpan.FromMinutes(20) }
+})
+{
+    try
+    {
+        await explain.RenderAsync(request with
+        {
+            Artifacts = request.Artifacts.Select(artifact =>
+                artifact.CompanionRef == changedArtifact.CompanionRef ? changedArtifact : artifact).ToArray()
+        });
+        throw new InvalidOperationException("Changed build explain payload or policy must conflict under the same artifact key.");
+    }
+    catch (MediaRenderJobConflictException conflict)
+    {
+        Assert(conflict.Code == "media-render-idempotency-conflict" &&
+            conflict.ExistingJobId == receipt.Artifacts.Single(artifact => artifact.CompanionRef == changedArtifact.CompanionRef).JobId,
+            "Build explain conflicts must identify the reserved artifact job.");
+    }
+}
+Assert(jobs.ExportBackup().EnqueueCount == beforeConflicts.EnqueueCount && assets.List().Count == assetCountBeforeConflicts,
+    "Conflicting build explain payloads and policies must not dispatch or store another asset.");
 
 Console.WriteLine("Build explain companion smoke passed.");
 

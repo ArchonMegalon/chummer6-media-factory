@@ -91,6 +91,12 @@ var metadataReplayed = await concierge.RenderAsync(request with
     Source = "install-aware-concierge-smoke-replayed",
     RequestedAtUtc = request.RequestedAtUtc.AddMinutes(45)
 });
+Assert(metadataReplayed.Source == "install-aware-concierge-smoke-replayed" &&
+    metadataReplayed.RequestedAtUtc == request.RequestedAtUtc.AddMinutes(45),
+    "Install-aware outer receipts must retain current caller attribution and request time.");
+Assert(receipt.Artifacts.All(artifact => assets.Resolve(artifact.AssetId!)?.Source ==
+    jobs.ExportBackup().Jobs.Single(job => job.JobId == artifact.JobId).DeduplicationKey),
+    "Install-aware asset provenance must retain the install/build and artifact scope.");
 Assert(
     receipt.Artifacts.Select(static artifact => artifact.JobId).SequenceEqual(metadataReplayed.Artifacts.Select(static artifact => artifact.JobId)),
     "Install-aware concierge source and requested timestamps should stay outside replay-safe dedupe.");
