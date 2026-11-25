@@ -172,17 +172,6 @@ class StructuredMediaRecipeExecutionTests(unittest.TestCase):
         for token in forbidden_tokens:
             self.assertNotIn(token, runtime)
 
-    def test_media_render_job_restore_reanchors_ttl_expiry(self):
-        runtime = read("src/Chummer.Media.Factory.Runtime/Assets/MediaRenderJobService.cs")
-
-        for token in (
-            "public void RestoreBackup(MediaRenderJobBackupPackage backup)",
-            "RestoredAtUtc = job.State == MediaRenderJobState.Succeeded ? DateTimeOffset.UtcNow : null",
-            "row.RestoredAtUtc ?? row.CompletedAtUtc",
-            "row.RestoredAtUtc = null;",
-        ):
-            self.assertIn(token, runtime)
-
 
 if __name__ == "__main__":
     unittest.main()

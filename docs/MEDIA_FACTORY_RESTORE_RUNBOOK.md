@@ -44,7 +44,12 @@ The verification runner must prove:
 - replay-safe render dedupe counts survive backup and restore
 - retention sweep still expires cache-only assets after restore
 - expired jobs remain inspectable and age out correctly after restore
+- repeated restores retain original asset expiry; pinned/persisted assets use their actual retention state
+- a missing asset reports `Failed` with `media-render-asset-recovery-required` and retains its deduplication reservation
+- restoring that original nonexpired asset recovers the same job without dispatch; confirmed expiry releases the key for an explicit new enqueue
 - the backup package still reports `media_factory_state_backup_v1`
+
+`RestoreReconciliationRegression` runs these cases with synthetic asset backups and an advancing local clock, including older reused assets, release of persistence/pins and uncertain-dispatch fences. It makes no provider calls and does not establish remote blob durability or production disaster-recovery acceptance.
 
 ## Restore acceptance
 
