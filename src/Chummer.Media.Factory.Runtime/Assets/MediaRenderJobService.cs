@@ -27,6 +27,11 @@ public interface IMediaRenderJobService
 /// </summary>
 public sealed class MediaRenderJobService : IMediaRenderJobService
 {
+    // Failed remains a terminal state for existing consumers. This specific error
+    // distinguishes asset recovery from an uncertain provider failure; neither may
+    // redispatch. Only recovering the original asset can clear this failure.
+    private const string AssetRecoveryRequired = "media-render-asset-recovery-required";
+
     private sealed class MediaRenderJobRow
     {
         public required string JobId { get; init; }
@@ -42,7 +47,6 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
         public required DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? StartedAtUtc { get; set; }
         public DateTimeOffset? CompletedAtUtc { get; set; }
-        public DateTimeOffset? RestoredAtUtc { get; set; }
         public string? AssetId { get; set; }
         public string? Error { get; set; }
         public MediaRenderJobState State { get; set; }
@@ -56,13 +60,19 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     private readonly Dictionary<ReservationKey, MediaRenderJobRow> _reservations = new();
     private readonly ConcurrentQueue<PipelineDeadLetterEntry> _deadLetters = new();
     private readonly IAssetLifecycleService _assetLifecycle;
+    private readonly TimeProvider _timeProvider;
     private readonly object _sync = new();
     private long _enqueueCount;
     private long _dedupeReuseCount;
 
-    public MediaRenderJobService(IAssetLifecycleService assetLifecycle)
+    public MediaRenderJobService(IAssetLifecycleService assetLifecycle) : this(assetLifecycle, TimeProvider.System)
+    {
+    }
+
+    public MediaRenderJobService(IAssetLifecycleService assetLifecycle, TimeProvider timeProvider)
     {
         _assetLifecycle = assetLifecycle;
+        _timeProvider = timeProvider;
     }
 
     public Task<MediaRenderJobStatus> EnqueueAsync(
@@ -102,7 +112,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 Payload = normalizedRequest.Payload,
                 Source = normalizedRequest.Source,
                 Policy = policy,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedAtUtc = _timeProvider.GetUtcNow(),
                 State = MediaRenderJobState.Queued
             };
 
@@ -123,18 +133,13 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             return null;
         }
 
-        RefreshExpiry(row);
         return ToStatus(row);
     }
 
     public IReadOnlyList<MediaRenderJobStatus> List() =>
         _jobs.Values
             .OrderByDescending(static row => row.CreatedAtUtc)
-            .Select(row =>
-            {
-                RefreshExpiry(row);
-                return ToStatus(row);
-            })
+            .Select(ToStatus)
             .ToArray();
 
     public PipelineProjection GetMediaPipelineProjection()
@@ -148,7 +153,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             var expired = 0;
             foreach (var row in _jobs.Values)
             {
-                RefreshExpiry(row);
+                ReconcileAsset(row);
                 switch (row.State)
                 {
                     case MediaRenderJobState.Queued:
@@ -195,6 +200,11 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     {
         lock (_sync)
         {
+            foreach (var row in _jobs.Values)
+            {
+                ReconcileAsset(row);
+            }
+
             return new MediaRenderJobBackupPackage(
                 ContractFamily: MediaFactoryRuntimeBackup.ContractFamily,
                 Jobs: _jobs.Values
@@ -244,7 +254,9 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                     OwnerId = NormalizeOwner(job.OwnerId),
                     RequestFingerprint = BuildRequestFingerprint(job.JobType, job.Category, job.Payload, job.Source, job.Policy),
                     // A legacy failed row cannot prove that no dispatch happened.
-                    DispatchStarted = job.DispatchStarted ?? job.State != MediaRenderJobState.Queued,
+                    DispatchStarted = job.State == MediaRenderJobState.Succeeded ||
+                        (job.State == MediaRenderJobState.Failed && job.Error == AssetRecoveryRequired) ||
+                        (job.DispatchStarted ?? job.State != MediaRenderJobState.Queued),
                     Category = job.Category,
                     Payload = job.Payload,
                     Source = job.Source,
@@ -252,7 +264,6 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                     CreatedAtUtc = job.CreatedAtUtc,
                     StartedAtUtc = job.StartedAtUtc,
                     CompletedAtUtc = job.CompletedAtUtc,
-                    RestoredAtUtc = job.State == MediaRenderJobState.Succeeded ? DateTimeOffset.UtcNow : null,
                     AssetId = job.AssetId,
                     Error = job.Error,
                     State = job.State
@@ -278,6 +289,10 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             foreach (var (key, row) in restoredReservations)
             {
                 _reservations.Add(key, row);
+            }
+            foreach (var row in restoredJobs.Values)
+            {
+                ReconcileAsset(row);
             }
             while (_deadLetters.TryDequeue(out _))
             {
@@ -305,7 +320,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 }
 
                 row.State = MediaRenderJobState.Running;
-                row.StartedAtUtc = DateTimeOffset.UtcNow;
+                row.StartedAtUtc = _timeProvider.GetUtcNow();
             }
 
             var payloadBytes = Encoding.UTF8.GetByteCount(row.Payload);
@@ -336,8 +351,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             {
                 row.AssetId = asset.AssetId;
                 row.State = MediaRenderJobState.Succeeded;
-                row.CompletedAtUtc = DateTimeOffset.UtcNow;
-                row.RestoredAtUtc = null;
+                row.CompletedAtUtc = _timeProvider.GetUtcNow();
                 row.Error = null;
             }
         }
@@ -347,8 +361,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             {
                 row.Error = exception.Message;
                 row.State = MediaRenderJobState.Failed;
-                row.CompletedAtUtc = DateTimeOffset.UtcNow;
-                row.RestoredAtUtc = null;
+                row.CompletedAtUtc = _timeProvider.GetUtcNow();
                 EnqueueDeadLetter(row.JobId, exception.Message, row.RequestFingerprint);
                 if (!row.DispatchStarted)
                 {
@@ -367,7 +380,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             return false;
         }
 
-        RefreshExpiry(existing);
+        ReconcileAsset(existing);
         if (existing.State == MediaRenderJobState.Expired ||
             (existing.State == MediaRenderJobState.Failed && !existing.DispatchStarted))
         {
@@ -394,7 +407,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
 
     private void EnqueueDeadLetter(string jobId, string reason, string fingerprint)
     {
-        _deadLetters.Enqueue(new PipelineDeadLetterEntry(jobId, reason, DateTimeOffset.UtcNow, fingerprint));
+        _deadLetters.Enqueue(new PipelineDeadLetterEntry(jobId, reason, _timeProvider.GetUtcNow(), fingerprint));
         while (_deadLetters.Count > 200 && _deadLetters.TryDequeue(out _))
         {
         }
@@ -430,20 +443,42 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
             policy.AllowPersistentPinning
         })));
 
-    private void RefreshExpiry(MediaRenderJobRow row)
+    // Caller holds _sync. The asset's original expiry and current retention are
+    // authoritative, including cache reuse, pinning and explicit persistence.
+    private AssetCatalogItem? ReconcileAsset(MediaRenderJobRow row)
     {
-        lock (_sync)
+        var asset = row.AssetId is null ? null : _assetLifecycle.Inspect(row.AssetId);
+        if (row.State != MediaRenderJobState.Succeeded &&
+            !(row.State == MediaRenderJobState.Failed && row.Error == AssetRecoveryRequired))
         {
-            var expiryAnchorUtc = row.RestoredAtUtc ?? row.CompletedAtUtc;
-            if (row.State == MediaRenderJobState.Succeeded && !row.Policy.LongTermCache &&
-                row.Policy.CacheTtl > TimeSpan.Zero && expiryAnchorUtc is { } &&
-                expiryAnchorUtc + row.Policy.CacheTtl <= DateTimeOffset.UtcNow)
-            {
-                row.State = MediaRenderJobState.Expired;
-                row.RestoredAtUtc = null;
-                ReleaseReservation(row);
-            }
+            return asset;
         }
+
+        // A recorded success proves dispatch, even if an older backup omitted or
+        // incorrectly cleared the flag. Missing bytes never prove a safe retry.
+        row.DispatchStarted = true;
+        if (asset is not null && (asset.RetentionState == AssetRetentionState.Expired ||
+            (asset.RetentionState is not (AssetRetentionState.Persisted or AssetRetentionState.Pinned) &&
+             asset.ExpiresAtUtc is { } expiresAtUtc && expiresAtUtc <= _timeProvider.GetUtcNow())))
+        {
+            row.State = MediaRenderJobState.Expired;
+            row.Error = null;
+            ReleaseReservation(row);
+        }
+        else if (asset is null || string.IsNullOrWhiteSpace(asset.Url) || string.IsNullOrWhiteSpace(asset.StorageKey))
+        {
+            // Keep the reservation across reads, replay and further backups. A
+            // later asset restore can reconcile this same job without paid work.
+            row.State = MediaRenderJobState.Failed;
+            row.Error = AssetRecoveryRequired;
+        }
+        else
+        {
+            row.State = MediaRenderJobState.Succeeded;
+            row.Error = null;
+        }
+
+        return asset;
     }
 
     private static MediaRenderJobEnqueueRequest Normalize(MediaRenderJobEnqueueRequest request)
@@ -501,7 +536,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
     {
         lock (_sync)
         {
-            var asset = row.AssetId is null ? null : _assetLifecycle.Resolve(row.AssetId);
+            var asset = ReconcileAsset(row);
             return new MediaRenderJobStatus(
                 JobId: row.JobId,
                 JobType: row.JobType,
@@ -510,7 +545,7 @@ public sealed class MediaRenderJobService : IMediaRenderJobService
                 StartedAtUtc: row.StartedAtUtc,
                 CompletedAtUtc: row.CompletedAtUtc,
                 AssetId: row.AssetId,
-                AssetUrl: asset?.Url,
+                AssetUrl: row.State == MediaRenderJobState.Succeeded ? asset?.Url : null,
                 CacheTtl: row.Policy.CacheTtl,
                 Error: row.Error,
                 ApprovalState: asset?.ApprovalState,

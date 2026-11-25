@@ -37,7 +37,7 @@ var cacheOnlyAsset = await assets.StoreAsync(
     content: "<html>preview</html>",
     source: "restore-drill",
     policy: new AssetLifecyclePolicy(
-        CacheTtl: TimeSpan.FromMilliseconds(80),
+        CacheTtl: TimeSpan.FromMinutes(5),
         LongTermCache: false,
         MaxBytes: 4096,
         RequiresApproval: false,
@@ -51,7 +51,7 @@ var firstJob = await jobs.EnqueueAsync(new MediaRenderJobEnqueueRequest(
     Category: "packet/preview",
     Payload: "<html>preview</html>",
     Source: "restore-drill",
-    CacheTtl: TimeSpan.FromMilliseconds(80),
+    CacheTtl: TimeSpan.FromMinutes(5),
     MaxBytes: 4096,
     RequiresApproval: false,
     PersistOnApproval: false,
@@ -64,7 +64,7 @@ var replayedJob = await jobs.EnqueueAsync(new MediaRenderJobEnqueueRequest(
     Category: "packet/preview",
     Payload: "<html>preview</html>",
     Source: "restore-drill",
-    CacheTtl: TimeSpan.FromMilliseconds(80),
+    CacheTtl: TimeSpan.FromMinutes(5),
     MaxBytes: 4096,
     RequiresApproval: false,
     PersistOnApproval: false,
@@ -100,12 +100,12 @@ var expiredSweep = restoredAssets.SweepExpired(DateTimeOffset.UtcNow.AddMinutes(
 Assert(expiredSweep.ExpiredAssetCount >= 1, "Retention sweep should expire cache-only entries after TTL.");
 Assert(restoredAssets.Resolve(cacheOnlyAsset.AssetId) is null, "Cache-only assets should be gone after expiry sweep.");
 
-await Task.Delay(160);
 var expiredJob = restoredJobs.Get(succeededJob.JobId);
 Assert(expiredJob is not null, "Expired render jobs must remain inspectable after restore.");
 Assert(expiredJob!.State == MediaRenderJobState.Expired, "Succeeded render jobs must transition to expired after TTL progression.");
 
 await LifecycleReservationRegression.RunAsync();
+await RestoreReconciliationRegression.RunAsync();
 
 Console.WriteLine("runtime verify ok");
 

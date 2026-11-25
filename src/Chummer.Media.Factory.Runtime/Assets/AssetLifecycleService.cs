@@ -10,6 +10,9 @@ public interface IAssetLifecycleService
 {
     Task<AssetRenderResult> StoreAsync(string category, string content, string? source = null, AssetLifecyclePolicy? policy = null, CancellationToken cancellationToken = default);
     AssetCatalogItem? Resolve(string assetId);
+    // Implementations may include expiry tombstones without serving them. Legacy
+    // implementations conservatively treat an unresolved asset as unavailable.
+    AssetCatalogItem? Inspect(string assetId) => Resolve(assetId);
     IReadOnlyList<AssetCatalogItem> List();
     Task<AssetCatalogItem?> ApplyLifecycleAsync(string assetId, AssetLifecycleMutationRequest request, CancellationToken cancellationToken = default);
     AssetLifecycleSweepResult SweepExpired(DateTimeOffset? utcNow = null);
@@ -46,12 +49,22 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
     private readonly ConcurrentDictionary<string, string> _assetIdsByCacheKey = new(StringComparer.Ordinal);
     private readonly ConcurrentQueue<PipelineDeadLetterEntry> _deadLetters = new();
     private readonly object _sync = new();
+    private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _defaultCacheTtl = TimeSpan.FromDays(30);
     private long _storeCount;
     private long _lifecycleMutations;
     private long _replayMutations;
     private DateTimeOffset? _lastReplayAtUtc;
     private readonly ConcurrentDictionary<string, byte> _mutationFingerprints = new(StringComparer.Ordinal);
+
+    public AssetLifecycleService() : this(TimeProvider.System)
+    {
+    }
+
+    public AssetLifecycleService(TimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider;
+    }
 
     public Task<AssetRenderResult> StoreAsync(
         string category,
@@ -82,11 +95,11 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
             if (TryGetReusableAsset(cacheKey, out var existing))
             {
                 existing.CacheHitCount++;
-                existing.LastAccessedAtUtc = DateTimeOffset.UtcNow;
+                existing.LastAccessedAtUtc = _timeProvider.GetUtcNow();
                 return Task.FromResult(ToRenderResult(existing, cacheReused: true));
             }
 
-            var createdAtUtc = DateTimeOffset.UtcNow;
+            var createdAtUtc = _timeProvider.GetUtcNow();
             var assetId = $"asset_{Guid.NewGuid():N}";
             var version = $"v1-{ComputeHash(content)[..12]}";
             var retentionState = DetermineRetentionState(
@@ -139,12 +152,12 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                 return null;
             }
 
-            if (ExpireIfNeeded(assetState, DateTimeOffset.UtcNow))
+            if (ExpireIfNeeded(assetState, _timeProvider.GetUtcNow()))
             {
                 return null;
             }
 
-            assetState.LastAccessedAtUtc = DateTimeOffset.UtcNow;
+            assetState.LastAccessedAtUtc = _timeProvider.GetUtcNow();
             assetState.CacheHitCount++;
             return ToCatalogItem(assetState);
         }
@@ -152,7 +165,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
 
     public IReadOnlyList<AssetCatalogItem> List()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         lock (_sync)
         {
             foreach (var assetState in _assets.Values)
@@ -165,6 +178,25 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                 .OrderByDescending(static state => state.CreatedAtUtc)
                 .Select(ToCatalogItem)
                 .ToList();
+        }
+    }
+
+    public AssetCatalogItem? Inspect(string assetId)
+    {
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            return null;
+        }
+
+        lock (_sync)
+        {
+            if (!_assets.TryGetValue(assetId, out var assetState))
+            {
+                return null;
+            }
+
+            ExpireIfNeeded(assetState, _timeProvider.GetUtcNow());
+            return ToCatalogItem(assetState);
         }
     }
 
@@ -181,7 +213,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
 
         lock (_sync)
         {
-            if (!_assets.TryGetValue(assetId, out var assetState) || ExpireIfNeeded(assetState, DateTimeOffset.UtcNow))
+            if (!_assets.TryGetValue(assetId, out var assetState) || ExpireIfNeeded(assetState, _timeProvider.GetUtcNow()))
             {
                 return Task.FromResult<AssetCatalogItem?>(null);
             }
@@ -196,7 +228,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                 {
                     case AssetApprovalState.Approved:
                         proposedApproval = AssetApprovalState.Approved;
-                        proposedApprovedAtUtc = DateTimeOffset.UtcNow;
+                        proposedApprovedAtUtc = _timeProvider.GetUtcNow();
                         break;
                     case AssetApprovalState.Rejected:
                         proposedApproval = AssetApprovalState.Rejected;
@@ -262,7 +294,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
 
     public AssetLifecycleSweepResult SweepExpired(DateTimeOffset? utcNow = null)
     {
-        var now = utcNow ?? DateTimeOffset.UtcNow;
+        var now = utcNow ?? _timeProvider.GetUtcNow();
         lock (_sync)
         {
             var expiredCount = 0;
@@ -388,7 +420,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
                     ApprovedAtUtc = asset.ApprovedAtUtc
                 };
                 _assets[restored.AssetId] = restored;
-                if (restored.RetentionState != AssetRetentionState.Expired)
+                if (!ExpireIfNeeded(restored, _timeProvider.GetUtcNow()))
                 {
                     _assetIdsByCacheKey[restored.CacheKey] = restored.AssetId;
                 }
@@ -420,7 +452,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
             return false;
         }
 
-        if (ExpireIfNeeded(existing, DateTimeOffset.UtcNow))
+        if (ExpireIfNeeded(existing, _timeProvider.GetUtcNow()))
         {
             return false;
         }
@@ -435,7 +467,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
         if (!_mutationFingerprints.TryAdd(fingerprint, 0))
         {
             Interlocked.Increment(ref _replayMutations);
-            _lastReplayAtUtc = DateTimeOffset.UtcNow;
+            _lastReplayAtUtc = _timeProvider.GetUtcNow();
         }
     }
 
@@ -447,7 +479,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
         _deadLetters.Enqueue(new PipelineDeadLetterEntry(
             ItemId: itemId,
             Reason: reason,
-            OccurredAtUtc: DateTimeOffset.UtcNow,
+            OccurredAtUtc: _timeProvider.GetUtcNow(),
             Fingerprint: fingerprint));
         while (_deadLetters.Count > 200 && _deadLetters.TryDequeue(out _))
         {
@@ -476,7 +508,8 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
 
         assetState.RetentionState = AssetRetentionState.Expired;
         assetState.IsPinned = false;
-        _assetIdsByCacheKey.TryRemove(assetState.CacheKey, out _);
+        // An older tombstone must not evict a newer asset using the same key.
+        _assetIdsByCacheKey.TryRemove(new KeyValuePair<string, string>(assetState.CacheKey, assetState.AssetId));
         return true;
     }
 
@@ -567,7 +600,7 @@ public sealed class AssetLifecycleService : IAssetLifecycleService
 
     private static DateTimeOffset? GetExpiresAtUtc(AssetState assetState)
     {
-        if (assetState.RetentionState is AssetRetentionState.Persisted or AssetRetentionState.Pinned or AssetRetentionState.Expired)
+        if (assetState.RetentionState is AssetRetentionState.Persisted or AssetRetentionState.Pinned)
         {
             return null;
         }
